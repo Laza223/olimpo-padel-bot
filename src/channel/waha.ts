@@ -2,8 +2,8 @@
 // Idea reutilizada de AXXEN (normalize.ts), sin zod: lo que no entiende es 'ignored', nunca tira.
 import { readFile } from 'node:fs/promises';
 import { basename, extname } from 'node:path';
-import { ChannelError, redactChatIds } from './types.ts';
-import type { Channel, HistoryMessage, InboundEvent, MediaKind } from './types.ts';
+import { ChannelError, MediaUnreadableError, redactChatIds } from './types.ts';
+import type { Channel, HistoryMessage, InboundEvent, MediaFile, MediaKind } from './types.ts';
 
 const ignored = (reason: string): InboundEvent => ({ kind: 'ignored', reason });
 const isObj = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null && !Array.isArray(x);
@@ -26,6 +26,30 @@ function mediaKind(type: string | undefined, hasMedia: boolean): MediaKind | und
   if (type && MEDIA_BY_TYPE[type]) return MEDIA_BY_TYPE[type];
   if (hasMedia || type === 'location' || type === 'vcard' || type === 'multi_vcard') return 'other';
   return undefined;
+}
+
+// Del `media.url` que manda WAHA se toma solo el path: nunca se baja de un host que venga en el mensaje (la bajada va a la WAHA_URL configurada).
+// Tiene que ser /api/files/… y sin ".." (ni escapado: `new URL` se comería los puntos, por eso se mira el texto crudo).
+export function safeMediaPath(url: unknown): string | undefined {
+  if (typeof url !== 'string' || url.length > 1000 || /\.\.|\\|%2e|%2f|%5c/i.test(url)) return undefined;
+  try {
+    const { pathname } = new URL(url, 'http://waha.invalid');
+    return pathname.startsWith('/api/files/') && pathname.length > '/api/files/'.length ? pathname : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+// WAHA: `media = { url, mimetype, filename, error }`. Sin `media` (o con `url` null) no bajó el archivo. SIN VERIFICAR con un número real (docs/waha-endpoints.md).
+function mediaFileOf(m: Record<string, unknown>): MediaFile {
+  const x = isObj(m.media) ? m.media : {};
+  const file: MediaFile = {};
+  const path = safeMediaPath(x.url);
+  if (path) file.path = path;
+  const mime = str(x.mimetype);
+  if (mime) file.mime = mime;
+  if (x.error) file.error = true;
+  return file;
 }
 
 // El texto de un mensaje. En una ubicación el body es una miniatura en base64, no texto: se ignora (llega como adjunto sin texto).
@@ -52,6 +76,7 @@ function parseMessage(session: string, m: unknown): InboundEvent {
   if (fromMe) return { kind: 'own_message', session, chatId, providerMsgId: id, tsUtcMs, text, source: m.source === 'api' ? 'api' : m.source === 'app' ? 'app' : 'unknown' };
   const ev: Extract<InboundEvent, { kind: 'message' }> = { kind: 'message', session, chatId, providerMsgId: id, tsUtcMs, text };
   if (media) ev.media = media;
+  if (media === 'audio') ev.mediaFile = mediaFileOf(m);
   const name = str(data.notifyName)?.trim();
   if (name) ev.profileName = name;
   return ev;
@@ -143,6 +168,7 @@ function httpError(status: number, body: string): ChannelError {
   return new ChannelError('uncertain', status, msg); // 5xx: pudo haber salido
 }
 
+const MAX_MEDIA_BYTES = 16 * 1024 * 1024; // un audio de WhatsApp pesa unos KB: más que esto no es un audio de cliente
 const MIME: Record<string, string> = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp', '.gif': 'image/gif' };
 
 export interface WahaOptions {
@@ -253,7 +279,11 @@ export class WahaChannel implements Channel {
       const id = str(m.id);
       const tsUtcMs = normalizeTsMs(m.timestamp);
       if (!id || tsUtcMs === undefined || tsUtcMs < sinceUtcMs) continue;
-      out.push({ providerMsgId: id, fromMe: m.fromMe === true, tsUtcMs, text: bodyOf(m) });
+      const h: HistoryMessage = { providerMsgId: id, fromMe: m.fromMe === true, tsUtcMs, text: bodyOf(m) };
+      const media = mediaKind(str(isObj(m._data) ? m._data.type : undefined), m.hasMedia === true);
+      if (media) h.media = media;
+      if (media === 'audio') h.mediaFile = mediaFileOf(m);
+      out.push(h);
     }
     return out.sort((a, b) => a.tsUtcMs - b.tsUtcMs);
   }
@@ -270,5 +300,37 @@ export class WahaChannel implements Channel {
       if (id && isDirectChat(id) && last !== undefined && last >= sinceUtcMs) out.push(id);
     }
     return out;
+  }
+
+  // Baja el archivo de un audio de la propia WAHA (`GET <WAHA_URL><path>` con la clave), con tope de tiempo y de 16 MB contados mientras baja.
+  // 404/410 (WAHA ya lo borró) o un path que no es de /api/files/ → MediaUnreadableError. Red, 5xx, 408, 429 o clave mala → error pasajero (se reintenta).
+  // Sin seguir redirecciones: la clave no puede salir a otro host.
+  async downloadMedia(path: string): Promise<Uint8Array> {
+    const safe = safeMediaPath(path);
+    if (!safe) throw new MediaUnreadableError('el archivo no está en /api/files/ de WAHA');
+    const transient = (what: string) => new ChannelError('transient', undefined, redactChatIds(`no pude bajar el audio de WAHA (${what})`));
+    try {
+      const res = await this.#fetch(`${this.#base}${safe}`, { headers: { 'X-Api-Key': this.#key }, redirect: 'error', signal: AbortSignal.timeout(this.#timeoutMs) });
+      const refuse = (e: Error): never => {
+        void res.body?.cancel().catch(() => undefined); // el cuerpo que no se lee se suelta
+        throw e;
+      };
+      if (res.status === 401 || res.status === 403) refuse(new ChannelError('auth', res.status, `WAHA rechazó la clave al bajar el audio (${res.status})`));
+      if (res.status === 404 || res.status === 410) refuse(new MediaUnreadableError('el archivo ya no está en WAHA (venció)'));
+      if (res.status >= 500 || res.status === 408 || res.status === 429) refuse(transient(`estado ${res.status}`));
+      if (!res.ok) refuse(new MediaUnreadableError(`WAHA respondió ${res.status} al bajar el archivo`));
+      if (Number(res.headers.get('content-length')) > MAX_MEDIA_BYTES) refuse(new MediaUnreadableError('el archivo pasa de 16 MB'));
+      const chunks: Uint8Array[] = [];
+      let total = 0;
+      for await (const chunk of res.body ?? []) {
+        total += chunk.length;
+        if (total > MAX_MEDIA_BYTES) throw new MediaUnreadableError('el archivo pasa de 16 MB'); // salir del for corta la bajada
+        chunks.push(chunk);
+      }
+      return Buffer.concat(chunks);
+    } catch (e) {
+      if (e instanceof MediaUnreadableError || e instanceof ChannelError) throw e;
+      throw transient(isObj(e) && typeof e.name === 'string' ? e.name : 'error de red');
+    }
   }
 }

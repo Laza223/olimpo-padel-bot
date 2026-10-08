@@ -229,15 +229,15 @@ test('ack: sent/delivered/read se anotan en la salida; failed la deja fallida co
   assert.doesNotMatch(h.notifier.alerts[0].text, /5491155550000/); // nunca el teléfono
 });
 
-test('adjunto sin texto: se guarda, no abre turno y avisa que el bot todavía no lo lee; con texto, se procesa con el texto', async () => {
+test('adjunto sin texto (foto, video…): se guarda, no abre turno y avisa que el bot no lo lee; con texto, se procesa con el texto', async () => {
   const h = makeHarness();
-  h.say(CHAT, '', { media: 'audio' });
+  h.say(CHAT, '', { media: 'image' });
   await h.clock.advance(10_000);
   assert.equal(h.llmCalls(), 0);
   assert.equal(h.texts().length, 0);
   assert.equal(h.notifier.alerts.length, 1);
-  assert.match(h.notifier.alerts[0].text, /#1.*audio.*F2b/);
-  assert.equal((h.db.prepare("SELECT media FROM messages WHERE chat_id = ?").get(CHAT) as { media: string }).media, 'audio');
+  assert.match(h.notifier.alerts[0].text, /#1.*imagen.*no lo lee/);
+  assert.equal((h.db.prepare("SELECT media FROM messages WHERE chat_id = ?").get(CHAT) as { media: string }).media, 'image');
   assert.equal(getConversation(h.db, CHAT)!.contextVersion, 0); // el adjunto sin texto no cambia lo que ve el modelo
   h.say(CHAT, 'Mirá esta foto del terreno', { media: 'image' }); // con leyenda: es un mensaje de texto más
   await h.clock.advance(10_000);

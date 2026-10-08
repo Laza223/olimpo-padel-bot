@@ -274,3 +274,31 @@
 - Clave de OpenAI en `.env` para las 4 verificaciones rápidas.
 - Telegram y healthchecks.
 - Número de prueba.
+
+## 2026-10-08 · Git y F2b (audios)
+
+- **Git:** primer commit `9bf41d2`, subido a https://github.com/Laza223/olimpo-padel-bot (rama `main`). El repo es **público** por decisión de Lazar: se le avisó que adentro van los costos internos de instalación y flete, el guion de venta y los resultados de las pruebas, y eligió "Subilo público igual". Antes de subir se revisó que no hubiera secretos: `.env` ignorado, y en las pruebas solo hay claves inventadas.
+- **F2b audios:** contrato del orquestador en `docs/F2b-audios-contrato.md`.
+  - Se transcribe en el worker, así hereda los topes, el kill switch y los reintentos.
+  - WAHA guarda solo los audios, durante 1 día.
+  - La bajada solo acepta el path `/api/files/` contra la `WAHA_URL` configurada, nunca un host que venga en el mensaje.
+  - El audio se convierte siempre con ffmpeg a mp3 y se transcribe con gpt-transcribe (USD 0,0045 por minuto).
+  - Si un audio no se puede leer, la primera vez se le pide texto al cliente con un texto fijo y la segunda el chat pasa al equipo.
+  - Los avisos de "sin saldo" pasan a nombrar al proveedor que falló.
+  - Sin probar contra la API real: no hay saldo de OpenAI.
+- **Decisiones del orquestador sobre los desvíos del implementador:**
+  - El texto va sin `¿` ("Perdón, no pude escuchar bien el audio. Me lo escribís por acá?"), por la regla de estilo de Lazar que aplica el controlador. Queda `a_confirmar` por Lazar.
+  - Se aceptan los +647 MB de ffmpeg de Debian: es disco, no plata, y un ffmpeg estático sería una descarga externa nueva.
+- **Decisiones del orquestador sobre el REQUIERE INPUT de la revisión #22.** Son decisiones técnicas o de producto; la única que es de Lazar es el texto:
+  - El pedido de texto, si es el primer mensaje del bot, va con el saludo y la presentación aprobados de la hora.
+  - La segunda vez que un audio es ilegible el chat pasa al equipo, aunque haya texto. La marca no se reinicia: es raro y el equipo lo resuelve.
+  - Un error de configuración en la transcripción, o 3 fallos pasajeros seguidos del mismo audio, dejan el audio como ilegible y se contesta el resto. El pedido de texto es verdad: no se pudo escuchar.
+  - Los rechazos sistemáticos avisan al equipo, como máximo uno por hora.
+  - Un audio recuperado de la historia sin url sigue entrando como ilegible.
+  - El texto "Perdón, no pude escuchar bien el audio. Me lo escribís por acá?" lo confirma Lazar antes de salir del modo sombra.
+
+| # | Finalidad | Resultado | Tokens aprox. |
+|---|---|---|---|
+| 21 | sonnet-implementer, F2b audios según `docs/F2b-audios-contrato.md` | 712/712: 66 pruebas nuevas, 4 con ffmpeg real, y 17 mutaciones muertas. Humo con Docker: la imagen con ffmpeg crece 647 MB en disco (175 MB comprimida), `/health` da 200, WAHA baja solo audios y la conversión real anda dentro del contenedor. **Corrección posterior del orquestador:** gpt-transcribe va con `languages` y `keywords`, porque la doc de OpenAI dice que `languages` reemplaza a `language`. OGG no está entre los formatos aceptados, así que ffmpeg se queda. Un 400 por un parámetro que no es el archivo es error de configuración, no audio ilegible. 712/712 | 65k |
+| 22 | sonnet-adversarial-reviewer, revisión única de F2b | APROBADO CON CAMBIOS, sin 🔴. Dejó 12 repros en `scratchpad\f2b-review\`. 🟡 H1: "ya se le pidió texto" se marcaba al encolar, así que un pedido cancelado igual derivaba el chat. 🟡 H2: una transcripción rota trababa el chat entero hasta 12 h. 🟡 H3: los rechazos sistemáticos no avisaban al equipo. 🟡 H4: el aviso de configuración de la transcripción se repetía cada vez que el cerebro contestaba bien. ⚪ H5 a H8: el tope no se revalidaba entre audios; el prefijo `(audio)` rompía la baja anclada; faltaban 2 pruebas (M4, M22); `max_audio_seconds` aceptaba 0; quedaban temporales tras un SIGKILL. Verificado sin problemas: SSRF, migración V3, topes en el código, carreras y doble cobro | 289k |
+| 23 | sonnet-implementer, ronda de arreglos de F2b (H1–H8 + saludo en el pedido de texto) | 742/742, 30 pruebas nuevas. "Ya se pidió" ahora se mide sobre el eco del bot en `messages`, y la columna salió de V3. **Verificación del orquestador** sin otra revisión: `pnpm verify` 742/742; los repros del revisor 1, 2, 3 y 8 pasan; repro9 y repro10 adaptados (su modelo guionado saludaba siempre) muestran el pedido con saludo, la respuesta siguiente sin mensaje seguro y el texto contestado con la transcripción mal configurada. Queda abierto: una falla pasajera de WAHA al bajar el audio, o ffmpeg ausente, se sigue reintentando sin límite (el contador de 3 es solo para la transcripción) | 297k |

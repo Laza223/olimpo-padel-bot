@@ -279,7 +279,7 @@ test('6. r8: Telegram colgado en un aviso de adjunto → el ingest sigue a los 5
   h.notifier.alert = hang;
   h.say('A@c.us', 'Hola');
   await h.clock.advance(10_000);
-  h.say('B@c.us', '', { media: 'audio' }); // el aviso del adjunto se cuelga
+  h.say('B@c.us', '', { media: 'image' }); // el aviso del adjunto se cuelga (un audio ya no avisa: se transcribe)
   await h.clock.advance(1000);
   h.say('C@c.us', 'Hola');
   await h.clock.advance(0);

@@ -14,6 +14,11 @@ services:
       WHATSAPP_SWAGGER_USERNAME: admin
       WHATSAPP_SWAGGER_PASSWORD: ${WAHA_API_KEY}
       WAHA_PRINT_QR: "False" # que el QR no quede escrito en los logs
+      # Audios del cliente: WAHA baja solo los audios (ni fotos ni videos llenan el disco) y los guarda un día, para que el archivo
+      # siga ahí durante las esperas y los reintentos del bot (reply_window_hours es 12). Un archivo que ya venció, el bot lo trata como audio ilegible.
+      WHATSAPP_FILES_LIFETIME: "86400"
+      WAHA_EVENTS_DOWNLOAD_MEDIA_MIMETYPES: audio
+      WAHA_API_DOWNLOAD_MEDIA_MIMETYPES: audio
     shm_size: "1gb" # memoria compartida para el Chromium de WEBJS
     volumes:
       - ./waha-sessions:/app/.sessions # la sesión de WhatsApp: si se borra, hay que escanear el QR de nuevo

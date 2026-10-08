@@ -120,8 +120,15 @@ ALTER TABLE conversations ADD COLUMN pause_reason TEXT; -- 'budget' (gasto del d
 ALTER TABLE conversations ADD COLUMN paused_utc INTEGER;
 `;
 
+// Audios del cliente (F2b): dónde bajar el archivo, qué es y si ya se transcribió.
+const SCHEMA_V3 = `
+ALTER TABLE messages ADD COLUMN media_url TEXT;  -- solo el path de WAHA (/api/files/...), nunca un host
+ALTER TABLE messages ADD COLUMN media_mime TEXT;
+ALTER TABLE messages ADD COLUMN transcript_status TEXT CHECK (transcript_status IN ('pendiente','ok','ilegible')); -- NULL = no es un audio del cliente
+`;
+
 // Una entrada por versión del esquema: se corren las que faltan (PRAGMA user_version). Idempotente.
-const MIGRATIONS = [SCHEMA_V1, SCHEMA_V2];
+export const MIGRATIONS = [SCHEMA_V1, SCHEMA_V2, SCHEMA_V3];
 
 export function migrate(db: Db): void {
   const current = (db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version;
@@ -247,20 +254,30 @@ export interface MessageRow {
   media: string | null;
   edited: boolean;
   revoked: boolean;
+  mediaUrl: string | null; // audio del cliente: el path de WAHA donde bajarlo
+  mediaMime: string | null;
+  transcriptStatus: TranscriptStatus | null;
 }
-interface MessageDbRow { id: number; session: string; provider_msg_id: string; chat_id: string; author: Author; text: string; ts_utc: number; media: string | null; edited: number; revoked: number }
+// Un audio del cliente nace 'pendiente' (se transcribe en el turno), y termina 'ok' (text = "(audio) …") o 'ilegible' (text = "(audio que no se pudo escuchar)").
+export type TranscriptStatus = 'pendiente' | 'ok' | 'ilegible';
+interface MessageDbRow {
+  id: number; session: string; provider_msg_id: string; chat_id: string; author: Author; text: string; ts_utc: number; media: string | null; edited: number; revoked: number;
+  media_url: string | null; media_mime: string | null; transcript_status: TranscriptStatus | null;
+}
 const toMessage = (r: MessageDbRow): MessageRow => ({
   id: r.id, session: r.session, providerMsgId: r.provider_msg_id, chatId: r.chat_id, author: r.author, text: r.text, tsUtcMs: r.ts_utc,
-  media: r.media, edited: !!r.edited, revoked: !!r.revoked,
+  media: r.media, edited: !!r.edited, revoked: !!r.revoked, mediaUrl: r.media_url, mediaMime: r.media_mime, transcriptStatus: r.transcript_status,
 });
 
 // Un NUL en el texto corta el valor al guardarlo en SQLite (se perdería el resto del mensaje): se saca antes de guardar.
 const noNul = (text: string): string => text.replaceAll('\0', '');
 
 // Un mismo (sesión, id del proveedor) se guarda una sola vez: el segundo intento devuelve inserted=false.
-export function insertMessage(db: Db, m: { session: string; providerMsgId: string; chatId: string; author: Author; text: string; tsUtcMs: number; media?: string }): { id: number; inserted: boolean } {
-  const r = run(db, 'INSERT INTO messages (session, provider_msg_id, chat_id, author, text, ts_utc, media) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT (session, provider_msg_id) DO NOTHING',
-    m.session, m.providerMsgId, m.chatId, m.author, noNul(m.text), m.tsUtcMs, m.media ?? null);
+export function insertMessage(db: Db, m: {
+  session: string; providerMsgId: string; chatId: string; author: Author; text: string; tsUtcMs: number; media?: string; mediaUrl?: string; mediaMime?: string; transcriptStatus?: TranscriptStatus;
+}): { id: number; inserted: boolean } {
+  const r = run(db, 'INSERT INTO messages (session, provider_msg_id, chat_id, author, text, ts_utc, media, media_url, media_mime, transcript_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (session, provider_msg_id) DO NOTHING',
+    m.session, m.providerMsgId, m.chatId, m.author, noNul(m.text), m.tsUtcMs, m.media ?? null, m.mediaUrl ?? null, m.mediaMime ?? null, m.transcriptStatus ?? null);
   if (r.changes > 0) return { id: Number(r.lastInsertRowid), inserted: true };
   return { id: findMessage(db, m.session, m.providerMsgId)!.id, inserted: false };
 }
@@ -281,6 +298,15 @@ export const getMessage = (db: Db, id: number): MessageRow | undefined => {
 };
 export const editMessage = (db: Db, id: number, text: string): void => void run(db, 'UPDATE messages SET text = ?, edited = 1 WHERE id = ?', noNul(text), id);
 export const revokeMessage = (db: Db, id: number): void => void run(db, 'UPDATE messages SET revoked = 1 WHERE id = ?', id);
+// El audio ya se transcribió (o quedó ilegible): el texto pasa a ser el que ve el modelo. No sube la versión del contexto: es el mismo mensaje (ya la subió al llegar).
+export const setTranscript = (db: Db, id: number, text: string, status: 'ok' | 'ilegible'): void =>
+  void run(db, "UPDATE messages SET text = ?, transcript_status = ? WHERE id = ? AND transcript_status = 'pendiente'", noNul(text), status, id);
+
+// ¿El bot ya le dijo algo al cliente (un mensaje suyo con texto, registrado al salir o por el eco)? Con `text`: ¿alguno de sus mensajes lo contiene?
+export const botSaid = (db: Db, chatId: string, text?: string): boolean =>
+  !!(text === undefined
+    ? one(db, "SELECT 1 AS x FROM messages WHERE chat_id = ? AND author = 'bot' AND text <> '' LIMIT 1", chatId)
+    : one(db, "SELECT 1 AS x FROM messages WHERE chat_id = ? AND author = 'bot' AND instr(text, ?) > 0 LIMIT 1", chatId, text));
 
 // Lo que ve el modelo: los últimos `limit` mensajes con texto y sin borrar, en orden de llegada, con id "m<id>".
 export function historyFor(db: Db, chatId: string, limit = 30): ChatMessage[] {
@@ -288,10 +314,11 @@ export function historyFor(db: Db, chatId: string, limit = 30): ChatMessage[] {
   return rows.reverse().map((r) => ({ id: `m${r.id}`, author: r.author, text: r.text, tsUtcMs: r.ts_utc }));
 }
 
-// Mensajes del cliente sin contestar: con texto, sin borrar y posteriores a lo último contestado (por el bot o por el equipo).
+// Mensajes del cliente sin contestar: con texto (o un audio todavía sin transcribir), sin borrar y posteriores a lo último contestado (por el bot o por el equipo).
+// Un audio pendiente no se le muestra al modelo (historyFor lo saltea: no tiene texto): el worker lo transcribe antes de armar el turno.
 export function unansweredMessages(db: Db, chatId: string): MessageRow[] {
   return all<MessageDbRow>(db, `SELECT * FROM messages
-    WHERE chat_id = ? AND author = 'customer' AND revoked = 0 AND text <> ''
+    WHERE chat_id = ? AND author = 'customer' AND revoked = 0 AND (text <> '' OR transcript_status = 'pendiente')
       AND id > MAX((SELECT answered_upto FROM conversations WHERE chat_id = ?), COALESCE((SELECT MAX(id) FROM messages WHERE chat_id = ? AND author = 'team'), 0))
     ORDER BY id`, chatId, chatId, chatId).map(toMessage);
 }

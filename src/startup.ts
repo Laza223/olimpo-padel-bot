@@ -1,6 +1,7 @@
 // Reconciliación al prender (y cuando la sesión vuelve después de una caída): qué pasó mientras el bot no estaba mirando.
 // Guarda lo que llegó (sin duplicar), respeta lo que escribió el equipo, contesta solo lo reciente (reply_window_hours) y nunca suelta una ráfaga atrasada:
 // la salida (outbox) queda cerrada hasta que esto termina, y lo pendiente que quedó viejo se cancela o vence.
+import { UNREADABLE_AUDIO_TEXT } from './audio.ts';
 import type { Channel } from './channel/types.ts';
 import type { Clock } from './clock.ts';
 import {
@@ -103,7 +104,17 @@ export function createRecovery(deps: RecoveryDeps): Recovery {
           continue;
         }
         const hasText = m.text.trim() !== '';
-        insertMessage(db, { session: sessionOf, providerMsgId: m.providerMsgId, chatId, author: 'customer', text: m.text, tsUtcMs: m.tsUtcMs, media: hasText ? undefined : 'other' });
+        if (!hasText && m.media === 'audio') {
+          // Un audio que se recupera de la historia de WAHA: con archivo para bajar entra pendiente (se transcribe en el turno); sin archivo, ilegible.
+          const readable = !!m.mediaFile?.path && !m.mediaFile.error;
+          insertMessage(db, {
+            session: sessionOf, providerMsgId: m.providerMsgId, chatId, author: 'customer', text: readable ? '' : UNREADABLE_AUDIO_TEXT, tsUtcMs: m.tsUtcMs, media: 'audio',
+            mediaUrl: m.mediaFile?.path, mediaMime: m.mediaFile?.mime, transcriptStatus: readable ? 'pendiente' : 'ilegible',
+          });
+          customerText++; // contenido nuevo para el modelo
+          continue;
+        }
+        insertMessage(db, { session: sessionOf, providerMsgId: m.providerMsgId, chatId, author: 'customer', text: m.text, tsUtcMs: m.tsUtcMs, media: hasText ? undefined : (m.media ?? 'other') });
         if (hasText) customerText++;
         else customerMedia++;
       }
@@ -154,7 +165,7 @@ export function createRecovery(deps: RecoveryDeps): Recovery {
     if (stale.length) lines.push(`- Consultas de hace más de ${windowH} h que ya no se contestan solas: ${stale.join(', ')}. Miralas vos.`);
     if (report.takeovers.length) lines.push(`- El equipo escribió mientras el bot estaba apagado: ${report.takeovers.map((c) => chatLabel(db, c)).join(', ')} pasó a humano.`);
     if (report.priorUnanswered.length) lines.push(`- Consulta previa sin contestar en ${report.priorUnanswered.map((c) => chatLabel(db, c)).join(', ')}: chats que ya tenían historia con el equipo y el último mensaje es del cliente. Contestalos vos.`);
-    if (report.mediaOnly.length) lines.push(`- Mandaron algo sin texto (audio, foto…) que el bot no lee: ${report.mediaOnly.map((c) => chatLabel(db, c)).join(', ')}.`);
+    if (report.mediaOnly.length) lines.push(`- Mandaron algo sin texto (foto, video…) que el bot no lee: ${report.mediaOnly.map((c) => chatLabel(db, c)).join(', ')}.`);
     if (lines.length) await alert(['Revisé lo que pasó mientras el bot estaba apagado:', ...lines].join('\n'));
 
     if (failed.length) throw new Error(`no pude revisar ${failed.length} chat(s) de ${chats.length}`);

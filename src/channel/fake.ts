@@ -1,7 +1,7 @@
 // Canal falso para pruebas (sin red ni WhatsApp). Guarda lo que "manda" y tiene un historial propio para conciliar envíos inciertos.
 // Los eventos entrantes se arman como `{ id, inbound: <InboundEvent> }`: parseEvent los devuelve tal cual.
 import type { Channel, HistoryMessage, InboundEvent } from './types.ts';
-import { ChannelError } from './types.ts';
+import { ChannelError, MediaUnreadableError } from './types.ts';
 
 export interface SentMessage {
   chatId: string;
@@ -22,6 +22,8 @@ export class FakeChannel implements Channel {
   messagesSinceError?: ChannelError;
   messagesSinceCalls = 0;
   history = new Map<string, HistoryMessage[]>(); // lo que WAHA tiene guardado de cada chat
+  files = new Map<string, Uint8Array | Error>(); // los archivos de WAHA por path; un Error es lo que tira la bajada de ese archivo; sin entrada: ya venció
+  downloads: string[] = []; // paths que se pidieron bajar
   #now: () => number;
   #n = 0;
   #failures: { error: ChannelError; delivered: boolean }[] = [];
@@ -88,5 +90,12 @@ export class FakeChannel implements Channel {
   }
   async chatsActiveSince(sinceUtcMs: number): Promise<string[]> {
     return [...this.history.entries()].filter(([, ms]) => ms.some((m) => m.tsUtcMs >= sinceUtcMs)).map(([chatId]) => chatId);
+  }
+  async downloadMedia(path: string): Promise<Uint8Array> {
+    this.downloads.push(path);
+    const f = this.files.get(path);
+    if (f instanceof Error) throw f;
+    if (!f) throw new MediaUnreadableError('el archivo ya no está en WAHA (venció)');
+    return f;
   }
 }

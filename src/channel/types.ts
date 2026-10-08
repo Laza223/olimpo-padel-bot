@@ -1,8 +1,15 @@
 // El canal de WhatsApp visto desde el negocio: operaciones propias, no endpoints de WAHA (esos viven en channel/waha.ts).
 export type MediaKind = 'audio' | 'image' | 'video' | 'document' | 'sticker' | 'other';
 
+// El archivo de un adjunto de audio. `path` ya lo validó el canal (solo se baja del propio WAHA, nunca de un host que venga en el mensaje); sin `path` no hay nada que bajar.
+export interface MediaFile {
+  path?: string;
+  mime?: string;
+  error?: boolean; // WAHA avisó que no pudo bajar el archivo
+}
+
 export type InboundEvent =
-  | { kind: 'message'; session: string; chatId: string; providerMsgId: string; tsUtcMs: number; text: string; media?: MediaKind; profileName?: string }
+  | { kind: 'message'; session: string; chatId: string; providerMsgId: string; tsUtcMs: number; text: string; media?: MediaKind; mediaFile?: MediaFile; profileName?: string }
   | { kind: 'own_message'; session: string; chatId: string; providerMsgId: string; tsUtcMs: number; text: string; source: 'api' | 'app' | 'unknown' } // fromMe
   | { kind: 'edit'; session: string; chatId: string; providerMsgId: string; text: string }
   | { kind: 'revoke'; session: string; chatId: string; providerMsgId: string }
@@ -24,6 +31,19 @@ export class ChannelError extends Error {
   }
 }
 
+// Un archivo que no se va a poder leer nunca (vencido en WAHA, demasiado grande, ruta no permitida): no se reintenta, el audio queda ilegible.
+// Cualquier otro error al bajar (red, 5xx, clave) es pasajero y se reintenta con espera.
+// `kind` marca lo que hace sospechar de la instalación o de OpenAI y no del audio (ffmpeg que falla, rechazo de OpenAI, transcripción mal configurada o que no responde): esos avisan al equipo.
+export type UnreadableKind = 'ffmpeg' | 'rechazo' | 'config' | 'no_responde';
+export class MediaUnreadableError extends Error {
+  kind?: UnreadableKind;
+  constructor(message: string, kind?: UnreadableKind) {
+    super(message);
+    this.name = 'MediaUnreadableError';
+    this.kind = kind;
+  }
+}
+
 // El texto de un error de WAHA puede traer el chatId (teléfono): antes de que llegue a un aviso o a la auditoría se tapa el número.
 export const redactChatIds = (text: string): string => text.replace(/\d{8,}@(c\.us|lid)/g, '***@$1');
 
@@ -32,6 +52,8 @@ export interface HistoryMessage {
   fromMe: boolean;
   tsUtcMs: number;
   text: string;
+  media?: MediaKind; // el cliente mandó un adjunto (solo se mira en los mensajes entrantes sin texto)
+  mediaFile?: MediaFile; // y, si es un audio, dónde bajarlo
 }
 
 export interface Channel {
@@ -43,4 +65,5 @@ export interface Channel {
   sessionStatus(): Promise<string>; // WORKING | SCAN_QR_CODE | STARTING | FAILED | STOPPED
   messagesSince(chatId: string, sinceUtcMs: number, limit: number): Promise<HistoryMessage[]>;
   chatsActiveSince(sinceUtcMs: number): Promise<string[]>; // para reconciliar al prender
+  downloadMedia(path: string): Promise<Uint8Array>; // el archivo de un audio (el `path` de MediaFile); MediaUnreadableError si ya no se puede leer, cualquier otro error es pasajero
 }

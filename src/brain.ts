@@ -84,6 +84,8 @@ Sos el asistente virtual de WhatsApp de Olimpo Padel, una empresa que fabrica e 
 
 En cada turno recibís el historial de la conversación (cada mensaje con su id, por ejemplo [m3]), un bloque <contexto> con la hora, la ficha actual y lo que falta, y los ids de los mensajes nuevos del cliente. Respondés con un único JSON con el formato de la sección SALIDA.
 
+Un mensaje del cliente que empieza con "(audio)" es un audio pasado a texto automáticamente y puede tener errores: contestalo como si lo hubieras escuchado, sin decir que se transcribió ni citarlo textual, y si algo no se entiende preguntá solo eso puntual.
+
 # REGLAS DURAS
 Qué decir
 1. Respondé primero lo que preguntó el cliente y después buscá el dato que falta, con una sola pregunta enfocada y concreta al final del último globo.
@@ -213,6 +215,7 @@ export class LlmOutputError extends Error {
 export class TransientLlmError extends Error {
   kind: 'network' | 'rate' | 'quota' | 'config';
   attempts: AttemptLog[] = []; // lo que ya se gastó en intentos anteriores del mismo turno (lo carga runTurn): no se pierde del presupuesto
+  transcribing = false; // vino de la transcripción de un audio (siempre OpenAI), no del cerebro: el worker lo marca para nombrar bien al proveedor
   constructor(kind: 'network' | 'rate' | 'quota' | 'config', message: string) {
     super(message);
     this.name = 'TransientLlmError';
@@ -221,7 +224,8 @@ export class TransientLlmError extends Error {
 }
 
 // Clasifica un error del SDK: lo pasajero y los errores de configuración se convierten en TransientLlmError; el resto (400…) se relanza tal cual.
-function asTransient(e: unknown): TransientLlmError | undefined {
+// También lo usa la transcripción de audios (src/audio.ts).
+export function asTransient(e: unknown): TransientLlmError | undefined {
   if (e instanceof OpenAI.APIConnectionError) return new TransientLlmError('network', e.message); // incluye el timeout
   if (!(e instanceof OpenAI.APIError)) return undefined;
   if (e.status === 429) return new TransientLlmError(e.code === 'insufficient_quota' || e.type === 'insufficient_quota' ? 'quota' : 'rate', e.message);

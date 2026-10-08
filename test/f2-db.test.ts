@@ -22,7 +22,7 @@ test('esquema: las 8 tablas del contrato, y migrar de nuevo no rompe ni borra na
   migrate(db);
   migrate(db);
   assert.ok(getConversation(db, 'c1@c.us'));
-  assert.equal((db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version, 2);
+  assert.equal((db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version, 3);
 });
 
 test('archivo: modo WAL y busy_timeout de 5000', () => {
@@ -45,7 +45,7 @@ test('settings: los defaults del contrato, validación y claves desconocidas', (
     { ...SETTING_DEFAULTS },
     {
       kill_switch: '0', shadow_mode: '1', burst_quiet_ms: '2000', burst_max_ms: '8000', reply_window_hours: '12', daily_budget_usd: '2', conv_budget_usd: '0.25',
-      max_new_chats_per_day: '30', bot_start_utc: '', outbox_expiry_min: '30', typing_ms: '2500',
+      max_new_chats_per_day: '30', bot_start_utc: '', outbox_expiry_min: '30', typing_ms: '2500', max_audio_seconds: '600',
     },
   );
   assert.equal(getFlag(db, 'shadow_mode'), true);

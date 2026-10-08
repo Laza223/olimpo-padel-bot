@@ -24,6 +24,7 @@ const REASONS: Record<HandoffReason, string> = {
   baja: 'Pidió que no le escribamos más',
   no_es_cliente: 'No es cliente',
   falla_del_bot: 'Falla del bot: el cliente no recibió respuesta real',
+  audio_ilegible: 'Mandó un audio que no se pudo escuchar (ya se le había pedido que escriba)',
 };
 
 const AUTHOR = { customer: 'cliente', bot: 'olimpo', team: 'equipo', system: 'sistema' } as const;

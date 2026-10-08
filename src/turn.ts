@@ -1,5 +1,6 @@
 // Un turno completo: llama al modelo, lo controla (supervise + chequeos de turno), reintenta una vez y,
 // si vuelve a fallar, manda el mensaje seguro. La ficha y las derivaciones las decide el código.
+import { AUDIO_PREFIX } from './audio.ts';
 import type { AttemptLog, BrainConfig, HandoffDecision, LeadCard, LeadState, LlmClient, ModelTurn, TurnInput, TurnResult } from './types.ts';
 import { HEIGHT_TOPIC, supervise } from './supervisor/index.ts';
 import { customerMentionsElite, fold, words } from './supervisor/normalize.ts';
@@ -102,8 +103,10 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
   const stopped = (card: LeadCard, bubbles: string[], handoffs: HandoffDecision[]): TurnResult =>
     ({ bubbles, material: [], card, handoffs, stopBot: true, usedFallback: false, attempts: [] });
   if (TERMINAL.includes(input.card.state)) return stopped(structuredClone(input.card), [], []);
-  const newText = input.history.filter((m) => m.author === 'customer' && input.newCustomerMessageIds.includes(m.id)).map((m) => m.text).join('\n');
-  const foldedNew = fold(newText);
+  const newMessages = input.history.filter((m) => m.author === 'customer' && input.newCustomerMessageIds.includes(m.id)).map((m) => m.text);
+  const newText = newMessages.join('\n');
+  // El prefijo "(audio) " no es parte de lo que dijo el cliente: se saca antes de las regex y del tope de largo (si no, "^baja$" no corta por audio).
+  const foldedNew = fold(newMessages.map((t) => (t.startsWith(AUDIO_PREFIX) ? t.slice(AUDIO_PREFIX.length) : t)).join('\n'));
   if (foldedNew.length <= OPT_OUT_MAX_CHARS && OPT_OUT.test(foldedNew) && !OPT_OUT_VETO.test(foldedNew)) {
     const handoffs: HandoffDecision[] = [{ reason: 'baja', priority: 'baja', mode: 'stop' }];
     return stopped(finish(input.card, { ...structuredClone(input.card), state: 'baja' }, handoffs), [OPT_OUT_TEXT], handoffs);

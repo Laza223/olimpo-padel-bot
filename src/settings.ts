@@ -14,6 +14,7 @@ export const SETTING_DEFAULTS = {
   bot_start_utc: '', // vacío = todavía no arrancó; se fija en el primer arranque
   outbox_expiry_min: '30',
   typing_ms: '2500', // por globo, con tope
+  max_audio_seconds: '600', // un audio más largo que esto no se transcribe: se trata como ilegible
 } as const;
 
 export type SettingKey = keyof typeof SETTING_DEFAULTS;
@@ -21,6 +22,7 @@ export const SETTING_KEYS = Object.keys(SETTING_DEFAULTS) as SettingKey[];
 export const isSettingKey = (key: string): key is SettingKey => Object.hasOwn(SETTING_DEFAULTS, key);
 
 const FLAGS: SettingKey[] = ['kill_switch', 'shadow_mode'];
+const MIN_AUDIO_SECONDS = 10;
 
 const read = (db: Db, key: string): string | undefined => (db.prepare('SELECT value FROM settings WHERE key = ?').get(key) as { value: string } | undefined)?.value;
 const write = (db: Db, key: string, value: string): void =>
@@ -41,6 +43,7 @@ export function setSetting(db: Db, key: string, value: string): void {
   if (!FLAGS.includes(key) && !(key === 'bot_start_utc' && value === '') && !(value.trim() !== '' && Number.isFinite(Number(value)) && Number(value) >= 0)) {
     throw new Error(`${key} tiene que ser un número desde 0`);
   }
+  if (key === 'max_audio_seconds' && Number(value) < MIN_AUDIO_SECONDS) throw new Error(`max_audio_seconds tiene que ser ${MIN_AUDIO_SECONDS} o más (un tope menor deja ilegible casi cualquier audio)`);
   write(db, key, value);
 }
 

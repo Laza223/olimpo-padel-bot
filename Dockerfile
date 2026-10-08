@@ -3,6 +3,10 @@ FROM node:24-slim
 ENV NODE_ENV=production
 WORKDIR /app
 
+# ffmpeg (con ffprobe): pasa los audios del cliente a mp3 antes de transcribirlos.
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
 # Solo las dependencias de producción (openai, yaml), con las versiones exactas del lockfile.
 RUN npm install -g pnpm@12.4.2 --no-fund --no-audit
 COPY package.json pnpm-lock.yaml ./

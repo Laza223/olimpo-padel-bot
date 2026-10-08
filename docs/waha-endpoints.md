@@ -61,6 +61,25 @@ Con la sesión fuera de `WORKING`, todos devuelven **422** `{"error":"Session st
 - Chats: el Swagger no declara la forma de la respuesta. **SIN VERIFICAR**: el adaptador usa `GET /chats/overview` y lee `id` y `lastMessage.timestamp`, y si algo no tiene la forma esperada lo descarta (la reconciliación al prender es de la parte B).
 - Con sesión no `WORKING`, estos también devuelven 422 **(comprobado)**.
 
+## Audios del cliente (F2b)
+
+El bot baja el audio de WAHA, lo convierte con ffmpeg y lo transcribe con OpenAI (`gpt-transcribe`). Lo que sigue sale de los docs de WAHA ("Receive messages", "Configuration") y del código de la imagen fija `devlikeapro/waha:latest-2026.9.2` (leído el 8-oct-2026 con el contenedor descartable, sin número vinculado). Lo que solo se vería con un número real queda marcado **SIN VERIFICAR**.
+
+- **`payload.media`** de un `message.any` con adjunto: `{ url, mimetype, filename, error? }`. El código de la imagen (`MediaManager`) arma `{ url: null, filename, mimetype }` y, si algo falla, le suma `error` (el objeto del error). `url` queda en `null` si WAHA no bajó el archivo: porque el tipo no entra en el filtro de abajo, o porque la bajada falló. **(comprobado en el código de la imagen)** La forma exacta que llega en WEBJS con un audio real **SIN VERIFICAR**: el bot toma `media.url`, `media.mimetype` y si `media.error` es verdadero, y lo que falte lo trata como audio ilegible.
+- **La `url`** es `<WAHA_BASE_URL>/api/files/<id del mensaje>.<extensión>`, por ejemplo `http://localhost:3000/api/files/false_<chatId>_<ID>.oga` **(comprobado: ejemplo del Swagger y `MediaLocalStorage`)**. `WAHA_BASE_URL` sin definir arma el host con el nombre del contenedor, que no es la `WAHA_URL` del bot (`http://waha:3000`).
+  - **Por eso el bot ignora el host del mensaje.** De la `url` toma solo el *pathname*, que tiene que empezar con `/api/files/` y no tener `..` (tampoco escapado ni con barra invertida). Lo guarda así en la base (`messages.media_url`) y pide el archivo a la `WAHA_URL` configurada. Un host ajeno en el mensaje no se contacta nunca.
+  - Un path que no es de `/api/files/` o con `..` se trata como si WAHA no hubiera mandado archivo: audio ilegible, sin pedir nada.
+- **Bajada:** `GET <WAHA_URL><pathname>` con `X-Api-Key`, sin seguir redirecciones (la clave no sale a otro host), timeout de 30 s y corte a los 16 MB contados mientras baja. 404 o 410 (WAHA ya lo borró) y cualquier otro 4xx salvo 401, 403, 408 y 429: audio ilegible. 401 o 403: error de clave (avisa y reintenta). Red, 5xx, 408 y 429: pasajero (avisa y reintenta con espera). El `mimetype` del mensaje tiene que empezar con `audio/`; si no, ilegible sin bajar nada.
+- **Qué baja WAHA y por cuánto tiempo** (variables del servicio `waha` en `docker-compose.yml`):
+
+| Variable | Valor | Para qué |
+|---|---|---|
+| `WAHA_EVENTS_DOWNLOAD_MEDIA_MIMETYPES` | `audio` | Qué adjuntos baja antes de mandar el webhook. Filtra por prefijo del `mimetype` (`mimetype.startsWith(...)`) **(comprobado)**: `audio` entra `audio/ogg; codecs=opus`. Fotos, videos y documentos llegan con `url: null`. |
+| `WAHA_API_DOWNLOAD_MEDIA_MIMETYPES` | `audio` | Lo mismo para las respuestas de la API (por ejemplo la historia de un chat al reconciliar). |
+| `WHATSAPP_FILES_LIFETIME` | `86400` | Segundos que WAHA guarda los archivos (default 180 **(comprobado)**). Un día, para que el archivo siga ahí mientras el bot espera o reintenta (`reply_window_hours` es 12). Los archivos viven en `/tmp/whatsapp-files` del contenedor, sin volumen: si WAHA se recrea, se pierden y esos audios quedan ilegibles. |
+
+- **Historia:** `GET /api/{session}/chats/{chatId}/messages` devuelve los mismos `WAMessage`; con el filtro de arriba, un audio de la historia trae su `media.url`. Al prender, el bot lo recupera como pendiente si trae url y como ilegible si no. **SIN VERIFICAR** que WEBJS devuelva `media` en esa lista.
+
 ## Webhooks
 
 Cada POST trae:
@@ -102,6 +121,7 @@ Ese `session.status` es real **(comprobado)**. `id` es un ULID del evento (`evt_
 | `source` | `api` (lo mandó el bot por WAHA) o `app` (celular, Web). Solo en `fromMe: true` |
 | `body` | texto. Vacío en medios sin texto |
 | `hasMedia` | hay adjunto |
+| `media` | `{ url, mimetype, filename, error? }`; ver "Audios del cliente (F2b)" |
 | `ack`, `ackName` | -1 a 4 |
 | `_data` | objeto crudo del motor. **SIN VERIFICAR** su forma: del código de AXXEN y de whatsapp-web.js, `_data.type` es `chat`, `image`, `ptt`/`audio`, `video`, `document`, `sticker`, `location`, `vcard`, `multi_vcard` o tipos de sistema (`e2e_notification`, `notification`, `notification_template`, `gp2`, `protocol`, `revoked`, `ciphertext`, `call_log`, `broadcast_notification`), y `_data.notifyName` es el nombre de perfil |
 

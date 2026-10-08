@@ -82,7 +82,8 @@ export type HandoffReason =
   | 'fuera_de_politica'
   | 'baja'
   | 'no_es_cliente'
-  | 'falla_del_bot';
+  | 'falla_del_bot'
+  | 'audio_ilegible'; // un audio que no se pudo escuchar, por 2.ª vez en la conversación: la decide el código (el modelo no la pide)
 export type Priority = 'alta' | 'normal' | 'baja';
 
 // Qué hace el código con una derivación: "stop" = el bot deja de responder ese chat; "flag" = avisa y sigue.

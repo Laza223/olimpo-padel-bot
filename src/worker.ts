@@ -1,16 +1,22 @@
 // Worker: ráfagas por chat, filtros antes de gastar, el turno (runTurn) con versión de contexto, aplicar la ficha y las derivaciones.
 // Un turno por chat a la vez; 4 llamadas a OpenAI en total. Un error pasajero de OpenAI se reintenta con espera y nunca manda el mensaje seguro.
+// Los audios del cliente se transcriben acá, dentro del turno: heredan el kill switch, el modo, los topes de gasto, el semáforo y los reintentos.
+import { UNREADABLE_AUDIO_TEXT, audioText, transcribeCostUsd } from './audio.ts';
+import type { AudioDeps } from './audio.ts';
 import { TransientLlmError } from './brain.ts';
-import type { Channel } from './channel/types.ts';
+import { MediaUnreadableError } from './channel/types.ts';
+import type { Channel, UnreadableKind } from './channel/types.ts';
 import type { Clock } from './clock.ts';
 import {
-  addSpend, advanceAnswered, audit, chatLabel, countAdmittedSince, createDraft, draftHasVersion, getConversation, historyFor, insertAgentRun, listConversations, listPausedForDay, markAdmitted,
-  outboxHasVersion, pauseConversation, saveCard, setMode, spentSince, tx, unansweredMessages,
+  addSpend, advanceAnswered, audit, botSaid, chatLabel, countAdmittedSince, createDraft, draftHasVersion, getConversation, getMessage, historyFor, insertAgentRun, listConversations, listPausedForDay, markAdmitted,
+  outboxHasVersion, pauseConversation, saveCard, setMode, setTranscript, spentSince, tx, unansweredMessages,
 } from './db.ts';
-import type { Conversation, Db, PauseReason } from './db.ts';
+import type { Conversation, Db, MessageRow, PauseReason } from './db.ts';
+import { isClaudeModel } from './llm.ts';
 import { safeNotify, sendAlert } from './notify/alert.ts';
 import type { Notifier } from './notify/types.ts';
 import { enqueueReply } from './outbox.ts';
+import { openingText } from './policy.ts';
 import type { Policy } from './policy.ts';
 import { getFlag, getNum, getState, setState } from './settings.ts';
 import { argentinaTimeToUtcMs } from './time.ts';
@@ -21,6 +27,14 @@ const RETRY_MS = [30_000, 120_000, 300_000, 900_000]; // 30 s, 2 min, 5 min, 15 
 const WAIT_ALERT_MS = 10 * 60_000; // una conversación esperando más que esto avisa una vez
 const HISTORY_LIMIT = 30;
 const MAX_CONCURRENT_LLM = 4;
+const MAX_AUDIO_FAILURES = 3; // fallos pasajeros seguidos al transcribir un mismo audio que se reintentan; el 4.º lo da por ilegible
+const UNREADABLE_ALERT_MS = 3_600_000; // aviso por audios ilegibles por causas del sistema: uno por hora, como mucho
+const UNREADABLE_WHY: Record<UnreadableKind, string> = {
+  ffmpeg: 'falló ffmpeg al convertirlo',
+  rechazo: 'OpenAI no aceptó el archivo',
+  config: 'la transcripción está mal configurada: clave o modelo de OpenAI',
+  no_responde: 'OpenAI falló varias veces seguidas al transcribirlo',
+};
 
 export interface WorkerDeps {
   db: Db;
@@ -28,6 +42,7 @@ export interface WorkerDeps {
   llm: LlmClient;
   policy: Policy;
   config: BrainConfig;
+  audio: AudioDeps; // conversor y transcriptor de los audios del cliente
   notifier: Notifier;
   clock: Clock;
   kickOutbox: () => void; // hay respuestas nuevas para mandar
@@ -72,12 +87,12 @@ class Semaphore {
 }
 
 export function createWorker(deps: WorkerDeps): Worker {
-  const { db, channel, llm, policy, config, notifier, clock } = deps;
+  const { db, channel, llm, policy, config, audio, notifier, clock } = deps;
   const states = new Map<string, ChatState>();
   const inflight = new Set<Promise<void>>();
   const llmSlots = new Semaphore(deps.maxConcurrentLlm ?? MAX_CONCURRENT_LLM);
-  let quotaAlerted = false; // el aviso de "sin saldo" sale una vez por caída
-  let configAlerted = false; // y el de "clave o modelo rechazados" también
+  const alerted = new Set<string>(); // "sin saldo" y "clave o modelo rechazados" salen una vez por caída, por proveedor y por lado: el cerebro (quota:OpenAI) o la transcripción (config:OpenAI:audio)
+  const audioFailures = new Map<number, number>(); // fallos pasajeros seguidos de la transcripción, por id de mensaje (en memoria: si el bot se reinicia, se vuelve a contar)
   let stopped = false;
   let dayTimer: unknown; // las 00:00 de Argentina: vuelven los chats pausados por un tope del día
 
@@ -168,23 +183,49 @@ export function createWorker(deps: WorkerDeps): Worker {
     }, WAIT_ALERT_MS);
   }
 
+  // Quién falló, para nombrarlo en los avisos: la transcripción es siempre OpenAI; el cerebro depende del modelo (claude-… es Anthropic).
+  function provider(transcribing: boolean): { name: string; keyVar: string; modelVar: string } {
+    if (transcribing) return { name: 'OpenAI', keyVar: 'OPENAI_API_KEY', modelVar: 'BOT_TRANSCRIBE_MODEL' };
+    return isClaudeModel(config.model) ? { name: 'Anthropic', keyVar: 'ANTHROPIC_API_KEY', modelVar: 'BOT_MODEL' } : { name: 'OpenAI', keyVar: 'OPENAI_API_KEY', modelVar: 'BOT_MODEL' };
+  }
+  // El cerebro y la transcripción avisan por separado (aunque sean el mismo proveedor): que conteste uno no rearma el aviso del otro.
+  const alertKey = (kind: 'quota' | 'config', transcribing: boolean): string => `${kind}:${provider(transcribing).name}${transcribing ? ':audio' : ''}`;
+  // Ese lado contestó: si vuelve a fallar, avisa de nuevo.
+  const answered = (transcribing: boolean): void => void (alerted.delete(alertKey('quota', transcribing)), alerted.delete(alertKey('config', transcribing)));
+  const runBase = (chatId: string) => ({ chatId, tsUtc: clock.now(), model: config.model, effort: config.effort, policyHash: policy.hash, inputTokens: 0, cachedTokens: 0, outputTokens: 0, costUsd: 0, latencyMs: 0, violations: [], usedFallback: false });
+
+  // Un error de OpenAI o Anthropic que no es falla del bot (red, límite, sin saldo, clave o modelo): queda en agent_runs y avisa una vez por caída (urgente si es sin saldo o configuración).
+  async function noteTransient(chatId: string, e: TransientLlmError): Promise<void> {
+    const who = provider(e.transcribing);
+    recordRuns(chatId, e.attempts, false, 'descartado'); // intentos anteriores del turno (ya gastaron): al presupuesto
+    insertAgentRun(db, { ...runBase(chatId), ...(e.transcribing ? { model: audio.transcriber.model, effort: 'n/a' } : {}), errorKind: `transient:${e.kind}` });
+    if (e.kind === 'quota' && !alerted.has(alertKey('quota', e.transcribing))) {
+      alerted.add(alertKey('quota', e.transcribing));
+      await alert(`${who.name} sin saldo: el bot no contesta hasta que se cargue (es la cuenta de ${who.keyVar})`, { urgent: true, chatId });
+    }
+    if (e.kind === 'config' && !alerted.has(alertKey('config', e.transcribing))) {
+      alerted.add(alertKey('config', e.transcribing));
+      await alert(`${who.name} rechazó la clave o el modelo (revisá ${who.keyVar} y ${who.modelVar} en el .env): el bot no contesta hasta que se arregle`, { urgent: true, chatId });
+    }
+  }
+
+  // Audios que quedan ilegibles por algo del sistema y no del audio (ffmpeg, rechazo de OpenAI, transcripción mal configurada o que no responde): aviso no urgente, uno por hora en total.
+  async function alertUnreadable(chatId: string, kind: UnreadableKind): Promise<void> {
+    const now = clock.now();
+    if (now - Number(getState(db, 'audio_unreadable_alert_utc') ?? 0) < UNREADABLE_ALERT_MS) return;
+    setState(db, 'audio_unreadable_alert_utc', String(now));
+    await alert(`Chat ${chatLabel(db, chatId)}: un audio del cliente quedó sin leer (${UNREADABLE_WHY[kind]}). Si se repite, hay que mirar los audios.`, { chatId });
+  }
+
   async function onFailure(chatId: string, s: ChatState, e: unknown): Promise<void> {
     const now = clock.now();
-    const base = { chatId, tsUtc: now, model: config.model, effort: config.effort, policyHash: policy.hash, inputTokens: 0, cachedTokens: 0, outputTokens: 0, costUsd: 0, latencyMs: 0, violations: [], usedFallback: false };
     if (e instanceof TransientLlmError) {
-      recordRuns(chatId, e.attempts, false, 'descartado'); // intentos anteriores del turno (ya gastaron): al presupuesto
-      insertAgentRun(db, { ...base, errorKind: `transient:${e.kind}` });
-      if (e.kind === 'quota' && !quotaAlerted) {
-        quotaAlerted = true;
-        await alert('OpenAI sin saldo: el bot no contesta hasta que se cargue', { urgent: true, chatId });
-      }
-      if (e.kind === 'config' && !configAlerted) {
-        configAlerted = true;
-        await alert('OpenAI rechazó la clave o el modelo (revisá OPENAI_API_KEY y BOT_MODEL en el .env): el bot no contesta hasta que se arregle', { urgent: true, chatId });
-      }
-      scheduleRetry(chatId, s, e.kind === 'config' ? 'OpenAI rechazó la clave o el modelo' : 'OpenAI no responde');
+      await noteTransient(chatId, e);
+      const who = provider(e.transcribing);
+      scheduleRetry(chatId, s, e.kind === 'config' ? `${who.name} rechazó la clave o el modelo` : `${who.name} no responde`);
       return;
     }
+    const base = runBase(chatId);
     const msg = e instanceof Error ? e.message : String(e);
     audit(db, now, chatId, 'error', `turno: ${msg}`);
     insertAgentRun(db, { ...base, errorKind: 'error' });
@@ -269,10 +310,12 @@ export function createWorker(deps: WorkerDeps): Worker {
   }
 
   // ---------- el turno ----------
+  const botOwnsChat = (c: Conversation | undefined): c is Conversation => !!c && !getFlag(db, 'kill_switch') && c.mode === 'auto' && !TERMINAL.includes(c.card.state); // ¿sigue siendo del bot?
+
   async function attempt(chatId: string, s: ChatState): Promise<void> {
-    const conv = getConversation(db, chatId);
-    if (!conv || getFlag(db, 'kill_switch') || conv.mode !== 'auto' || TERMINAL.includes(conv.card.state)) return clearWait(s);
-    const unanswered = unansweredMessages(db, chatId);
+    let conv = getConversation(db, chatId);
+    if (!botOwnsChat(conv)) return clearWait(s);
+    let unanswered = unansweredMessages(db, chatId);
     if (!unanswered.length) return clearWait(s);
     const now = clock.now();
     const newest = unanswered[unanswered.length - 1];
@@ -293,9 +336,37 @@ export function createWorker(deps: WorkerDeps): Worker {
     }
     if (status !== 'WORKING') return scheduleRetry(chatId, s, `WhatsApp no está conectado: ${status}`);
 
+    // Los audios sin transcribir se leen recién acá, después de los filtros y los topes: un chat pausado, en humano o con el kill switch hace 0 bajadas y 0 transcripciones.
+    if (unanswered.some((m) => m.transcriptStatus === 'pendiente')) {
+      await readAudios(chatId, unanswered);
+      conv = getConversation(db, chatId);
+      if (!botOwnsChat(conv)) return clearWait(s); // cambió mientras tanto (toma humana, kill switch…)
+      unanswered = unansweredMessages(db, chatId);
+      if (!unanswered.length) return clearWait(s); // lo borró el cliente
+      if (unanswered.some((m) => m.transcriptStatus === 'pendiente')) return; // llegó otro audio mientras tanto: su ráfaga ya está armada y los toma
+    }
+
     const shadow = getFlag(db, 'shadow_mode');
     const version = conv.contextVersion;
     const answersUpto = Math.max(...unanswered.map((m) => m.id));
+
+    // Audios que no se pudieron escuchar. Primera vez en la conversación (al cliente todavía no le llegó el pedido de texto): si no hay nada más, se manda el texto aprobado sin llamar al modelo,
+    // con el saludo y la presentación de la hora delante si es el primer mensaje del bot; si hay texto además, corre el turno normal (el modelo ve "(audio que no se pudo escuchar)").
+    // Segunda vez: el chat pasa al equipo. "Ya se pidió" se mide sobre lo que de verdad salió: un mensaje del bot con el texto aprobado (si el pedido se canceló o quedó en borrador, no cuenta).
+    if (unanswered.some((m) => m.transcriptStatus === 'ilegible')) {
+      const fixed = { material: [], card: conv.card, usedFallback: false, attempts: [] };
+      if (botSaid(db, chatId, policy.audioIlegibleText)) {
+        const handoffs: TurnResult['handoffs'] = [{ reason: 'audio_ilegible', priority: 'normal', mode: 'stop' }];
+        return deliver(chatId, s, version, answersUpto, { ...fixed, bubbles: [], handoffs, stopBot: true }, shadow);
+      }
+      if (unanswered.every((m) => m.transcriptStatus === 'ilegible')) {
+        if (!shadow) await safe(() => channel.markSeen(chatId, unanswered.map((m) => m.providerMsgId)));
+        const opening = botSaid(db, chatId) ? undefined : openingText(policy, now);
+        const bubbles = [opening ? `${opening} ${policy.audioIlegibleText}` : policy.audioIlegibleText]; // un solo globo: sale entero o no sale
+        return deliver(chatId, s, version, answersUpto, { ...fixed, bubbles, handoffs: [], stopBot: false }, shadow);
+      }
+    }
+
     const history = historyFor(db, chatId, HISTORY_LIMIT);
     const shown = new Set(history.map((m) => m.id));
     const input: TurnInput = { conversationId: chatId, history, newCustomerMessageIds: unanswered.map((m) => `m${m.id}`).filter((id) => shown.has(id)), card: conv.card, nowUtcMs: now };
@@ -328,9 +399,12 @@ export function createWorker(deps: WorkerDeps): Worker {
       return clearWait(s);
     }
 
-    quotaAlerted = false; // OpenAI contestó
-    configAlerted = false;
-    // Antes de mandar: si el contexto cambió o el chat ya no es del bot, el resultado es viejo y se descarta.
+    answered(false); // el cerebro contestó
+    await deliver(chatId, s, version, answersUpto, result, shadow);
+  }
+
+  // Antes de mandar: si el contexto cambió o el chat ya no es del bot, el resultado es viejo y se descarta.
+  async function deliver(chatId: string, s: ChatState, version: number, answersUpto: number, result: TurnResult, shadow: boolean): Promise<void> {
     const fresh = getConversation(db, chatId);
     const stale = !fresh || fresh.contextVersion !== version || fresh.mode !== 'auto' || getFlag(db, 'kill_switch');
     recordRuns(chatId, result.attempts, result.usedFallback, stale ? 'descartado' : undefined);
@@ -340,6 +414,80 @@ export function createWorker(deps: WorkerDeps): Worker {
       return;
     }
     await apply(chatId, version, answersUpto, result, shadow);
+  }
+
+  // ---------- audios del cliente ----------
+  // Baja, convierte y transcribe los audios pendientes, de a uno y con un lugar del semáforo (las llamadas a OpenAI son 4 en total).
+  // Lo que no se puede leer queda ilegible; un error pasajero (OpenAI, WAHA) tira y el turno se reintenta con espera, sin mandar nunca el mensaje seguro
+  // (salvo que la transcripción de ese audio falle 3 veces seguidas, o esté mal configurada: ahí queda ilegible y el turno sigue).
+  async function readAudios(chatId: string, unanswered: MessageRow[]): Promise<void> {
+    const release = await llmSlots.acquire();
+    try {
+      for (const m of unanswered) {
+        if (m.transcriptStatus !== 'pendiente') continue;
+        const conv = getConversation(db, chatId);
+        if (!botOwnsChat(conv)) return; // cambió mientras esperaba el lugar o el audio anterior: no se gasta
+        if (getMessage(db, m.id)?.revoked) continue; // lo borró antes de que se transcribiera: no se transcribe
+        if (!(await withinLimits(conv, clock.now()))) return; // los audios de una ráfaga gastan: antes de cada uno se revalidan los topes (el chat queda pausado, con aviso)
+        await readAudio(chatId, m);
+      }
+    } finally {
+      release();
+    }
+  }
+
+  async function readAudio(chatId: string, m: MessageRow): Promise<void> {
+    const t0 = Date.now();
+    try {
+      if (!m.mediaUrl) throw new MediaUnreadableError('el audio no tiene archivo para bajar');
+      if (!(m.mediaMime ?? '').startsWith('audio/')) throw new MediaUnreadableError('el archivo no es un audio');
+      const { mp3, seconds } = await audio.convert(await channel.downloadMedia(m.mediaUrl));
+      const max = getNum(db, 'max_audio_seconds');
+      if (seconds > max) throw new MediaUnreadableError(`el audio dura ${Math.round(seconds)} s y el tope es ${max} s`);
+      let transcript: string;
+      try {
+        transcript = (await audio.transcriber.transcribe(mp3)).trim();
+      } catch (e) {
+        if (e instanceof TransientLlmError) {
+          e.transcribing = true; // el aviso nombra al proveedor de la transcripción, no al del cerebro
+          if (e.kind === 'config') {
+            // Clave o modelo mal puestos: reintentar no lo arregla y trabaría el chat (también sus textos). El audio queda ilegible ya y el turno sigue; el aviso urgente sale igual, una vez.
+            await noteTransient(chatId, e);
+            throw new MediaUnreadableError('la transcripción no está bien configurada (clave o modelo de OpenAI)', 'config');
+          }
+          const failures = (audioFailures.get(m.id) ?? 0) + 1;
+          if (failures > MAX_AUDIO_FAILURES) {
+            // El mismo audio ya falló 3 veces con espera entre una y otra: se deja de reintentar, para que no trabe el chat (sus textos también). Ilegible y el turno sigue.
+            await noteTransient(chatId, e);
+            throw new MediaUnreadableError(`la transcripción falló ${failures} veces seguidas`, 'no_responde');
+          }
+          audioFailures.set(m.id, failures);
+        }
+        throw e;
+      }
+      const costUsd = transcribeCostUsd(audio.transcriber, seconds);
+      tx(db, () => {
+        // Ya se pagó: cuenta para el tope del día y de la conversación, aunque la transcripción haya salido vacía.
+        insertAgentRun(db, {
+          chatId, tsUtc: clock.now(), model: audio.transcriber.model, effort: 'n/a', policyHash: policy.hash, inputTokens: 0, cachedTokens: 0, outputTokens: 0, costUsd,
+          latencyMs: Date.now() - t0, violations: [], usedFallback: false,
+        });
+        addSpend(db, chatId, costUsd);
+        if (transcript) setTranscript(db, m.id, audioText(transcript), 'ok');
+        else {
+          setTranscript(db, m.id, UNREADABLE_AUDIO_TEXT, 'ilegible');
+          audit(db, clock.now(), chatId, 'error', 'audio ilegible: la transcripción salió vacía');
+        }
+      });
+      audioFailures.delete(m.id);
+      answered(true); // la transcripción contestó
+    } catch (e) {
+      if (!(e instanceof MediaUnreadableError)) throw e;
+      audioFailures.delete(m.id);
+      setTranscript(db, m.id, UNREADABLE_AUDIO_TEXT, 'ilegible');
+      audit(db, clock.now(), chatId, 'error', `audio ilegible: ${e.message}`);
+      if (e.kind) await alertUnreadable(chatId, e.kind);
+    }
   }
 
   function recordRuns(chatId: string, attempts: AttemptLog[], usedFallback: boolean, errorKind?: string): void {

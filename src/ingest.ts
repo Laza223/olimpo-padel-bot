@@ -1,5 +1,6 @@
 // Ingest: toma los eventos guardados por /waha (con lock recuperable), guarda sin duplicar y clasifica por tipo.
-// Nunca abre un turno por una edición, un borrado o un ack: solo un mensaje nuevo del cliente con texto.
+// Nunca abre un turno por una edición, un borrado o un ack: solo un mensaje nuevo del cliente con texto o un audio.
+import { UNREADABLE_AUDIO_TEXT } from './audio.ts';
 import type { Channel, HistoryMessage, InboundEvent, MediaKind } from './channel/types.ts';
 import type { Clock } from './clock.ts';
 import {
@@ -26,7 +27,7 @@ export interface IngestDeps {
   channel: Channel;
   clock: Clock;
   notifier: Notifier;
-  onCustomerMessage: (chatId: string) => void; // un mensaje nuevo con texto de un chat en `auto`: se programa el turno
+  onCustomerMessage: (chatId: string) => void; // un mensaje nuevo (con texto, o un audio) de un chat en `auto`: se programa el turno
   onOutboxChange?: () => void; // un eco o un ack cambió la salida (por ejemplo resolvió un incierto): que el enviador siga
 }
 
@@ -53,6 +54,7 @@ export function createIngest(deps: IngestDeps): Ingest {
     if (findMessage(db, e.session, e.providerMsgId)) return; // el mismo mensaje por otro evento: no suma nada
     const hasText = e.text.trim() !== '';
     if (!hasText && !e.media) return;
+    const isAudio = !hasText && e.media === 'audio'; // un audio sin texto se transcribe en el turno (src/worker.ts)
 
     let conv = getConversation(db, e.chatId);
     let historyUnknown = false;
@@ -76,9 +78,9 @@ export function createIngest(deps: IngestDeps): Ingest {
     }
 
     tx(db, () => {
-      insertMessage(db, { session: e.session, providerMsgId: e.providerMsgId, chatId: e.chatId, author: 'customer', text: e.text, tsUtcMs: e.tsUtcMs, media: e.media });
+      insertMessage(db, { session: e.session, providerMsgId: e.providerMsgId, chatId: e.chatId, author: 'customer', text: e.text, tsUtcMs: e.tsUtcMs, media: e.media, ...(isAudio ? audioFields(e) : {}) });
       if (e.profileName) setProfileName(db, e.chatId, e.profileName);
-      if (hasText) staleTheContext(e.chatId, now);
+      if (hasText || isAudio) staleTheContext(e.chatId, now); // el audio es contenido nuevo para el modelo, aunque todavía no tenga texto
     });
 
     if (priorUnanswered) {
@@ -87,12 +89,20 @@ export function createIngest(deps: IngestDeps): Ingest {
     if (historyUnknown) {
       await alert(`Chat ${chatLabel(db, e.chatId)}: no pude revisar la historia de un chat nuevo (WAHA no contestó en ${MAX_ATTEMPTS} intentos). Guardé el mensaje y dejé el chat con el equipo por las dudas: miralo y, si es un cliente nuevo, devolvelo al bot con /bot ${chatLabel(db, e.chatId).slice(1)}.`, { chatId: e.chatId });
     }
-    if (!hasText) {
-      // Un adjunto sin texto no abre turno (F2b los transcribe): queda guardado y se avisa.
-      await alert(`Chat ${chatLabel(db, e.chatId)}: el cliente mandó ${MEDIA_LABEL[e.media!]} y el bot todavía no lo lee (F2b). Mirá el chat.`, { chatId: e.chatId });
+    if (!hasText && !isAudio) {
+      // Una foto, un video o un documento sin texto no abre turno (el bot solo lee audios): queda guardado y se avisa.
+      await alert(`Chat ${chatLabel(db, e.chatId)}: el cliente mandó ${MEDIA_LABEL[e.media!]} y el bot no lo lee (solo lee audios y texto). Mirá el chat.`, { chatId: e.chatId });
       return;
     }
     if (getConversation(db, e.chatId)!.mode === 'auto') deps.onCustomerMessage(e.chatId);
+  }
+
+  // Un audio con archivo para bajar queda pendiente (el worker lo transcribe); sin archivo (WAHA no lo bajó, o la ruta no sirve) queda ilegible desde el principio.
+  function audioFields(e: Extract<InboundEvent, { kind: 'message' }>): { text: string; mediaUrl?: string; mediaMime?: string; transcriptStatus: 'pendiente' | 'ilegible' } {
+    const f = e.mediaFile;
+    const readable = !!f?.path && !f.error;
+    if (!readable) audit(db, clock.now(), e.chatId, 'error', 'audio ilegible: WAHA no mandó el archivo (sin url o con error)');
+    return { text: readable ? '' : UNREADABLE_AUDIO_TEXT, ...(f?.path ? { mediaUrl: f.path } : {}), ...(f?.mime ? { mediaMime: f.mime } : {}), transcriptStatus: readable ? 'pendiente' : 'ilegible' };
   }
 
   // Cambió lo que el modelo tiene que ver: sube la versión y lo pendiente de la versión anterior (respuestas, borradores) ya es viejo.

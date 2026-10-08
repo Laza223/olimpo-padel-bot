@@ -47,7 +47,7 @@ export interface Scenario {
 // Al estilo de TURN_SCHEMA: `satisfies Record<…, true>` obliga a listar todos los valores del tipo.
 const REASONS = {
   listo_para_presupuesto: true, cliente_grande: true, pide_persona: true, enojado: true, pregunta_por_empresa_anterior: true, pide_verificacion: true,
-  factura_a: true, regateo: true, fuera_de_politica: true, baja: true, no_es_cliente: true, falla_del_bot: true,
+  factura_a: true, regateo: true, fuera_de_politica: true, baja: true, no_es_cliente: true, falla_del_bot: true, audio_ilegible: true,
 } satisfies Record<HandoffReason, true>;
 const STATES = {
   nuevo: true, calificando: true, listo_para_presupuesto: true, derivado: true, descartado: true, baja: true, no_es_cliente: true,

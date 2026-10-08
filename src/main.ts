@@ -3,6 +3,8 @@
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { fileURLToPath } from 'node:url';
+import { cleanupTempAudio, createAudio } from './audio.ts';
+import type { AudioDeps } from './audio.ts';
 import { configFromEnv, loadEnv } from './brain.ts';
 import type { Channel } from './channel/types.ts';
 import { WahaChannel } from './channel/waha.ts';
@@ -37,6 +39,7 @@ export interface AppOptions {
   fetch?: typeof fetch; // Telegram, WAHA (sesión) y healthchecks; las pruebas lo reemplazan
   channel?: Channel;
   llm?: LlmClient;
+  audio?: AudioDeps; // conversor y transcriptor de audios; las pruebas los reemplazan
   db?: Db; // si viene, quien lo pasó lo cierra
   dbPath?: string;
   port?: number;
@@ -116,7 +119,7 @@ export function createApp(o: AppOptions = {}): App {
   const alert = (text: string, urgent = false) => sendAlert(db, notifier, clock, text, { urgent });
 
   const outbox = createOutbox({ db, channel, notifier, clock, onExpired: (chatId) => worker.onCustomerMessage(chatId) });
-  const worker = createWorker({ db, channel, llm, policy, config: brain, notifier, clock, kickOutbox });
+  const worker = createWorker({ db, channel, llm, policy, config: brain, audio: o.audio ?? createAudio(env, cfg.llm === 'fake'), notifier, clock, kickOutbox });
   const ingest = createIngest({ db, channel, clock, notifier, onCustomerMessage: (chatId) => worker.onCustomerMessage(chatId), onOutboxChange: kickOutbox });
   const recovery = createRecovery({ db, channel, clock, notifier, worker, onReady: () => { outboxOpen = true; outbox.kick(); } });
   const session = createSession({
@@ -193,6 +196,7 @@ export function createApp(o: AppOptions = {}): App {
       started = true;
       const now = clock.now();
       ensureBotStart(db, now);
+      void cleanupTempAudio(); // temporales de conversiones que quedaron a medias si el proceso murió (olimpo-audio-* de más de 10 min)
       recoverOutbox(db, now); // lo que estaba en proceso al morir el proceso pasa a incierto: se concilia, nunca se reenvía a ciegas
       await new Promise<void>((resolve, reject) => {
         server.once('error', reject);

@@ -109,6 +109,12 @@ si_el_bot_falla:
   accion: "El chat queda en manos del equipo, con aviso urgente. No se prometen tiempos."
   fuente: "Lazar 7-oct"
 
+audio_ilegible:
+  texto: "Perdón, no pude escuchar bien el audio. Me lo escribís por acá?"
+  estado: a_confirmar
+  regla: "Si un audio del cliente no se puede escuchar, la primera vez el bot manda este texto (sin llamar al modelo) y la segunda el chat pasa al equipo. Sin signo de apertura, como pide el estilo de Lazar (7-oct)."
+  fuente: "orquestador 8-oct (a confirmar por Lazar)"
+
 # Mientras no se definan, el bot contesta esto y sigue con la calificación.
 mientras_tanto:
   - { tema: forma_de_pago, texto: "La forma de pago va detallada en el presupuesto." }

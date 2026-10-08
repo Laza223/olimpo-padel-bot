@@ -2,7 +2,8 @@
 // Los eventos entran por HTTP de verdad (127.0.0.1, puerto libre) con el HMAC real: se prueba también el cableado de /waha → ingest → worker.
 import { FakeChannel } from '../src/channel/fake.ts';
 import { afterEach } from 'node:test';
-import type { InboundEvent, MediaKind } from '../src/channel/types.ts';
+import type { AudioDeps } from '../src/audio.ts';
+import type { InboundEvent, MediaFile, MediaKind } from '../src/channel/types.ts';
 import { openDb } from '../src/db.ts';
 import type { Db } from '../src/db.ts';
 import { signBody } from '../src/http.ts';
@@ -18,6 +19,7 @@ export interface BootOpts {
   env?: Record<string, string | undefined>;
   shadow?: boolean; // por defecto apagado: las respuestas salen al cliente (en producción arranca prendido)
   llm?: LlmClient;
+  audio?: AudioDeps; // sin esto, el de BOT_LLM (con "fake": ffmpeg real y transcriptor falso)
   db?: Db;
   clock?: FakeClock;
   channel?: FakeChannel;
@@ -59,7 +61,7 @@ export async function bootApp(o: BootOpts = {}) {
     WAHA_API_KEY: WAHA_KEY, WAHA_WEBHOOK_HMAC_SECRET: SECRET, TELEGRAM_BOT_TOKEN: TG_TOKEN, TELEGRAM_GROUP_ID: TG_GROUP, HEALTHCHECKS_PING_URL: HC_URL, BOT_LLM: 'fake',
     ...o.env,
   };
-  const app = createApp({ env, clock, fetch: router, channel, llm: o.llm, db, port: 0, host: '127.0.0.1', log: (l) => logs.push(l), shutdownWaitMs: 50 });
+  const app = createApp({ env, clock, fetch: router, channel, llm: o.llm, audio: o.audio, db, port: 0, host: '127.0.0.1', log: (l) => logs.push(l), shutdownWaitMs: 50 });
   live.add(app);
   const settle = async () => { for (let i = 0; i < 10; i++) await new Promise((resolve) => setImmediate(resolve)); };
   if (o.start !== false) {
@@ -74,8 +76,8 @@ export async function bootApp(o: BootOpts = {}) {
     await res.arrayBuffer();
     return res.status;
   };
-  const customerEvent = (chatId: string, text: string, x: { id?: string; media?: MediaKind; tsUtcMs?: number } = {}): Extract<InboundEvent, { kind: 'message' }> => ({
-    kind: 'message', session: 'default', chatId, providerMsgId: x.id ?? `false_${chatId}_M${++seq}`, tsUtcMs: x.tsUtcMs ?? clock.now(), text, ...(x.media ? { media: x.media } : {}),
+  const customerEvent = (chatId: string, text: string, x: { id?: string; media?: MediaKind; mediaFile?: MediaFile; tsUtcMs?: number } = {}): Extract<InboundEvent, { kind: 'message' }> => ({
+    kind: 'message', session: 'default', chatId, providerMsgId: x.id ?? `false_${chatId}_M${++seq}`, tsUtcMs: x.tsUtcMs ?? clock.now(), text, ...(x.media ? { media: x.media } : {}), ...(x.mediaFile ? { mediaFile: x.mediaFile } : {}),
   });
   // El cliente escribe: WAHA también lo guarda en el historial del chat.
   const say = async (chatId: string, text: string, x: Parameters<typeof customerEvent>[2] = {}) => {
