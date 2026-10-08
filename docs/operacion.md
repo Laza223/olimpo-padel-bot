@@ -260,7 +260,7 @@ Todo esto pasa dentro del turno: si el bot está apagado (`/apagar`), el chat es
 
 "Ya se le pidió" quiere decir que **el pedido le llegó de verdad**: si se canceló porque el cliente escribió enseguida, venció o falló el envío, o quedó como borrador sin mandar, no cuenta y el próximo audio ilegible vuelve a pedir el texto en vez de pasar el chat a vos. La marca no se reinicia: del segundo audio ilegible en adelante, el chat pasa a vos aunque el cliente haya escrito texto en el medio.
 
-El bot **nunca ignora un audio en silencio**. El texto fijo está en `policy/olimpo.yaml` (`audio_ilegible.texto`) y figura como *a confirmar*: **lo tenés que aprobar vos**.
+El bot **nunca ignora un audio en silencio**. El texto fijo está en `policy/olimpo.yaml` (`audio_ilegible.texto`) y está aprobado por Lazar (8-oct).
 
 **Qué hacer si un audio no se entiende:**
 

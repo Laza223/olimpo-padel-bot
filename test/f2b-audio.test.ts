@@ -516,7 +516,7 @@ test('12. la migración V3 sobre una base V2 con datos conserva todo, agrega las
 // ---------- política, prompt y ficha ----------
 test('la política trae audio_ilegible.texto con su fuente, y el prompt tiene la línea del "(audio)"', () => {
   assert.match(policy.yamlText, /audio_ilegible:\n  texto: "Perdón, no pude escuchar bien el audio\. Me lo escribís por acá\?"/);
-  assert.match(policy.yamlText, /fuente: "orquestador 8-oct \(a confirmar por Lazar\)"/);
+  assert.match(policy.yamlText, /fuente: "Lazar 8-oct"/);
   const instructions = buildInstructions(policy);
   assert.equal(instructions.match(/empieza con "\(audio\)"/g)?.length, 1);
   assert.match(instructions, /sin decir que se transcribió ni citarlo textual/);

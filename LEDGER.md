@@ -287,7 +287,7 @@
   - Los avisos de "sin saldo" pasan a nombrar al proveedor que falló.
   - Sin probar contra la API real: no hay saldo de OpenAI.
 - **Decisiones del orquestador sobre los desvíos del implementador:**
-  - El texto va sin `¿` ("Perdón, no pude escuchar bien el audio. Me lo escribís por acá?"), por la regla de estilo de Lazar que aplica el controlador. Queda `a_confirmar` por Lazar.
+  - El texto va sin `¿` ("Perdón, no pude escuchar bien el audio. Me lo escribís por acá?"), por la regla de estilo de Lazar que aplica el controlador. Lazar lo aprobó el 8-oct.
   - Se aceptan los +647 MB de ffmpeg de Debian: es disco, no plata, y un ffmpeg estático sería una descarga externa nueva.
 - **Decisiones del orquestador sobre el REQUIERE INPUT de la revisión #22.** Son decisiones técnicas o de producto; la única que es de Lazar es el texto:
   - El pedido de texto, si es el primer mensaje del bot, va con el saludo y la presentación aprobados de la hora.
