@@ -1,0 +1,13 @@
+# policy/tone.md #14: "lo tengo que hablar con mi socio". Lo valida, ofrece el presupuesto para charlarlo y no presiona. Hora 13:00 para probar "Buenas tardes".
+id: tono-14-hablar-con-socio
+tags: [tono, objecion, socio, hora-borde]
+hora: "13:00"
+tipo: guion
+mensajes: ["Cuánto sale?", "Lo tengo que hablar con mi socio"]
+espera:
+  primer_globo: '(?i)^buenas tardes'
+  desde_turno: 2
+  dice_todas:
+    - '(?i)presupuesto'
+  nunca_dice:
+    - '(?i)(urgen|no (lo )?dejes pasar|aprovech|[uú]ltim|se termina|antes de que)'

@@ -1,0 +1,15 @@
+# policy/tone.md #16: fotos de fabricación (reales) y un render del modelo, sin leyenda de obra. Nunca dice que es una obra hecha.
+id: tono-16-mandame-fotos
+tags: [tono, material, render]
+hora: "14:30"
+tipo: guion
+mensajes: ["Mandame fotos"]
+espera:
+  primer_globo: '(?i)^buenas tardes'
+  material: [fabricacion_panos, modelo_full_panoramica]
+  dice_alguna:
+    - '(?i)fotos'
+  nunca_dice:
+    - '(?i)(esta|esa|[eé]sta|[eé]sa|la)\s+(cancha\s+)?(la\s+)?(hicimos|instalamos|entregamos|construimos)'
+    - '(?i)\b(cliente|obra)\s+(de|en|del)\s+\w+'
+  derivacion: ninguna

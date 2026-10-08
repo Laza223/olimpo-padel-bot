@@ -1,0 +1,19 @@
+# Ráfaga con nombre, zona y 2 canchas: el bot los toma y no los repregunta; sigue con lo que falta (modelo, platea, techada).
+id: trampa-rafaga-datos
+tags: [trampa, rafaga, no-repreguntar]
+hora: "15:00"
+tipo: guion
+mensajes: ["Hola || Soy Pedro || Estoy en Pilar, Buenos Aires || Quiero 2 canchas"]
+espera:
+  primer_globo: '(?i)^buenas tardes'
+  derivacion: ninguna
+  estado: calificando
+  ficha:
+    nombre: Pedro
+    localidad: Pilar
+    cantidad_canchas: "2"
+  nunca_dice:
+    - '(?i)(de d[oó]nde (sos|son|escrib[ií]s)|(en|de) qu[eé] (zona|localidad|ciudad|lugar|provincia)|d[oó]nde (ser[ií]a|ser[ií]an|estar[ií]a))'
+    - '(?i)(c[oó]mo te llam|tu nombre|cu[aá]ntas canchas|qu[eé] cantidad)'
+  dice_alguna:
+    - '(?i)(platea|modelo|full pan|panor[aá]mica|techad|aire libre|bajo techo)'

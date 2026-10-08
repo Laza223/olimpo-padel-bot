@@ -1,0 +1,11 @@
+# A las 23:00 argentinas el primer globo empieza con "Buenas noches" (la hora de la PC no cuenta).
+id: trampa-hora-23
+tags: [trampa, saludo, hora-borde]
+hora: "23:00"
+tipo: guion
+mensajes: ["Hola, info de las canchas"]
+espera:
+  primer_globo: '(?i)^buenas noches'
+  nunca_dice:
+    - '(?i)^(buen d[ií]a|buenas tardes)'
+  derivacion: ninguna

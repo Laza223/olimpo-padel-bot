@@ -1,0 +1,14 @@
+# policy/tone.md #10: el plazo depende de la fecha en que se confirme y va en el presupuesto. Nada de números de días o semanas.
+id: tono-10-cuanto-tardan
+tags: [tono, plazo, honestidad]
+hora: "08:30"
+tipo: guion
+mensajes: ["Cuánto tardan?"]
+espera:
+  primer_globo: '(?i)^buen d[ií]a'
+  dice_todas:
+    - '(?i)presupuesto'
+  nunca_dice:
+    - '(?i)\b(\d+|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|quince|veinte|treinta|cuarenta|sesenta)\s+(d[ií]as|semanas|meses)\b'
+    - '(?i)\b(un mes|un par de semanas|unas semanas|unos d[ií]as)\b'
+  derivacion: ninguna

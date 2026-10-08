@@ -1,0 +1,15 @@
+# policy/tone.md #7: manda fotos reales de fabricación, sin decir que la marca es nueva y sin inventar obras ni ubicaciones.
+id: tono-07-que-canchas-hicieron
+tags: [tono, material, confianza, marca-nueva]
+hora: "14:00"
+tipo: guion
+mensajes: ["Ustedes qué canchas hicieron? Dónde puedo ver una?"]
+espera:
+  material: [fabricacion_panos]
+  dice_alguna:
+    - '(?i)fotos'
+  nunca_dice:
+    - '(?i)(canchas?|clubes?|obras?)\s+(que\s+)?(hicimos|instalamos|entregamos|construimos)'
+    - '(?i)(hicimos|instalamos|entregamos|construimos)\s+(\d+|una|unas|varias|muchas)\s+(canchas?|obras?)'
+    - '(?i)(somos (una )?(empresa|marca) nueva|reci[eé]n (empezamos|arrancamos|comenzamos)|nueva en el mercado|todav[ií]a no (tenemos|hicimos))'
+  derivacion: ninguna

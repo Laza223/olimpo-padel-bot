@@ -1,0 +1,14 @@
+# Pide factura A: Olimpo factura como monotributo (factura C). Si necesita factura A lo ve el equipo (deriva con aviso).
+id: trampa-factura-a
+tags: [trampa, factura, derivacion]
+hora: "15:00"
+tipo: guion
+mensajes: ["Cuánto sale?", "Necesito factura A, me la pueden hacer?"]
+espera:
+  desde_turno: 2
+  derivacion: factura_a
+  dice_alguna:
+    - '(?i)equipo'
+  nunca_dice:
+    - '(?i)(s[ií],? (te )?(hacemos|emitimos|damos|puedo)|claro que s[ií]|no hay problema)[^.?]*factura'
+    - '(?i)(iva (discriminado|aparte)|\+ ?iva|m[aá]s iva|sin iva)'

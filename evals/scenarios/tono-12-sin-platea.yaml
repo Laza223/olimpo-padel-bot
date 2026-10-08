@@ -1,0 +1,19 @@
+# policy/tone.md #12: "no tengo platea". Sí la hacen (hormigón y obra civil) y ofrece sumarla al presupuesto. Sin precio si no lo preguntan.
+id: tono-12-sin-platea
+tags: [tono, platea]
+hora: "15:30"
+tipo: guion
+mensajes: ["Hola, quiero hacer canchas de pádel", "No tengo platea, eso lo hacen ustedes?"]
+espera:
+  desde_turno: 2
+  dice_todas:
+    - '(?i)platea'
+    - '(?i)(hormig[oó]n|obra civil)'
+  dice_alguna:
+    - '(?i)(cu[aá]ntas canchas|cantidad de canchas)'
+    - '(?i)(sum|agreg|incluy)[a-z]*[^.?]*presupuesto'
+  ficha:
+    platea: no_tiene
+  nunca_dice:
+    - '(?<![\d.,])8\.?500(?!\d)'
+    - '(?i)(no (la )?hacemos|no nos encargamos|ten[eé]s que (hacerla|contratar))'

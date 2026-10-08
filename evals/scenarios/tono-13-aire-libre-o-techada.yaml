@@ -1,0 +1,14 @@
+# policy/tone.md #13: se puede al aire libre o bajo techo, como prefiera; el techado se ofrece sin presentarlo como requisito ni hablar de contras.
+id: tono-13-aire-libre-o-techada
+tags: [tono, ubicacion, techado]
+hora: "09:15"
+tipo: guion
+mensajes: ["La puedo poner al aire libre o tiene que ser techada?"]
+espera:
+  dice_todas:
+    - '(?i)aire libre'
+    - '(?i)(bajo techo|techad)'
+  nunca_dice:
+    - '(?i)(es obligatori[oa]|(?<!no )tiene que ser techada|no se puede (poner )?(al )?aire libre|solo (se puede )?(techada|bajo techo))'
+    - '(?i)(ox[ií]d|galvaniz|corrosi|herrumbre|viento)'
+  derivacion: ninguna

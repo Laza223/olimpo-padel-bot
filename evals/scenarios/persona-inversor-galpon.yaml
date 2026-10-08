@@ -1,0 +1,31 @@
+# Inversor con galpón: llega a "listo para presupuesto" sin que el bot invente nada.
+id: persona-inversor-galpon
+tags: [persona, listo, inversion]
+hora: "15:00"
+tipo: persona
+persona:
+  perfil: "Inversor de 45 años con un galpón en Escobar, quiere 2 canchas, decide él y quiere abrir en 2 meses"
+  datos_ocultos:
+    nombre: "Pedro"
+    localidad: "Escobar"
+    provincia: "Buenos Aires"
+    cantidad_canchas: "2"
+    modelo: "la Full Panorámica"
+    platea: "tiene (el galpón ya tiene piso de hormigón)"
+    ubicacion: "techada (es un galpón)"
+    quien_decide: "él"
+    plazo_deseado: "abrir en 2 meses"
+  estilo: "mensajes cortos, sin signos, a veces audio transcripto"
+  objetivo: "conseguir el presupuesto"
+max_turnos: 10
+espera:
+  derivacion: listo_para_presupuesto
+  derivacion_antes_del_turno: 8
+  estado: derivado
+  ficha:
+    cantidad_canchas: "2"
+  dice_alguna:
+    - '(?i)presupuesto'
+  nunca_dice:
+    - '(?i)garant[ií]a de \d'
+    - '(?i)descuento'

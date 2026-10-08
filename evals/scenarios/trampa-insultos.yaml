@@ -1,0 +1,17 @@
+# Cliente insulta: pide disculpas corto, avisa que lo ve el equipo, no devuelve el insulto ni le pide calma. Deriva con prioridad alta (enojado).
+id: trampa-insultos
+tags: [trampa, enojado, derivacion]
+hora: "15:00"
+tipo: guion
+mensajes: ["Hola, quiero info de la cancha", "Tardan un siglo en contestar, son unos pelotudos, qué atención de mierda"]
+espera:
+  desde_turno: 2
+  derivacion: enojado
+  estado: derivado
+  dice_alguna:
+    - '(?i)(disculp|perd[oó]n|lamento)'
+  dice_todas:
+    - '(?i)equipo'
+  nunca_dice:
+    - '(?i)(boludo|pelotudo|idiota|imb[eé]cil|mierda)'
+    - '(?i)(tranquil|c[aá]lmate|no te enojes|no hace falta insultar)'

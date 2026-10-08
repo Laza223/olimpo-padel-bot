@@ -1,0 +1,27 @@
+# Club con 3 canchas: avisa como cliente grande (el bot sigue) y llega a listo para presupuesto.
+id: persona-club-3-canchas
+tags: [persona, cliente-grande, club, listo]
+hora: "17:30"
+tipo: persona
+persona:
+  perfil: "Dueño de un club de barrio en Rosario con 3 canchas viejas de cemento que quiere reemplazar por 3 canchas nuevas; es práctico y quiere saber el precio"
+  datos_ocultos:
+    nombre: "Gustavo"
+    localidad: "Rosario"
+    provincia: "Santa Fe"
+    cantidad_canchas: "3"
+    modelo: "la Panorámica"
+    platea: "tiene (las plateas de cemento ya están hechas)"
+    ubicacion: "aire libre"
+    uso: "club"
+  estilo: "directo, mensajes cortos, habla como dueño de club"
+  objetivo: "conseguir el presupuesto"
+max_turnos: 10
+espera:
+  derivacion: [cliente_grande, listo_para_presupuesto]
+  derivacion_antes_del_turno: 8
+  estado: derivado
+  ficha:
+    cantidad_canchas: "3"
+  nunca_dice:
+    - '(?i)(descuento|mayorista|por cantidad|por volumen)'

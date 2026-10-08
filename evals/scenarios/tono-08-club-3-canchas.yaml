@@ -1,0 +1,16 @@
+# policy/tone.md #8: club con 3 canchas. Avisa al equipo con prioridad (cliente_grande, sigue el bot) y pregunta el modelo.
+id: tono-08-club-3-canchas
+tags: [tono, cliente-grande, club]
+hora: "18:00"
+tipo: guion
+mensajes: ["Tengo un club con 3 canchas viejas de cemento, quiero cambiarlas"]
+espera:
+  derivacion: cliente_grande
+  ficha:
+    cantidad_canchas: "3"
+    uso: club
+  dice_alguna:
+    - '(?i)(modelo|full pan|panor[aá]mica)'
+  nunca_dice:
+    - '(?i)(descuento|mayorista|por cantidad|por volumen)'
+  estado: calificando

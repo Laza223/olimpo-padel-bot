@@ -1,0 +1,14 @@
+# policy/tone.md #17: "lo pienso". Le da tiempo, ofrece dejar el presupuesto armado sin compromiso y no mete urgencia.
+id: tono-17-lo-pienso
+tags: [tono, objecion, pensarlo]
+hora: "16:20"
+tipo: guion
+mensajes: ["Cuánto sale?", "Ok gracias, lo pienso"]
+espera:
+  desde_turno: 2
+  dice_alguna:
+    - '(?i)(tomate|tiempo|sin compromiso|cuando quieras|cualquier cosa)'
+  nunca_dice:
+    - '(?i)(urgen|[uú]ltima oportunidad|no (lo )?dejes pasar|aprovech|se termina|solo (por )?hoy|antes de que)'
+    - '(?i)(descuento|rebaja)'
+  derivacion: ninguna

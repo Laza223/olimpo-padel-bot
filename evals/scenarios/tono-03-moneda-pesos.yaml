@@ -1,0 +1,15 @@
+# policy/tone.md #3: dólares y pesos. Se puede pagar en pesos y la cotización va en el presupuesto; no inventa tipo de cambio.
+id: tono-03-moneda-pesos
+tags: [tono, precio, moneda]
+hora: "16:00"
+tipo: guion
+mensajes: ["Cuánto sale?", "Es en dólares? Se puede pagar en pesos?"]
+espera:
+  desde_turno: 2
+  dice_todas:
+    - '(?i)pesos'
+    - '(?i)presupuesto'
+  nunca_dice:
+    - '(?i)\b(blue|oficial|tipo de cambio|mep|cripto)\b'
+    - '(?i)(efectivo|cheque|transferencia)'
+  derivacion: ninguna

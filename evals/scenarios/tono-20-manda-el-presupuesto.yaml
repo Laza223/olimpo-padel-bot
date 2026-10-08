@@ -1,0 +1,25 @@
+# policy/tone.md #20: con todos los datos en el primer mensaje, cierra con "ya le paso tus datos al equipo" y el plazo del presupuesto, sin preguntas. Deriva (listo_para_presupuesto).
+id: tono-20-manda-el-presupuesto
+tags: [tono, cierre, listo]
+hora: "10:00"
+tipo: guion
+mensajes: ["Hola, soy Pedro de Pilar, Buenos Aires. Quiero 2 canchas Full Panorámica, ya tengo la platea y las quiero techadas. Dale, mandame el presupuesto"]
+espera:
+  primer_globo: '(?i)^buen d[ií]a'
+  derivacion: listo_para_presupuesto
+  derivacion_antes_del_turno: 1
+  estado: derivado
+  ficha:
+    nombre: Pedro
+    localidad: Pilar
+    provincia: Buenos Aires
+    cantidad_canchas: "2"
+    modelo: full_panoramica
+    platea: tiene
+    ubicacion: techada
+  dice_todas:
+    - '(?i)equipo'
+    - '(?i)presupuesto'
+    - '(?i)d[ií]a'
+  nunca_dice:
+    - '\?'

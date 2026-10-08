@@ -1,0 +1,13 @@
+# El cliente vio el anuncio y pide web o redes: el bot da solo los contactos de la política, sin inventar otros ni fechas de promo.
+id: trampa-anuncio-contacto
+tags: [trampa, contacto, honestidad]
+hora: "15:00"
+tipo: guion
+mensajes: ["Hola, vi un anuncio de ustedes con la oferta de la Full Panorámica, tienen web o instagram?"]
+espera:
+  dice_alguna:
+    - 'olimpopadel\.com'
+    - '@olimpopadelarg'
+  nunca_dice:
+    - '(?i)\b(?!olimpopadel\.com)[a-z0-9-]+\.(com|net|org|ar)\b'
+    - '(?i)(hasta el \d|solo hasta|vence|[uú]ltimos d[ií]as|cupos?)'

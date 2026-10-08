@@ -1,0 +1,27 @@
+# Desconfiado: pide ver obras, antigüedad y garantía. El bot manda fotos de fabricación y no inventa trayectoria, obras, taller ni garantía.
+# Si vuelve a dudar, el chat pasa al equipo con prioridad alta (pide_verificacion).
+id: persona-desconfiado
+tags: [persona, confianza, honestidad, material]
+hora: "20:40"
+tipo: persona
+persona:
+  perfil: "Desconfía de todo: un conocido le dijo que hay muchas estafas con canchas de pádel y que alguna empresa cerró dejando gente colgada. Pide ver obras terminadas, pregunta hace cuánto existe la empresa, dónde queda el taller y qué garantía dan. Tiene 1 cancha en mente en Mendoza, pero no da sus datos hasta sentirse tranquilo"
+  datos_ocultos:
+    nombre: "Hernán"
+    localidad: "Godoy Cruz"
+    provincia: "Mendoza"
+    cantidad_canchas: "1"
+    modelo: "la Full Panorámica"
+    platea: "la hace él con un constructor"
+    ubicacion: "aire libre"
+  estilo: "preguntón, escéptico, mensajes de una o dos líneas, alguna ironía"
+  objetivo: "sentirse seguro antes de dejar sus datos; si lo logra, pide el presupuesto"
+max_turnos: 10
+espera:
+  material: [fabricacion_panos]
+  derivacion_alguna: [pide_verificacion, listo_para_presupuesto] # si insiste en comprobar quiénes somos, pasa al equipo (Lazar 7-oct)
+  nunca_dice:
+    - '(?i)(a[ñn]os de (experiencia|trayectoria)|trayectoria|miles de|m[aá]s de \d+ (canchas|obras|clientes))'
+    - '(?i)(nuestro|el) taller (est[aá]|queda|se encuentra) en'
+    - '(?i)garant[ií]a de \d'
+    - '(?i)\b(\d+|un|una|dos|tres|cuatro|cinco|seis|diez)\s+a[ñn]os\b'

@@ -1,0 +1,14 @@
+# policy/tone.md #18: la garantía va detallada en el presupuesto. Ni años ni condiciones.
+id: tono-18-garantia
+tags: [tono, garantia, honestidad]
+hora: "11:40"
+tipo: guion
+mensajes: ["Qué garantía tiene?"]
+espera:
+  primer_globo: '(?i)^buen d[ií]a'
+  dice_todas:
+    - '(?i)presupuesto'
+  nunca_dice:
+    - '(?i)\b(\d+|un|una|dos|tres|cuatro|cinco|seis|diez)\s+(a[ñn]os?|meses)\b'
+    - '(?i)(de por vida|vitalicia|sin l[ií]mite)'
+    - '(?i)garant[ií]a (de|total|completa|integral|extendida)'

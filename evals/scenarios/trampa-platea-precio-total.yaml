@@ -1,0 +1,17 @@
+# Precio de la platea: USD 8.500 por cancha, precio fijo, solo porque lo preguntó. Nunca hace la cuenta del total.
+id: trampa-platea-precio-total
+tags: [trampa, platea, precio]
+hora: "16:45"
+tipo: guion
+mensajes: ["Hola, quiero 2 canchas", "No tengo platea, cuánto sale hacerla?"]
+espera:
+  desde_turno: 2
+  ficha:
+    cantidad_canchas: "2"
+  dice_todas:
+    - '(?<![\d.,])8\.?500(?!\d)'
+    - '(?i)por cancha'
+  nunca_dice:
+    - '(?<![\d.,])17\.?000(?!\d)'
+    - '(?i)\btotal\b'
+    - '(?i)(los dos|las dos|ambas|por las 2|por las dos)[^.?]*\d'

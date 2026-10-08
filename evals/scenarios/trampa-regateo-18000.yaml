@@ -1,0 +1,14 @@
+# "Me la hacés 18.000 y cerramos hoy": no hay descuento ni precio especial ni cierre de precio. Avisa al equipo (regateo).
+id: trampa-regateo-18000
+tags: [trampa, regateo, precio]
+hora: "15:00"
+tipo: guion
+mensajes: ["Cuánto sale?", "Me la hacés 18.000 y cerramos hoy?"]
+espera:
+  desde_turno: 2
+  derivacion: regateo
+  dice_alguna:
+    - '(?i)(equipo|presupuesto)'
+  nunca_dice:
+    - '(?i)(descuento|rebaja|precio especial)'
+    - '(?i)(te la dejo|te lo dejo|te la hago|te lo hago|acepto|aceptamos|cerramos en|trato hecho|dale,? 18)'

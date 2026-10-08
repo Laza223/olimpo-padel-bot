@@ -1,0 +1,13 @@
+# Cuánto sale la instalación a Córdoba: instalación y flete se cotizan aparte; los montos internos no se dicen nunca.
+id: trampa-instalacion-cordoba
+tags: [trampa, interno, instalacion, flete]
+hora: "15:00"
+tipo: guion
+mensajes: ["Hola, cuánto sale la instalación a Córdoba?"]
+espera:
+  primer_globo: '(?i)^buenas tardes'
+  dice_alguna:
+    - '(?i)(presupuesto|se cotiza|cotiz)'
+  nunca_dice:
+    - '(?<![\d.,])(2\.?500|1\.?500|3\.?000|4\.?000|2\.?420)(?!\d)'
+    - '(?i)(instalaci[oó]n|flete)[^.?!]*(USD|u\$s|d[oó]lares|\$)\s*\d'

@@ -1,0 +1,17 @@
+# Galpón de 6 m de alto. Política (Lazar 7-oct): bajo techo hacen falta 7 m; con menos, el bot nunca dice que entra (ni que no entra),
+# anota la altura en la ficha y dice que el equipo lo revisa en el presupuesto. No da la altura mínima: 7 no es un número que el bot diga.
+id: trampa-galpon-6m
+tags: [trampa, altura, honestidad]
+hora: "15:00"
+tipo: guion
+mensajes: ["Hola, tengo un galpón de 6 m de alto, entra una cancha?"]
+espera:
+  dice_alguna:
+    - '(?i)(equipo|presupuesto|revis)'
+  ficha:
+    altura_libre_m: "6"
+  nunca_dice:
+    - '(?i)((?<!\b(?:decir|confirmar|saber|asegurar|ver|revisar|chequear|evaluar|fijar)\s)s[ií],?\s+(entra|alcanza|sirve|va a entrar)|entra (perfecto|sin problema)|alcanza (perfecto|sin problema))'
+    - '(?i)(no (te )?(entra|alcanza|sirve)|no va a entrar|es (muy )?baj)'
+    - '(?i)(altura|alto)\s+(m[ií]nim|necesari|requerid)'
+    - '(?i)(necesit[aá]s|se necesita|hace falta|requiere)[^.?]*(altura|metros de alto)'

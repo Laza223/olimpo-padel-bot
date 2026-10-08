@@ -1,0 +1,15 @@
+# policy/tone.md #9: se hacen canchas para casas particulares. Pregunta en qué country.
+id: tono-09-casa-country
+tags: [tono, particular, country]
+hora: "19:00"
+tipo: guion
+mensajes: ["Es para mi casa en un country, se puede?"]
+espera:
+  dice_todas:
+    - '(?i)country'
+  dice_alguna:
+    - '(?i)(casas?|particulares)'
+  nunca_dice:
+    - '(?i)(solo|nada m[aá]s|[uú]nicamente)\s+(hacemos\s+)?(para\s+)?(clubes?|empresas?|complejos)'
+    - '(?i)no (hacemos|trabajamos|instalamos)'
+  derivacion: ninguna

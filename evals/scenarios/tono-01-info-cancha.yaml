@@ -1,0 +1,14 @@
+# policy/tone.md #1: primer mensaje genérico. Saluda según la hora, se presenta como Olimpo Padel y pregunta de dónde es.
+id: tono-01-info-cancha
+tags: [tono, saludo, primer-mensaje]
+hora: "15:00"
+tipo: guion
+mensajes: ["Hola, info de la cancha"]
+espera:
+  primer_globo: '(?i)^buenas tardes'
+  dice_todas:
+    - '(?i)olimpo p[aá]del'
+  dice_alguna:
+    - '(?i)(de d[oó]nde (sos|son|ser[ií]a|ser[ií]an|escrib[ií]s)|(en|de) qu[eé] (zona|localidad|ciudad|lugar|provincia)|d[oó]nde (ser[ií]a|ser[ií]an|estar[ií]a|queda|vas a))'
+  derivacion: ninguna
+  estado: nuevo

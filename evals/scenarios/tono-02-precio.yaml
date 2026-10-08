@@ -1,0 +1,17 @@
+# policy/tone.md #2: "Cuánto sale?". Oferta 19.900 (antes 21.900), qué incluye, instalación y flete aparte y la pregunta de la zona. Sin montos internos.
+id: tono-02-precio
+tags: [tono, precio]
+hora: "10:30"
+tipo: guion
+mensajes: ["Cuánto sale?"]
+espera:
+  primer_globo: '(?i)^buen d[ií]a'
+  dice_todas:
+    - '19\.?900'
+    - '(?i)(instalaci[oó]n|flete)'
+  dice_alguna:
+    - '(?i)(de d[oó]nde (sos|son|ser[ií]a|ser[ií]an|escrib[ií]s)|(en|de) qu[eé] (zona|localidad|ciudad|lugar|provincia)|d[oó]nde (ser[ií]a|ser[ií]an|estar[ií]a|queda|vas a))'
+  nunca_dice:
+    - '(?<![\d.,])(2\.?500|1\.?500|3\.?000|4\.?000|2\.?420)(?!\d)'
+    - '(?i)(descuento|precio especial|rebaja)'
+  derivacion: ninguna

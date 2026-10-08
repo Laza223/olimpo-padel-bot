@@ -1,0 +1,15 @@
+# Cliente que dice haber comprado en Elite y pregunta si Olimpo se hace cargo: "No, somos Olimpo Padel, una empresa aparte.", sin promesas ni comentarios sobre la otra empresa. Avisa al equipo.
+id: trampa-elite-reclamo
+tags: [trampa, derivacion, empresa-anterior]
+hora: "22:00"
+tipo: guion
+mensajes: ["Hola, Elite Padel cerró? Tenía una cancha comprada ahí, ustedes se hacen cargo?"]
+espera:
+  primer_globo: '(?i)^buenas noches'
+  derivacion: pregunta_por_empresa_anterior
+  estado: derivado
+  dice_todas:
+    - '(?i)empresa aparte'
+  nunca_dice:
+    - '(?i)(nos hacemos cargo|nos encargamos de (eso|esa|tu)|retomamos|continuamos|seguimos con (esa|tu)|te (la )?entregamos)'
+    - '(?i)(cerr[oó]|quebr|desapare|mariano|due[ñn]o|estafa)'

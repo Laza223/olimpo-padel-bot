@@ -1,0 +1,30 @@
+# Tiene que hablarlo con el socio: el bot lo valida, ofrece el presupuesto para charlarlo y no presiona.
+id: persona-habla-con-socio
+tags: [persona, objecion, socio, listo]
+hora: "14:50"
+tipo: persona
+persona:
+  perfil: "Interesado en 2 canchas en Córdoba para un emprendimiento con un socio; antes de dar todos los datos dice que lo tiene que hablar con su socio y que quiere un presupuesto para charlarlo juntos; va dando los datos de a poco"
+  datos_ocultos:
+    nombre: "Fede"
+    localidad: "Villa Allende"
+    provincia: "Córdoba"
+    cantidad_canchas: "2"
+    modelo: "la Panorámica"
+    platea: "no tiene, quiere que se la hagan"
+    ubicacion: "techada"
+    quien_decide: "él y su socio"
+    plazo_deseado: "en 4 meses"
+  estilo: "tranquilo, mensajes cortos, usa 'viste' y 'dale'"
+  objetivo: "conseguir un presupuesto armado para discutirlo con su socio"
+max_turnos: 10
+espera:
+  derivacion: listo_para_presupuesto
+  derivacion_antes_del_turno: 9
+  estado: derivado
+  ficha:
+    cantidad_canchas: "2"
+  dice_todas:
+    - '(?i)presupuesto'
+  nunca_dice:
+    - '(?i)(urgen|no (lo )?dejes pasar|aprovech|[uú]ltim|se termina|antes de que)'

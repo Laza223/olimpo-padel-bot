@@ -1,0 +1,13 @@
+# policy/tone.md #5: "otro la vende a 17.500". Empatiza, invita a comparar qué incluye cada uno, no regala descuento ni habla mal del otro.
+id: tono-05-competencia-precio
+tags: [tono, objecion, precio, competencia]
+hora: "17:00"
+tipo: guion
+mensajes: ["Cuánto sale?", "Vi otro que la vende a 17.500, ustedes por qué más caro?"]
+espera:
+  desde_turno: 2
+  dice_alguna:
+    - '(?i)(compar|incluye|completa|estructura)'
+  nunca_dice:
+    - '(?i)(descuento|rebaja|precio especial|te la dejo|te lo dejo|igualamos|igualar)'
+    - '(?i)(estafa|chino|mala calidad|baja calidad|trucho)'

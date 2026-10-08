@@ -1,0 +1,14 @@
+# policy/tone.md #19: contesta corto "No, somos Olimpo Padel, una empresa aparte." sin hablar de nadie, y avisa al equipo (el bot se frena).
+id: tono-19-son-los-de-elite
+tags: [tono, derivacion, empresa-anterior]
+hora: "15:15"
+tipo: guion
+mensajes: ["Ustedes no son los de Elite?"]
+espera:
+  primer_globo: '(?i)^buenas tardes'
+  derivacion: pregunta_por_empresa_anterior
+  estado: derivado
+  dice_todas:
+    - '(?i)empresa aparte'
+  nunca_dice:
+    - '(?i)(cerr[oó]|quebr|desapare|mariano|due[ñn]o|ex ?jefe|ex ?empleador|trabaj[aá]bamos|trabajamos (en|con|para))'

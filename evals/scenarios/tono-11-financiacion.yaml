@@ -1,0 +1,14 @@
+# policy/tone.md #11: financiación va en el presupuesto y se charla con el equipo; marca pide_financiacion en la ficha. Hora 20:15 para probar "Buenas noches".
+id: tono-11-financiacion
+tags: [tono, financiacion, hora-borde]
+hora: "20:15"
+tipo: guion
+mensajes: ["Tienen financiación? cuotas?"]
+espera:
+  primer_globo: '(?i)^buenas noches'
+  ficha:
+    pide_financiacion: si
+  dice_todas:
+    - '(?i)presupuesto'
+  nunca_dice:
+    - '(?i)(sin inter[eé]s|\d+\s+cuotas|en cuotas de|cuotas fijas|\btasa\b|banco|cr[eé]dito|tarjeta)'

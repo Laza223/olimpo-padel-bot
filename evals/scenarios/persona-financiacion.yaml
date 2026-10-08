@@ -1,0 +1,29 @@
+# Quiere financiación: el bot marca pide_financiacion, dice que va en el presupuesto y no inventa cuotas, intereses ni permutas.
+id: persona-financiacion
+tags: [persona, financiacion, honestidad]
+hora: "18:15"
+tipo: persona
+persona:
+  perfil: "Quiere 1 cancha en su quinta de Neuquén pero no tiene toda la plata junta: pregunta una y otra vez por financiación, cuántas cuotas y qué interés, y si aceptan un auto como parte de pago"
+  datos_ocultos:
+    nombre: "Silvia"
+    localidad: "Neuquén"
+    provincia: "Neuquén"
+    cantidad_canchas: "1"
+    modelo: "la Panorámica"
+    platea: "tiene"
+    ubicacion: "aire libre"
+    forma_pago: "financiado"
+  estilo: "amable pero insistente con las cuotas, mensajes de dos líneas"
+  objetivo: "saber si hay financiación y conseguir el presupuesto"
+max_turnos: 10
+espera:
+  derivacion: listo_para_presupuesto
+  derivacion_antes_del_turno: 10
+  ficha:
+    pide_financiacion: si
+  dice_todas:
+    - '(?i)presupuesto'
+  nunca_dice:
+    - '(?i)(sin inter[eé]s|\d+\s+cuotas|en cuotas de|cuotas fijas|\btasa\b|banco|cr[eé]dito|tarjeta|permuta)'
+    - '(?i)\b(aceptamos|recibimos|tomamos)\b[^.?]*(auto|veh[ií]culo|usado)'

@@ -1,0 +1,162 @@
+# POLÍTICA COMERCIAL DEL BOT: lo ÚNICO que el bot puede afirmar.
+# Respuestas de Lazar del 7-oct-2026 (cuestionario F0 por chat).
+# Estados:
+#   aprobado    → el bot lo puede decir.
+#   interno     → dato para el equipo y la ficha; el bot NUNCA lo dice.
+#   SIN_DATO    → falta definirlo.
+
+actualizado: 2026-10-07
+
+precios:
+  # Montos en USD que el bot puede escribir. El controlador bloquea cualquier otro monto con USD o $.
+  - id: full_panoramica_promo
+    modelo: Full Panorámica 20x10
+    usd: 19900
+    estado: aprobado
+    fuente: "Lazar 2-oct; landing/site.config.js; flyer"
+  - id: full_panoramica_lista
+    modelo: Full Panorámica 20x10 (precio de lista, "antes")
+    usd: 21900
+    estado: aprobado
+    fuente: "landing/site.config.js; flyer"
+  - id: panoramica
+    modelo: Panorámica 20x10 (sin promo)
+    usd: 20900
+    estado: aprobado
+    fuente: "landing/site.config.js"
+  - id: platea_hormigon
+    modelo: Platea de hormigón (por cancha, precio fijo)
+    usd: 8500
+    estado: aprobado
+    fuente: "Lazar 7-oct (tono #12): precio fijo por cancha. Decirlo solo si el cliente pregunta el precio de la platea; nunca hacer la cuenta del total."
+
+alcance_del_precio:
+  incluye: { texto: "Estructura, vidrios templados, césped, red e iluminación LED (4 luces).", estado: aprobado, fuente: "Lazar 7-oct (F0 #16)" }
+  no_incluye: { texto: "La instalación y el flete se cotizan aparte según la ubicación, y van en el presupuesto.", estado: aprobado, fuente: "Lazar 7-oct (F0 #1)" }
+  iva: { texto: "Es precio final. Facturamos como monotributo, así que sale factura C.", estado: aprobado, fuente: "Lazar 7-oct (F0 #2)" }
+  factura_a: { texto: "Si necesita factura A, lo ve con el equipo.", estado: aprobado, accion: derivar }
+
+# Dato interno, solo para la ficha y el presupuesto. El bot no los dice nunca.
+interno:
+  instalacion_usd_por_cancha: 2500
+  flete_bsas_usd: "1500-2500"
+  flete_interior_usd: "3000-4000"
+  vidrio_12mm_extra_usd: "~2420 (planilla, sin confirmar)"
+  color_especial_estructura_usd: "~500"
+  color_especial_cesped_usd: "~2000"
+
+producto:
+  modelos_que_se_ofrecen: [Full Panorámica, Panorámica]
+  diferencia_modelos:
+    texto: "La Full Panorámica no lleva postes en las esquinas, son todos vidrios y la vista queda más limpia. La Panorámica lleva postes en las cuatro esquinas."
+    estado: aprobado
+    regla: "Si el cliente no sabe qué modelo quiere, se le explica la diferencia y se le pide que elija. 'Modelo a definir' NO completa la ficha (Lazar 7-oct)."
+    fuente: "costos/costo_cancha.py (Panorámica = Full + 4 postes de esquina); Lazar 7-oct"
+  altura_libre_minima_m:
+    valor: 7
+    estado: aprobado
+    regla: "Solo si va bajo techo. Con menos de 7 m o sin dato, el bot nunca dice que entra: anota la altura en la ficha y dice que el equipo lo revisa en el presupuesto."
+    fuente: "Lazar 7-oct (reflectores de la Rev. D a 5,93 m)"
+  medidas: "20x10"
+  ubicacion:
+    texto: "Se puede instalar bajo techo o al aire libre."
+    estado: aprobado
+    fuente: "Lazar 7-oct (F0 #3 y #7): el techo es opcional; aire libre sin aclaraciones"
+  vidrio_12mm: { texto: "Se puede hacer con vidrio de 12 mm; la diferencia va detallada en el presupuesto.", estado: aprobado }
+  colores: { texto: "Se puede elegir un color especial de estructura o de césped; el adicional va detallado en el presupuesto.", estado: aprobado, fuente: "Lazar 7-oct (F0 #18): no decir montos" }
+
+servicios:
+  platea:
+    obligatoria: true
+    texto_si_no_tiene: "Sí, nosotros también nos encargamos de hacer plateas de hormigón y todo tipo de obra civil (vestuarios, baños, techados)."
+    especificaciones: "Movimiento de suelo y nivelación, tosca de 10 cm nivelada y aplanada, encofrado de 22 x 11 m, reglas y niveles, hormigón H-21 fibrilado, alisado, llaneado y cortes de juntas de dilatación."
+    fuente_especificaciones: "creador-presupuesto-olimpo/src/js/form.js SPECS_PLATEA"
+    estado: aprobado
+    regla: "Preguntar siempre. Si la tiene o la hace el cliente, sigue. Si no, ofrecerla y preguntar si se la suma al presupuesto. Precio solo si lo pregunta (USD 8.500 por cancha)."
+  techado:
+    obligatorio: false
+    texto: "También hacemos techados, se cotizan aparte."
+    estado: aprobado
+    regla: "Solo si el cliente pregunta o si suma valor para la venta (ej.: quiere jugar todo el año o con lluvia). Nunca como requisito."
+  cobertura: { texto: "Instalamos en todo el país.", estado: aprobado, fuente: "flyer" }
+  fabricacion: { texto: "Fabricación propia.", estado: aprobado, fuente: "flyer; nunca decir la localidad" }
+
+marca_nueva:
+  que_canchas_hicieron:
+    texto: "Te paso unas fotos de cómo fabricamos."
+    estado: aprobado
+    accion: enviar_fotos_reales
+    regla: "La primera vez lo maneja el bot con fotos de fabricación, sin derivar y sin decir que la marca es nueva. Si vuelve a dudar (taller, obras, antigüedad), el chat pasa al equipo con prioridad alta (Lazar 7-oct). Nunca inventar obras, ubicaciones ni clientes."
+    fuente: "Lazar 7-oct (F0 #4, corregido en tono #7)"
+  son_los_de_elite:
+    texto: "No, somos Olimpo Padel, una empresa aparte."
+    estado: aprobado
+    accion: derivar
+    regla: "Corto, sin dar explicaciones ni hablar de nadie."
+    fuente: "Lazar 7-oct (F0 #5)"
+
+presupuesto:
+  plazo_que_se_promete: { texto: "Te mandamos el presupuesto por acá en el día, o a más tardar el día hábil siguiente.", estado: aprobado, fuente: "Lazar 7-oct (F0 #6; redacción de tono #20, que se entiende sola)" }
+  datos_obligatorios: [nombre, localidad_y_provincia, cantidad_de_canchas, modelo, platea, techada_o_aire_libre]
+  datos_que_se_preguntan_pero_no_frenan: [plazo_deseado, forma_de_pago, quien_decide, uso]
+
+clientes:
+  particulares: { atender: true, prioridad: igual, fuente: "Lazar 7-oct (F0 #15)" }
+  no_es_cliente: { accion: "No contesta nada y avisa al equipo para que revise (por si era un cliente real).", fuente: "Lazar 7-oct" }
+
+si_el_bot_falla:
+  texto: "Gracias por escribirnos, ya le paso tu consulta al equipo."
+  accion: "El chat queda en manos del equipo, con aviso urgente. No se prometen tiempos."
+  fuente: "Lazar 7-oct"
+
+# Mientras no se definan, el bot contesta esto y sigue con la calificación.
+mientras_tanto:
+  - { tema: forma_de_pago, texto: "La forma de pago va detallada en el presupuesto." }
+  - { tema: moneda, texto: "El precio está en dólares y se puede pagar en pesos; la cotización va en el presupuesto." }
+  - { tema: plazo_de_obra, texto: "El plazo va en el presupuesto, porque depende de la fecha en que se confirme." }
+  - { tema: garantia, texto: "La garantía va detallada en el presupuesto." }
+  - { tema: financiacion, texto: "Eso va en el presupuesto y lo podés charlar con el equipo.", marcar_en_ficha: pide_financiacion }
+
+promo:
+  fecha_fin: null      # sin fecha ni cupo: el bot NUNCA mete urgencia (F0 #14)
+  cupo: null
+
+# Frases con números que el bot puede escribir tal cual (salen de textos aprobados: medidas, platea, vidrio, luces, esquinas).
+# Un número fuera de estas frases solo pasa si es un precio aprobado, un entero del 1 al 4 sin unidad ("dos modelos", "3 fotos"), o si lo dijo el cliente (menos de 1000 y sin plazo, cuotas, porcentaje ni fecha).
+frases_con_numeros_permitidas:
+  - "20x10"
+  - "20 x 10"
+  - "22x11"
+  - "22 x 11"
+  - "H-21"
+  - "4 luces"
+  - "10 cm"
+  - "12 mm"
+  - "cuatro esquinas"
+  - "12mm"
+  - "22 por 11"
+  - "20 por 10"
+  - "20 metros de largo por 10 de ancho"
+  - "+54 9 2323 61-0592" # contacto.whatsapp
+
+# Números sueltos que el bot puede escribir aunque el cliente no los haya dicho: ninguno (antes: 20, 10, 2, 4, 12, 22, 11, 21).
+numeros_permitidos: []
+
+presentacion:
+  saludo: "Buen día / Buenas tardes / Buenas noches según la hora argentina, una sola vez por conversación."
+  primer_mensaje: "{saludo}, te escribimos de Olimpo Padel. Contame, de dónde sos y de qué se trata tu proyecto?"
+  regla: "Sin nombre de persona. Si el cliente ya dio datos en su primer mensaje, se toman y no se vuelven a preguntar."
+  fuente: "Lazar 7-oct (tono #1 y presentación)"
+
+renders:
+  regla: "Se pueden mandar sin leyenda, presentados como 'así queda la Full Panorámica' (imagen del modelo). Nunca decir que es una obra hecha ni dar ubicación o cliente. Si preguntan 'esa la hicieron ustedes?' o 'dónde está?', no mentir: es una imagen del modelo."
+  fuente: "Lazar 7-oct (tono #16) + regla dura de la carpeta: nunca presentar un render como obra"
+
+contacto:
+  whatsapp: "+54 9 2323 61-0592"
+  web: "olimpopadel.com"
+  instagram: "@olimpopadelarg"
+
+pendiente:
+  - "Tono: 20 respuestas por audio de Lazar a mensajes típicos (F0 #15 del cuestionario)."
+  - "Fotos: marcar cuáles son reales y cuáles renders, y cuáles se pueden mandar."

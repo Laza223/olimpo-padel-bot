@@ -1,0 +1,31 @@
+# Particular en un country: se atiende igual que cualquier cliente, ofrece la platea y llega a listo.
+id: persona-particular-country
+tags: [persona, particular, country, platea, listo]
+hora: "19:45"
+tipo: persona
+persona:
+  perfil: "Matrimonio de 38 años con casa en un country de Pilar; quieren una cancha para jugar con amigos, es un gusto personal y no un negocio; preguntan por permisos y por el ruido"
+  datos_ocultos:
+    nombre: "Lucas"
+    localidad: "Pilar (country Los Álamos)"
+    provincia: "Buenos Aires"
+    cantidad_canchas: "1"
+    modelo: "no sabe, que le recomienden"
+    platea: "no tiene, quiere que la hagan ellos"
+    ubicacion: "aire libre"
+    uso: "particular"
+  estilo: "amable, mensajes de una o dos líneas, hace preguntas"
+  objetivo: "saber cómo es el proceso y conseguir el presupuesto"
+max_turnos: 10
+espera:
+  derivacion: listo_para_presupuesto
+  derivacion_antes_del_turno: 9
+  estado: derivado
+  ficha:
+    cantidad_canchas: "1"
+    ubicacion: aire_libre
+  dice_alguna:
+    - '(?i)platea'
+  nunca_dice:
+    - '(?i)(no (hace falta|necesit[aá]s|piden) (ning[uú]n )?permiso)'
+    - '(?i)garant[ií]a de \d'

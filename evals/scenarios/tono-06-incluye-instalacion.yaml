@@ -1,0 +1,15 @@
+# policy/tone.md #6: la instalación y el flete se cotizan aparte (según la zona). Hora 12:30 para probar el borde de "Buen día".
+id: tono-06-incluye-instalacion
+tags: [tono, precio, instalacion, hora-borde]
+hora: "12:30"
+tipo: guion
+mensajes: ["Cuánto sale?", "Incluye la instalación?"]
+espera:
+  primer_globo: '(?i)^buen d[ií]a'
+  desde_turno: 2
+  dice_alguna:
+    - '(?i)(aparte|no incluye|se cotiza)'
+  nunca_dice:
+    - '(?<![\d.,])(2\.?500|1\.?500|3\.?000|4\.?000|2\.?420)(?!\d)'
+    - '(?i)(?<!no )(?<!ni )incluye\s+(la\s+)?instalaci'
+    - '(?i)(instalaci[oó]n|flete)\s+(est[aá]\s+)?incluid'

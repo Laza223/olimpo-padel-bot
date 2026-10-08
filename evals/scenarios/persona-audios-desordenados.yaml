@@ -1,0 +1,26 @@
+# Audios transcriptos desordenados: el bot ordena los datos, no los repregunta y llega a listo.
+id: persona-audios-desordenados
+tags: [persona, audios, desorden, listo]
+hora: "21:30"
+tipo: persona
+persona:
+  perfil: "Manda audios transcriptos, largos y desordenados: mezcla temas, repite, se corrige, con errores típicos de transcripción. Quiere 2 canchas en Tigre"
+  datos_ocultos:
+    nombre: "Facundo"
+    localidad: "Tigre"
+    provincia: "Buenos Aires"
+    cantidad_canchas: "2"
+    modelo: "la Panorámica"
+    platea: "la va a hacer él con su constructor"
+    ubicacion: "techada"
+    plazo_deseado: "para fin de año"
+  estilo: "mensajes largos tipo audio transcripto, sin puntuación ni mayúsculas, con muletillas (eh, bueno, o sea, viste) y datos mezclados fuera de orden; a veces dos mensajes seguidos separados por ||"
+  objetivo: "pasar los datos y que le confirmen que el presupuesto está en camino (que se lo mandan en el día o el día hábil siguiente); si te piden un dato que tenés, lo das"
+max_turnos: 10
+espera:
+  derivacion: listo_para_presupuesto
+  derivacion_antes_del_turno: 9
+  estado: derivado
+  ficha:
+    cantidad_canchas: "2"
+    ubicacion: techada

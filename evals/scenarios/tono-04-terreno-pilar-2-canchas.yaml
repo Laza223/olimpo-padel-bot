@@ -1,0 +1,19 @@
+# policy/tone.md #4: toma "Pilar" y "2 canchas" y no los vuelve a preguntar; pregunta por la platea de hormigón.
+id: tono-04-terreno-pilar-2-canchas
+tags: [tono, platea, no-repreguntar, primer-mensaje]
+hora: "11:00"
+tipo: guion
+mensajes: ["Tengo un terreno en Pilar y quiero poner 2 canchas, qué necesito?"]
+espera:
+  primer_globo: '(?i)^buen d[ií]a'
+  dice_alguna:
+    - '(?i)platea'
+  ficha:
+    localidad: Pilar
+    cantidad_canchas: "2"
+  nunca_dice:
+    - '(?i)(de d[oó]nde (sos|son|escrib[ií]s)|(en|de) qu[eé] (zona|localidad|ciudad|lugar)|d[oó]nde (ser[ií]a|ser[ií]an|estar[ií]a))'
+    - '(?i)cu[aá]ntas canchas'
+    - '(?i)c[oó]mo te llam'
+  derivacion: ninguna
+  estado: calificando

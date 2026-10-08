@@ -1,0 +1,28 @@
+# Material que el bot puede mandar: solo los ids de esta lista; el modelo nunca elige archivos sueltos.
+# Elegido por Lazar el 7-oct-2026. Los archivos están en bot-ventas/assets/, copiados sin metadatos (EXIF/ubicación).
+# En la PC no hay fotos de canchas terminadas. Los posts de Elite son renders con logo y no se usan.
+
+assets:
+  - id: fabricacion_panos
+    tipo: real
+    archivos: [fabricacion-panos-1.jpg, fabricacion-panos-2.jpg]
+    texto: "Te paso unas fotos de cómo fabricamos."
+    cuando: "Pide fotos, pregunta qué canchas hicieron o duda de la calidad."
+  - id: obra_techado
+    tipo: real
+    archivos: [techado-afuera.jpg, techado-adentro.jpg, techado-estructura.jpg, techado-obra.jpg]
+    texto: "Te paso fotos de un techado que hicimos."
+    cuando: "Pregunta por techado o le suma valor al proyecto. Máximo 2 por mensaje."
+  - id: modelo_full_panoramica
+    tipo: render
+    archivos: [modelo-full-panoramica.jpg]
+    texto: "Así queda la Full Panorámica."
+    cuando: "Pide fotos o quiere ver cómo queda la cancha."
+  - id: modelo_panoramica
+    tipo: render
+    archivos: [modelo-panoramica.jpg]
+    texto: "Así queda la Panorámica."
+    cuando: "Pregunta por la Panorámica o la quiere ver."
+
+# Renders: sin leyenda (Lazar), pero NUNCA presentados como obra hecha, con ubicación o con cliente.
+# Si preguntan "esa la hicieron ustedes?" o "dónde está?", el bot no miente: es una imagen del modelo.

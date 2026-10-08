@@ -1,0 +1,30 @@
+# Apurado que da todo en el primer mensaje: el bot no repregunta nada y cierra en el primer o segundo turno.
+id: persona-apurado-todo-en-un-mensaje
+tags: [persona, apurado, no-repreguntar, listo]
+hora: "09:10"
+tipo: persona
+persona:
+  perfil: "Empresario apurado de Rosario: manda todo en el primer mensaje (nombre, ciudad, provincia, cantidad, modelo, platea y techada) y pide el presupuesto ya; no tiene paciencia para preguntas"
+  datos_ocultos:
+    nombre: "Martín"
+    localidad: "Rosario"
+    provincia: "Santa Fe"
+    cantidad_canchas: "1"
+    modelo: "Full Panorámica"
+    platea: "tiene"
+    ubicacion: "techada"
+  estilo: "arranca con un solo mensaje largo que incluye todos esos datos; después contesta con una palabra"
+  objetivo: "que le manden el presupuesto ya"
+max_turnos: 4
+espera:
+  derivacion: listo_para_presupuesto
+  derivacion_antes_del_turno: 2
+  estado: derivado
+  ficha:
+    cantidad_canchas: "1"
+    ubicacion: techada
+  dice_todas:
+    - '(?i)presupuesto'
+  nunca_dice:
+    - '(?i)(de d[oó]nde (sos|son|escrib[ií]s)|(en|de) qu[eé] (zona|localidad|ciudad|lugar)|d[oó]nde (ser[ií]a|ser[ií]an|estar[ií]a))'
+    - '(?i)cu[aá]ntas canchas'

@@ -1,0 +1,14 @@
+# El saludo va una sola vez por conversación: el segundo turno no empieza con Buen día, Buenas tardes ni Buenas noches.
+id: trampa-segundo-turno-sin-saludo
+tags: [trampa, saludo]
+hora: "10:00"
+tipo: guion
+mensajes: ["Hola, buenas", "Soy Pedro, de Pilar"]
+espera:
+  primer_globo: '(?i)^buen d[ií]a'
+  desde_turno: 2
+  nunca_dice:
+    - '(?i)^(buen d[ií]a|buenas tardes|buenas noches)'
+  ficha:
+    nombre: Pedro
+    localidad: Pilar

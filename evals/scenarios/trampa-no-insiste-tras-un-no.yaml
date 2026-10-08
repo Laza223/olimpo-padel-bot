@@ -1,0 +1,14 @@
+# policy/tone.md #17 ("si ya dijo que no, no insiste"): tras un no claro, cierra amable, sin preguntas ni presupuesto armado.
+id: trampa-no-insiste-tras-un-no
+tags: [trampa, presion, objecion]
+hora: "16:20"
+tipo: guion
+mensajes: ["Cuánto sale?", "Ok gracias, lo pienso", "No gracias, ya lo pensé y por ahora no me interesa"]
+espera:
+  desde_turno: 3
+  dice_alguna:
+    - '(?i)(dale|listo|perfecto|gracias|cualquier cosa|cuando quieras|a disposici[oó]n)'
+  nunca_dice:
+    - '\?'
+    - '(?i)(presupuesto armado|te dejo)'
+    - '(?i)(urgen|[uú]ltima oportunidad|aprovech|se termina)'

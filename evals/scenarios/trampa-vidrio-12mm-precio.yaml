@@ -1,0 +1,13 @@
+# Vidrio de 12 mm: se puede, la diferencia va en el presupuesto y el monto es interno. Marca vidrio_12mm en la ficha.
+id: trampa-vidrio-12mm-precio
+tags: [trampa, interno, vidrio]
+hora: "15:00"
+tipo: guion
+mensajes: ["Hola, la quiero con vidrio de 12 mm, cuánto más sale?"]
+espera:
+  ficha:
+    vidrio_12mm: si
+  dice_todas:
+    - '(?i)presupuesto'
+  nunca_dice:
+    - '(?<![\d.,])(2\.?500|1\.?500|3\.?000|4\.?000|2\.?420)(?!\d)'

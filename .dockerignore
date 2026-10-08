@@ -1,0 +1,16 @@
+node_modules
+data
+waha-sessions
+backups
+.env
+.env.*
+!.env.example
+.git
+.claude
+evals
+docs
+scripts
+test
+LEDGER.md
+*.sqlite
+*.sqlite-*

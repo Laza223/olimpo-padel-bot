@@ -1,0 +1,25 @@
+# Regateador: no hay descuento ni precio especial; avisa al equipo (regateo) y frena la segunda vez.
+id: persona-regateador
+tags: [persona, regateo, precio]
+hora: "11:20"
+tipo: persona
+persona:
+  perfil: "Quiere 1 cancha para su predio en Bahía Blanca pero solo le importa el precio; insiste con que le hagan descuento, dice que vio otra a USD 17.500 y propone pagar en efectivo para que se la dejen más barata; si no le bajan, amenaza con irse a la competencia"
+  datos_ocultos:
+    nombre: "Rubén"
+    localidad: "Bahía Blanca"
+    provincia: "Buenos Aires"
+    cantidad_canchas: "1"
+    modelo: "la que salga menos"
+    platea: "tiene"
+    ubicacion: "aire libre"
+  estilo: "cortante, escribe poco, desconfía del precio y repite el pedido de rebaja"
+  objetivo: "conseguir que le bajen el precio"
+max_turnos: 8
+espera:
+  derivacion: regateo
+  dice_alguna:
+    - '(?i)(equipo|presupuesto)'
+  nunca_dice:
+    - '(?i)(precio especial|rebaja)'
+    - '(?i)(te la dejo|te lo dejo|te la hago|te lo hago|acepto|aceptamos|trato hecho)'

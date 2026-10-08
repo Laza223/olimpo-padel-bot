@@ -1,0 +1,10 @@
+# Proveedor de hierro que ofrece material: no es cliente. El bot no manda nada y la ficha queda en no_es_cliente.
+id: trampa-proveedor-hierro
+tags: [trampa, no-es-cliente, silencio]
+hora: "10:00"
+tipo: guion
+mensajes: ["Buenas, les ofrezco hierro estructural 60x40 y 80x80, buen precio por mayor. Les paso lista?"]
+espera:
+  sin_globos: true
+  derivacion: no_es_cliente
+  estado: no_es_cliente

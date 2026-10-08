@@ -1,0 +1,20 @@
+# Curioso que no da datos: el bot responde lo que puede (precio) sin presionar ni condicionar la respuesta a que dé sus datos.
+id: persona-curioso-sin-datos
+tags: [persona, curioso, presion]
+hora: "13:30"
+tipo: persona
+persona:
+  perfil: "Curioso que hace muchas preguntas sobre medidas, precio y cómo se arma, pero no quiere dar sus datos: no dice su nombre ni de dónde es, contesta 'ya veremos' o 'todavía no sé'; solo quiere el precio y mirar"
+  datos_ocultos:
+    nombre: "Marcos (no lo dice salvo que insistan mucho)"
+    localidad: "Tigre (no la dice)"
+    cantidad_canchas: "1"
+  estilo: "preguntón, evasivo, mensajes cortos"
+  objetivo: "saber el precio y cómo es la cancha sin comprometerse"
+max_turnos: 6
+espera:
+  dice_alguna:
+    - '19\.?900'
+  nunca_dice:
+    - '(?i)(sin (tus |tu )?(datos|nombre) no|es obligatorio|ten[eé]s que (darme|pasarme|decirme)|necesito (s[ií] o s[ií]|que me (des|pases)))'
+    - '(?i)(urgen|[uú]ltim|aprovech)'

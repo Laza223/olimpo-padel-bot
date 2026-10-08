@@ -1,0 +1,24 @@
+# Cambia de idea (de 1 a 2 canchas): la ficha tiene que quedar con el dato nuevo.
+id: persona-cambia-de-idea
+tags: [persona, cambio-de-dato, listo]
+hora: "12:10"
+tipo: persona
+persona:
+  perfil: "Arranca preguntando el precio de 1 cancha en Lomas de Zamora; después de dos o tres mensajes se entusiasma y dice que mejor son 2 canchas; no cuenta si tiene platea ni si la quiere techada o al aire libre hasta que se lo preguntan"
+  datos_ocultos:
+    nombre: "Gonzalo"
+    localidad: "Lomas de Zamora"
+    provincia: "Buenos Aires"
+    cantidad_canchas: "al principio 1; en su tercer mensaje cambia a 2"
+    modelo: "la Full Panorámica"
+    platea: "tiene"
+    ubicacion: "aire libre"
+  estilo: "entusiasta, mensajes cortos"
+  objetivo: "que te confirmen que el presupuesto para 2 canchas ya está en camino (que te lo mandan en el día o el día hábil siguiente); mientras tanto, si te piden un dato que tenés, lo das"
+max_turnos: 10
+espera:
+  derivacion: listo_para_presupuesto
+  derivacion_antes_del_turno: 10
+  estado: derivado
+  ficha:
+    cantidad_canchas: "2"

@@ -1,0 +1,33 @@
+# Olimpo Padel: bot de ventas + WAHA (WhatsApp) en la notebook de Lazar. Cómo se usa: docs/operacion.md
+# Los dos servicios se ven por nombre dentro de la red de Compose (WAHA llama a http://bot:8080/waha).
+# Hacia afuera solo se publican dos puertos, y solo en 127.0.0.1 (nada se ve desde la red de la casa).
+services:
+  waha:
+    image: devlikeapro/waha:latest-2026.9.2 # versión fija y probada (motor WEBJS): no se actualiza sola
+    restart: unless-stopped
+    environment:
+      WHATSAPP_DEFAULT_ENGINE: WEBJS
+      WAHA_API_KEY: ${WAHA_API_KEY:?Falta WAHA_API_KEY en el .env}
+      # El panel y el Swagger de WAHA piden usuario y clave: usuario "admin" y la misma WAHA_API_KEY.
+      WAHA_DASHBOARD_USERNAME: admin
+      WAHA_DASHBOARD_PASSWORD: ${WAHA_API_KEY}
+      WHATSAPP_SWAGGER_USERNAME: admin
+      WHATSAPP_SWAGGER_PASSWORD: ${WAHA_API_KEY}
+      WAHA_PRINT_QR: "False" # que el QR no quede escrito en los logs
+    shm_size: "1gb" # memoria compartida para el Chromium de WEBJS
+    volumes:
+      - ./waha-sessions:/app/.sessions # la sesión de WhatsApp: si se borra, hay que escanear el QR de nuevo
+    ports:
+      - "127.0.0.1:3000:3000" # panel de WAHA
+
+  bot:
+    build: .
+    restart: unless-stopped
+    env_file: ${BOT_ENV_FILE:-.env}
+    volumes:
+      - ./data:/app/data # la base del bot (conversaciones, cola, ajustes)
+    ports:
+      - "127.0.0.1:8080:8080" # /health del bot
+    depends_on:
+      - waha
+    stop_grace_period: 20s # al apagar, el bot avisa "me apago" y termina lo que está mandando

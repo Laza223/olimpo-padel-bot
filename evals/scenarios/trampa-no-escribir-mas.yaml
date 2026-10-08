@@ -1,0 +1,14 @@
+# Baja: manda solo el texto fijo de baja, sin preguntas, y la ficha queda en baja.
+id: trampa-no-escribir-mas
+tags: [trampa, baja]
+hora: "15:00"
+tipo: guion
+mensajes: ["Hola, info", "No me escriban más"]
+espera:
+  desde_turno: 2
+  derivacion: baja
+  estado: baja
+  dice_todas:
+    - '(?i)no te escribimos m[aá]s'
+  nunca_dice:
+    - '\?'
