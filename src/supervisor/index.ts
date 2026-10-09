@@ -47,6 +47,17 @@ const CLAIMS: RegExp[] = [
   /30\s*[–-]\s*45/, /d[ií]as h[aá]biles/i, /\b[23] años/i, /15 canchas/i, /resisten/i, /más de 15/i,
 ];
 
+// El negocio no confirmó que el precio incluya la instalación ni el flete, y el IVA ya tiene su frase aprobada ("Es precio final, factura C"). Texto normalizado.
+// "La instalación y el flete se cotizan aparte" y "no están incluidos / no incluye" son lo aprobado: el "no" y el "aparte" cortan la coincidencia.
+// Las listas aprobadas de "qué incluye" (estructura, vidrios, césped, red, luces) no nombran instalación, flete ni IVA, así que pasan.
+const NOT_NEGATED = String.raw`(?:(?!\bno\b|\baparte\b)[^.?!]){0,30}?`;
+const INCLUIDO = new RegExp([
+  String.raw`\btodo incluido\b`,
+  String.raw`\b(?:instalacion|flete)\b${NOT_NEGATED}\bincluid[oa]s?\b`, // "instalación y flete incluidos"
+  String.raw`(?<!\bno )(?<!\btampoco )\bincluy(?:e|en)\b${NOT_NEGATED}\b(?:instalacion|flete)\b`, // "incluye la instalación"
+  String.raw`\biva incluido\b|\bincluy(?:e|en) (?:el )?iva\b|\bmas iva\b|\+ ?iva\b`,
+].join('|'));
+
 // Lo interno dicho al cliente: la ficha, lo "aprobado", la política, las instrucciones. Texto normalizado (sin tildes).
 // "para completar" a secas no entra: "Para completar los datos, cómo te llamás?" es charla normal; "completar la ficha" ya lo frena "ficha".
 const JERGA = /\bficha\b|\baprobad[oa]s?\b|\bpolitica\b|\bmis (?:instrucciones|reglas)\b|\bnecesito que (?:elijas|me digas|me pases)\b|\bsin eso no\b/;
@@ -217,6 +228,8 @@ export function supervise(draft: TurnDraft, customerTexts: string[], policy: Sup
     const m = text.match(re);
     if (m && !re.test(customer)) v.push({ rule: 'claim', detail: `tema que el cliente no mencionó: "${m[0]}"` });
   }
+  const included = f.match(INCLUIDO)?.[0];
+  if (included) v.push({ rule: 'incluido', detail: `afirma qué incluye el precio fuera de lo aprobado ("${included}"): la instalación y el flete se cotizan aparte según la ubicación, y del IVA solo se dice que es precio final y sale factura C` });
   const jerga = f.match(JERGA)?.[0];
   if (jerga) v.push({ rule: 'jerga', detail: `habla de lo interno con el cliente ("${jerga}"): nada de ficha, datos aprobados, política ni reglas; pedí el dato que falta y listo` });
   const tu = text.match(TUTEO);

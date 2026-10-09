@@ -566,6 +566,35 @@ test('jerga: lo interno (ficha, "aprobado", política, instrucciones) no se le d
   }
 });
 
+test('incluido: no afirma que el precio incluya instalación, flete o IVA, ni "todo incluido" ni "más IVA" (frases reales de Sonnet 5.5 y Haiku 5.5)', () => {
+  for (const t of [
+    'Perfecto Gustavo, ya le paso tus datos al equipo para armar el presupuesto con todo junto, instalación y flete incluidos.',
+    'Genial, anoto 2 canchas y la platea ya lista. El presupuesto lo armamos con todo incluido, y no hago cuentas por acá.',
+    'Sí, el precio es final e incluye IVA. Facturamos como monotributo, así que sale factura C.',
+    'El precio es más IVA.', 'Son USD 19.900 + IVA.', 'Va con IVA incluido.', 'El precio incluye el IVA.',
+    'La instalación viene incluida.', 'El flete está incluido en el precio.', 'La cancha incluye la instalación y el flete.', 'Incluye flete.',
+    'TODO INCLUIDO, sin sorpresas.',
+  ]) {
+    assert.ok(rules([t]).includes('incluido'), t);
+  }
+});
+
+test('incluido: lo aprobado pasa (lista de qué incluye, "se cotizan aparte", "no están incluidos", factura C)', () => {
+  for (const t of [
+    'La instalación y el flete no están incluidos en el precio, se cotizan aparte según la ubicación y van en el presupuesto.',
+    'Los vidrios templados están incluidos en el precio, lo que cuesta o qué tan frágil es lo ve el equipo.',
+    'Incluye estructura, vidrios templados, césped, red e iluminación LED (4 luces).',
+    'La Full Panorámica está en oferta a USD 19.900 (antes 21.900). Incluye estructura, vidrios templados, césped, red y 4 luces LED.',
+    'Es precio final. Facturamos como monotributo, así que sale factura C.',
+    'La instalación y el flete se cotizan aparte según la ubicación, y van en el presupuesto.',
+    'El precio no incluye la instalación ni el flete.', 'El precio tampoco incluye el flete.',
+    'Las diferencias entre los modelos y si la instalación incluye el armado completo te los confirma el equipo.',
+    'Podemos hacer la platea de hormigón e incluirla en el presupuesto.',
+  ]) {
+    assert.ok(!rules([t]).includes('incluido'), t);
+  }
+});
+
 test('jerga: charla normal no se bloquea ("para completar los datos", "decime tu nombre", "el equipo lo revisa")', () => {
   for (const t of [
     'Para completar los datos, cómo te llamás?',
