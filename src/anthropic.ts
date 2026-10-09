@@ -69,6 +69,8 @@ function httpError(status: number, raw: string, requestId: string | null, apiKey
 }
 
 // ---------- Transporte ----------
+export type CacheTtl = '5m' | '1h';
+
 export interface AnthropicClientOptions {
   apiKey?: string;
   fetch?: typeof fetch; // las pruebas lo reemplazan
@@ -105,15 +107,16 @@ export class AnthropicClient {
   }
 
   // Un pedido de una sola vuelta. Con `schema` la salida es JSON estricto (output_config.format); sin `schema`, texto libre.
+  // `cacheTtl` es la vida del caché del system: '5m' (por defecto, escribir cuesta 1,25x) o '1h' (2x). El TTL de 1 h es GA: no lleva encabezado beta.
   // Devuelve el texto de los bloques "text" (los de pensamiento se ignoran). Negativa o respuesta cortada → LlmOutputError con el uso; red, límite y 5xx → TransientLlmError.
-  async complete(req: { model: string; system: string; input: string; effort: string; schema?: unknown }): Promise<{ text: string; usage: Usage; latencyMs: number }> {
+  async complete(req: { model: string; system: string; input: string; effort: string; schema?: unknown; cacheTtl?: CacheTtl }): Promise<{ text: string; usage: Usage; latencyMs: number }> {
     if (!ANTHROPIC_EFFORTS.includes(req.effort)) throw new TransientLlmError('config', `effort "${req.effort}" no existe en Anthropic (${ANTHROPIC_EFFORTS.join(' | ')})`);
     const body = {
       model: req.model,
       max_tokens: MAX_TOKENS,
       thinking: { type: 'adaptive' }, // el valor por defecto de Haiku 5.5 y Sonnet 5.5, explícito; el esfuerzo regula cuánto piensa
       output_config: { effort: req.effort, ...(req.schema === undefined ? {} : { format: { type: 'json_schema', schema: toAnthropicSchema(req.schema) } }) },
-      system: [{ type: 'text', text: req.system, cache_control: { type: 'ephemeral' } }], // sin temperature / top_p / top_k (Haiku 5.5 los rechaza) ni prefill
+      system: [{ type: 'text', text: req.system, cache_control: req.cacheTtl === '1h' ? { type: 'ephemeral', ttl: '1h' } : { type: 'ephemeral' } }], // sin temperature / top_p / top_k (Haiku 5.5 los rechaza) ni prefill
       messages: [{ role: 'user', content: req.input }],
     };
     const t0 = performance.now();
@@ -173,8 +176,12 @@ export class AnthropicLlm implements LlmClient {
     this.#api = new AnthropicClient(opts);
   }
 
+  // Caché de 1 h solo para el bot: el tráfico de WhatsApp es esporádico (entre un cliente y otro suelen pasar más de 5 minutos, así que el de 5 min casi nunca acierta)
+  // y el caché del system es uno solo para todos los clientes, así que cualquier lectura en esa hora lo aprovecha.
+  // Regla: effort, thinking, schema (output_config) y system tienen que ser FIJOS por ruta. Cambiar cualquiera invalida el caché y se vuelve a pagar la escritura (2x).
+  // Lo que varía por cliente (hora, ficha, historial) va solo en `input` (messages). La jueza y el cliente simulado siguen en 5 min.
   async generateTurn(req: { instructions: string; input: string; model: string; effort: string }) {
-    const r = await this.#api.complete({ model: req.model, system: `${req.instructions}\n\n${STAY_IN_RULES}`, input: req.input, effort: req.effort, schema: TURN_SCHEMA });
+    const r = await this.#api.complete({ model: req.model, system: `${req.instructions}\n\n${STAY_IN_RULES}`, input: req.input, effort: req.effort, schema: TURN_SCHEMA, cacheTtl: '1h' });
     let parsed: unknown;
     try {
       parsed = JSON.parse(r.text);
