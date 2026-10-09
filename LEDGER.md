@@ -375,7 +375,7 @@ Imagen `ghcr.io/ggml-org/whisper.cpp:main-d1be6fde…` (v1.9.5, sin tags de vers
   - El código completa la provincia de lugares inequívocos.
   - `.env` → `BOT_MODEL=claude-sonnet-5-5`, medium.
 | 30 | sonnet-implementer, F1 (tokens por intento en el banco y en `agent_runs`) + F2 (caché de 1 h solo para el bot) | Commits 89577dc y 3d0d33d. 776/776. Campos de la doc local: `cache_creation.ephemeral_1h_input_tokens` y `output_tokens_details.thinking_tokens`. `ttl:"1h"` sin header beta. **Humo del orquestador** (2 escenarios, USD 0,15): el system real es de **17.847 tokens** (la investigación estimó 10,8K a 3,5 caracteres por token; el español tokeniza más denso); la escritura salió como de 1 h. **Pensamiento = 0 en los 3 intentos**: en medium con JSON, Sonnet contesta sin pensar, como dice la guía | 183k |
-| 31 | sonnet-implementer (worktree), F4: 8 reglas de prosa a código (`stop_question`, jerga, incluido, altura/platea, `pide_financiacion`, mayúscula tras coma, modelo inventado, provincia deducida) | en curso | — |
+| 31 | sonnet-implementer (worktree), F4: 8 reglas de prosa a código (`stop_question`, jerga, incluido, altura/platea, `pide_financiacion`, mayúscula tras coma, modelo inventado, provincia deducida) | 8 commits (5f7e749…cab268c), mergeados en 17387c9. 792 → 800 al mergear. Se pasó del presupuesto: 11 archivos y +455 líneas, unas 330 de tests. Angostó la jerga: sacó "para completar" porque el corpus bueno lo usa. Sacó 2 globos del corpus bueno que las reglas nuevas bloquean con razón ("completar la ficha" e "instalación y flete incluidos"). CABA queda como valor de provincia. La provincia deducida se ve en la ficha de Telegram | 247k |
 
 **F3 · línea de base Sonnet 5.5 medium, con la variante Claude afinada para Haiku y jueza Opus** (USD 3,13):
 - **Banco completo ×2:**
@@ -392,3 +392,24 @@ Imagen `ghcr.io/ggml-org/whisper.cpp:main-d1be6fde…` (v1.9.5, sin tags de vers
   5. Globos de más de 280 caracteres. Un reintento cayó en "descuento" → mensaje seguro.
   6. Deja ver lo interno ("la diferencia aprobada es").
 - Gasto acumulado del esfuerzo Sonnet: **USD 3,3**.
+
+**F5 · prompt reescrito para Sonnet 5.5** (orquestador, e09db7b):
+- Secciones nuevas, restricción de conocimiento externo, comparación de precios calculada de la política, lugares con provincia deducida tomados de `lead.ts`, 6 `<example>` ilustrativos, sin pasos mecánicos ni `<salida>`.
+- `THINK_FIRST` al final del system del bot.
+- El system pasa de 16.517 a 16.003 tokens (count_tokens). Pesan más la política y el tono que las reglas.
+- 801/801.
+
+| 32 | sonnet-implementer (worktree), F7 (`<mensajes_nuevos>` al final + `ya_preguntaste`/`no_volver_a_preguntar`) + F8 (reintento con borrador y arreglo en positivo, refusal sin reintento, timeout según esfuerzo) + guardia `precio_comparacion` | en curso | — |
+
+**v1 en train ×3** (USD 2,31; reporte `evals/out/2026-10-09-2010-…`):
+- **0 / 0 / 0 críticas, las 3 corridas PASAN.**
+- Juez 4,65 / 4,68 / 4,67, con mínimo 3,67; reintentos de 0 a 1,8 %; 0 mensajes seguros.
+- **Pensamiento promedio 265 tokens** (antes 15): la línea de la guía funciona.
+- Costo y demora: salida de 543 tokens, p95 de unos 9 s, bot de USD 0,015 a 0,021 por conversación (un 40 % más que v0, por el pensamiento).
+- **Restos (no críticos):**
+  - pregunta la provincia de Rosario y de Godoy Cruz, que no están en la lista;
+  - no puede decir si USD 20.900 es "por cancha", porque la política no lo dice; el cliente se frustró.
+- **Decisiones:**
+  - Se saltea F9 (high), porque el criterio era bajar críticas un 40 % y ya están en 0, y high empujaría el p95 hacia los 15 s.
+  - Se saltea F6 (orden del schema): no hay evidencia que lo pida.
+- Gasto acumulado: **USD 5,6**.
