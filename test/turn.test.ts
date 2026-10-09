@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import { parse } from 'yaml';
 import assert from 'node:assert/strict';
-import { runTurn, OPT_OUT_TEXT, FALLBACK_TEXT } from '../src/turn.ts';
+import { runTurn, nextCard, OPT_OUT_TEXT, FALLBACK_TEXT } from '../src/turn.ts';
 import { buildInstructions, costUsd } from '../src/brain.ts';
 import { loadPolicy } from '../src/policy.ts';
 import { emptyCard } from '../src/lead.ts';
@@ -427,7 +427,9 @@ test('pide_verificacion de punta a punta: sin señal de desconfianza en el texto
   const r1 = await runTurn(second('ok y cuánto sale?', card), { llm: fakeLlm([turn]), policy, config });
   assert.deepEqual(r1.handoffs, []);
   assert.equal(r1.stopBot, false);
-  const r2 = await runTurn(second('y dónde queda el taller? quiero ver una obra', card), { llm: fakeLlm([turn]), policy, config });
+  // el turno que frena el chat no lleva pregunta (stop_question)
+  const stopTurn = modelTurn({ bubbles: ['Eso lo ve el equipo, le paso tu consulta para que te contacten.'], objections: ['precio', 'confianza'] });
+  const r2 = await runTurn(second('y dónde queda el taller? quiero ver una obra', card), { llm: fakeLlm([stopTurn]), policy, config });
   assert.deepEqual(r2.handoffs, [{ reason: 'pide_verificacion', priority: 'alta', mode: 'stop' }]);
   assert.equal(r2.stopBot, true);
 });
@@ -561,4 +563,171 @@ test('Claude: los dos puntos de un globo se cambian por una coma antes del contr
   assert.equal(claude.bubbles[1], 'Te cuento la diferencia, la Full Panorámica no lleva postes en las esquinas.');
   const sol = await runTurn(first(), { llm: fakeLlm([turn, turn, turn]), policy, config: { model: 'gpt-6.1-sol', effort: 'low' } });
   assert.ok(sol.attempts[0].violations.some((v) => v.detail === 'dos puntos'));
+});
+
+test('Claude: el cierre aprobado pegado detrás de una coma con mayúscula se arregla ("..., Te mandamos" → "..., te mandamos"), sin gastar un intento (Sonnet medium, club)', async () => {
+  const card: LeadCard = { ...emptyCard(), fields: { nombre: field('Gustavo', 'm1'), localidad: field('Rosario', 'm1') } };
+  const bubbles = [`Gracias, Gustavo. Apenas tengamos los datos que faltan, ${CLOSING}`, 'En qué provincia queda el club?'];
+  const claude = await runTurn(second('en el club', card), { llm: fakeLlm([modelTurn({ bubbles })]), policy, config: { model: 'claude-haiku-5-5', effort: 'medium' } });
+  assert.equal(claude.attempts.length, 1);
+  assert.deepEqual(claude.bubbles, [`Gracias, Gustavo. Apenas tengamos los datos que faltan, te mandamos${CLOSING.slice('Te mandamos'.length)}`, bubbles[1]]); // "Gustavo" y "Gracias" intactos
+  // con los dos puntos de por medio también ("...faltan: Te mandamos")
+  const colon = await runTurn(second('en el club', card), { llm: fakeLlm([modelTurn({ bubbles: [bubbles[0].replace('faltan,', 'faltan:'), bubbles[1]] })]), policy, config: { model: 'claude-haiku-5-5', effort: 'medium' } });
+  assert.equal(colon.bubbles[0], claude.bubbles[0]);
+  // el cierre al arranque de la frase (con punto) ya está bien y no se toca; Sol no pasa por esta reparación
+  const punto = await runTurn(second('en el club', card), { llm: fakeLlm([modelTurn({ bubbles: [`Apenas tengamos los datos que faltan. ${CLOSING}`, bubbles[1]] })]), policy, config: { model: 'claude-haiku-5-5', effort: 'medium' } });
+  assert.match(punto.bubbles[0], /\. Te mandamos/);
+  const sol = await runTurn(second('en el club', card), { llm: fakeLlm([modelTurn({ bubbles })]), policy, config: { model: 'gpt-6.1-sol', effort: 'low' } });
+  assert.equal(sol.bubbles[0], bubbles[0]);
+});
+
+// ---------- provincia deducida de la localidad (Lazar, 9-oct) ----------
+const provinceAfter = (localidad: string, provincia?: { value: string; evidenceMsgId: string }) => {
+  const card: LeadCard = { ...emptyCard(), fields: { localidad: field(localidad, 'm1'), ...(provincia && { provincia }) } };
+  return nextCard(second('ok', card), modelTurn(), policy).card.fields.provincia;
+};
+const list = (s: string) => s.split(', ');
+
+test('provincia deducida: las localidades de la lista de Lazar completan la provincia con la evidencia "deducida de <localidad>"', () => {
+  const expected: [string, string[]][] = [
+    ['CABA', list('CABA, capital federal, Ciudad de Buenos Aires')],
+    ['Buenos Aires', list('Almirante Brown, Berazategui, Esteban Echeverría, Ezeiza, Florencio Varela, Hurlingham, José C. Paz, La Matanza, Lanús, Lomas de Zamora, Malvinas Argentinas, Moreno, Morón, Quilmes, San Isidro, Tigre, Tres de Febrero, Vicente López, Escobar, Luján, Berisso, Ensenada, Cañuelas, Marcos Paz, General Rodríguez, Campana, Zárate, Exaltación de la Cruz, Nordelta, La Plata')],
+    ['Entre Ríos', ['Paraná']], ['Neuquén', ['Neuquén']], ['Río Negro', ['Viedma']], ['Santa Cruz', ['Río Gallegos']], ['Tierra del Fuego', ['Ushuaia']],
+    ['Jujuy', ['San Salvador de Jujuy']], ['Tucumán', ['San Miguel de Tucumán']], ['Catamarca', ['San Fernando del Valle de Catamarca']], ['Chaco', ['Resistencia']], ['Misiones', ['Posadas']],
+  ];
+  for (const [province, places] of expected) {
+    for (const place of places) assert.deepEqual(provinceAfter(place), { value: province, evidenceMsgId: `deducida de ${place}` }, place);
+  }
+  // minúsculas, sin tildes y espacios de más
+  assert.equal(provinceAfter('  lomas   de ZAMORA ')?.value, 'Buenos Aires');
+  assert.equal(provinceAfter('Jose C Paz')?.value, 'Buenos Aires');
+  assert.equal(provinceAfter('canuelas')?.value, 'Buenos Aires');
+});
+
+test('provincia deducida: las que se repiten en otras provincias se siguen preguntando (Pilar, San Martín, Merlo...), y solo vale la coincidencia exacta', () => {
+  for (const place of ['Pilar', ...list('San Martín, San Miguel, San Fernando, Merlo, Ituzaingó, Avellaneda, Santa Rosa, Rawson'), 'Luján de Cuyo', 'Tigre Norte', 'Rosario', 'constructor', 'toString']) {
+    assert.equal(provinceAfter(place), undefined, place);
+  }
+  // sin localidad no hay nada que deducir
+  assert.equal(nextCard(second('ok'), modelTurn(), policy).card.fields.provincia, undefined);
+});
+
+test('provincia deducida: la que dijo el cliente no se toca; si la ciudad se llama igual que la provincia, la toma el mecanismo de siempre (literal en el mensaje)', () => {
+  assert.deepEqual(provinceAfter('Neuquén', field('Río Negro', 'm1')), field('Río Negro', 'm1'));
+  for (const name of list('Córdoba, Mendoza, Salta, Santa Fe, San Juan, San Luis, Formosa, Corrientes, La Rioja, Santiago del Estero')) {
+    const history = [msg('m1', 'customer', 'Hola'), msg('m2', 'bot', GREETING_TEXT), msg('m3', 'customer', `Soy de ${name}`)];
+    const patch = (f: 'localidad' | 'provincia') => ({ field: f, value: name, evidence_msg_id: 'm3' });
+    const c = nextCard(input(history, ['m3']), modelTurn({ lead_patch: [patch('localidad'), patch('provincia')] }), policy).card;
+    assert.deepEqual(c.fields.provincia, { value: name, evidenceMsgId: 'm3' }, name); // sin deducir: evidencia = el mensaje del cliente
+    assert.equal(provinceAfter(name), undefined, `${name}: solo la localidad, no se duplica en la lista`);
+  }
+  // una deducción vieja se rehace si la localidad cambió
+  assert.equal(provinceAfter('La Plata', field('Buenos Aires', 'deducida de Tigre'))?.evidenceMsgId, 'deducida de La Plata');
+  assert.equal(provinceAfter('Rosario', field('Buenos Aires', 'deducida de Tigre')), undefined);
+});
+
+test('provincia deducida: con la localidad en la lista la ficha puede completarse sin preguntar la provincia (pide el cierre y deriva)', async () => {
+  const card = cardWith(['provincia'], { localidad: field('Tigre', 'm1') });
+  const sinCierre = modelTurn({ bubbles: ['Perfecto, ya le paso tus datos al equipo.'] });
+  const conCierre = modelTurn({ bubbles: ['Perfecto, ya le paso tus datos al equipo.', CLOSING] });
+  const r = await runTurn(second('dale, mandame el presupuesto', card), { llm: fakeLlm([sinCierre, conCierre]), policy, config });
+  assert.equal(r.attempts[0].violations[0].rule, 'closing');
+  assert.deepEqual(r.card.fields.provincia, { value: 'Buenos Aires', evidenceMsgId: 'deducida de Tigre' });
+  assert.deepEqual(r.handoffs, [{ reason: 'listo_para_presupuesto', priority: 'normal', mode: 'stop' }]);
+  // la ficha del turno siguiente ya le muestra la provincia al modelo
+  const llm = fakeLlm([modelTurn({ bubbles: ['Anotado. Cuántas canchas serían?'] })]);
+  await runTurn(second('ok', cardWith(['cantidad_canchas'], { localidad: field('Tigre', 'm1'), provincia: field('Buenos Aires', 'deducida de Tigre') })), { llm, policy, config });
+  assert.match(llm.calls[0].input, /provincia = Buenos Aires/);
+  assert.match(llm.calls[0].input, /datos_que_faltan: cantidad_canchas/);
+});
+
+// ---------- pide_financiacion la carga el código ----------
+test('pide_financiacion: un mensaje nuevo que nombra la financiación la carga el código aunque el modelo no (Haiku 1736, tono-11), citando ese mensaje', async () => {
+  const r = await runTurn(first('Tienen financiación? cuotas?'), { llm: fakeLlm([modelTurn()]), policy, config });
+  assert.deepEqual(r.card.fields.pide_financiacion, { value: 'si', evidenceMsgId: 'm1' });
+  for (const t of ['Se puede financiar?', 'puedo pagar en cuotas', 'lo podría pagar en partes', 'tienen plan de pago?', 'quiero pagarla de a poco', 'Financiamiento hay?']) {
+    const c = nextCard(second(t), modelTurn(), policy).card;
+    assert.deepEqual(c.fields.pide_financiacion, { value: 'si', evidenceMsgId: 'm3' }, t);
+  }
+});
+
+test('pide_financiacion: no se carga con "respaldo financiero", con un mensaje viejo, con baja ni pisa lo que cargó el modelo', () => {
+  for (const t of ['tengo respaldo financiero', 'pago en efectivo', 'cuántas canchas hacen por mes?']) {
+    assert.equal(nextCard(second(t), modelTurn(), policy).card.fields.pide_financiacion, undefined, t);
+  }
+  // el cliente la nombró antes: ahora habla de otra cosa
+  const old = input([msg('m1', 'customer', 'tienen financiación?'), msg('m2', 'bot', GREETING_TEXT), msg('m3', 'customer', 'soy Pedro')], ['m3']);
+  assert.equal(nextCard(old, modelTurn(), policy).card.fields.pide_financiacion, undefined);
+  // baja o no es cliente: no se toma ningún dato
+  assert.equal(nextCard(second('dejen de escribir, no quiero cuotas'), withSignals({ opt_out: true }), policy).card.fields.pide_financiacion, undefined);
+  // si el modelo ya la cargó, queda su evidencia
+  const withModel = modelTurn({ lead_patch: [{ field: 'pide_financiacion', value: 'si', evidence_msg_id: 'm1' }] });
+  const both = input([msg('m1', 'customer', 'cuotas?'), msg('m2', 'bot', GREETING_TEXT), msg('m3', 'customer', 'y en cuotas?')], ['m3']);
+  assert.equal(nextCard(both, withModel, policy).card.fields.pide_financiacion?.evidenceMsgId, 'm1');
+});
+
+// ---------- stop_question: en el turno en que el chat pasa al equipo no se pregunta nada ----------
+const attemptRules = (r: Awaited<ReturnType<typeof runTurn>>) => r.attempts[0].violations.map((v) => v.rule);
+
+test('stop_question: los textos aprobados del cierre no llevan "?" (la regla no los toca)', () => {
+  for (const t of [policy.closingText, policy.eliteAnswerText, FALLBACK_TEXT]) assert.ok(!t.includes('?'), t);
+});
+
+test('stop_question: pide_verificacion con "en qué localidad de Mendoza sería?" (Sonnet medium, persona-desconfiado) → reintento sin pregunta', async () => {
+  const card: LeadCard = { ...emptyCard(), objections: ['confianza'] };
+  const customer = 'Ah, las fotos bien. Y de dónde soy... de Mendoza, pero primero quiero saber hace cuánto están en el rubro y dónde queda el taller';
+  const con = modelTurn({
+    bubbles: ['Entiendo la duda, es lógico querer saber con quién se trabaja. Eso lo ve el equipo y por eso le paso tu consulta para que te contacten.', 'Mientras tanto, contame, en qué localidad de Mendoza sería la cancha?'],
+    objections: ['confianza'],
+  });
+  const sin = modelTurn({ bubbles: ['Entiendo la duda, es lógico querer saber con quién se trabaja. Eso lo ve el equipo y por eso le paso tu consulta para que te contacten.'], objections: ['confianza'] });
+  const llm = fakeLlm([con, sin]);
+  const r = await runTurn(second(customer, card), { llm, policy, config });
+  assert.deepEqual(attemptRules(r), ['stop_question']);
+  assert.match(r.attempts[0].violations[0].detail, /el chat pasa al equipo no se pregunta nada/);
+  assert.match(llm.calls[1].input, /- stop_question: /);
+  assert.deepEqual(r.bubbles, sin.bubbles);
+  assert.equal(r.stopBot, true);
+});
+
+test('stop_question: pregunta por la empresa anterior con "contame de dónde sos?" (Sonnet medium, trampa-elite-reclamo)', async () => {
+  const con = modelTurn({ bubbles: ['No, somos Olimpo Padel, una empresa aparte. Le aviso al equipo para que vea tu consulta.', 'Si querés avanzar con una cancha nueva, contame de dónde sos y de qué se trata tu proyecto?'] });
+  const r = await runTurn(second('Elite Padel cerró? Tenía una cancha comprada ahí, ustedes se hacen cargo?'), { llm: fakeLlm([con, modelTurn({ bubbles: [con.bubbles[0]] })]), policy, config });
+  assert.deepEqual(attemptRules(r), ['stop_question']);
+  assert.deepEqual(r.handoffs, [{ reason: 'pregunta_por_empresa_anterior', priority: 'normal', mode: 'stop' }]);
+  assert.equal(r.attempts.length, 2);
+});
+
+test('stop_question: 2.º regateo (el chat se frena) con "cuántas canchas serían?" (Sonnet medium, persona-regateador)', async () => {
+  const card: LeadCard = { ...emptyCard(), flags: { negotiatingCount: 1, offKnowledgeCount: 0 }, notified: ['regateo'] };
+  const con = withSignals({ negotiating: true }, { bubbles: ['Entiendo, tu consulta por el precio la ve el equipo. Le aviso para que te contacten.', 'Mientras tanto, para dejarte el presupuesto armado, cuántas canchas serían?'] });
+  const sin = withSignals({ negotiating: true }, { bubbles: ['Entiendo, tu consulta por el precio la ve el equipo. Le aviso para que te contacten.'] });
+  const r = await runTurn(second('Mirá, si no me bajan algo ya le pregunto a la otra empresa', card), { llm: fakeLlm([con, sin]), policy, config });
+  assert.deepEqual(attemptRules(r), ['stop_question']);
+  assert.deepEqual(r.handoffs, [{ reason: 'regateo', priority: 'normal', mode: 'stop' }]);
+});
+
+test('stop_question: la ficha que queda completa (listo_para_presupuesto) tampoco lleva pregunta junto al cierre', async () => {
+  const card = cardWith(['platea', 'ubicacion']);
+  const history = [msg('m1', 'customer', 'Pedro, 2 canchas'), msg('m2', 'bot', GREETING_TEXT), msg('m3', 'customer', 'tengo platea y la quiero techada')];
+  const lead_patch = [
+    { field: 'platea' as const, value: 'tiene', evidence_msg_id: 'm3' },
+    { field: 'ubicacion' as const, value: 'techada', evidence_msg_id: 'm3' },
+  ];
+  const con = modelTurn({ bubbles: ['Perfecto, ya le paso tus datos al equipo.', `${CLOSING} Querés agregar algo?`], lead_patch });
+  const sin = modelTurn({ bubbles: ['Perfecto, ya le paso tus datos al equipo.', CLOSING], lead_patch });
+  const r = await runTurn(input(history, ['m3'], card), { llm: fakeLlm([con, sin]), policy, config });
+  assert.deepEqual(attemptRules(r), ['stop_question']);
+  assert.deepEqual(r.bubbles, sin.bubbles);
+});
+
+test('stop_question: no bloquea si no hay "?", ni las derivaciones que solo avisan (1.er regateo)', async () => {
+  // el chat se frena y el globo cierra sin pregunta: pasa
+  const ok = await runTurn(second('Ustedes no son los de Elite?'), { llm: fakeLlm([modelTurn({ bubbles: [policy.eliteAnswerText] })]), policy, config });
+  assert.deepEqual(ok.attempts[0].violations, []);
+  // 1.er regateo: solo aviso, el bot sigue y puede preguntar
+  const flag = withSignals({ negotiating: true }, { bubbles: ['Es entendible. En qué zona sería la cancha?'] });
+  const r = await runTurn(second('me hacés 18.000?'), { llm: fakeLlm([flag]), policy, config });
+  assert.deepEqual(r.attempts[0].violations, []);
+  assert.equal(r.stopBot, false);
 });

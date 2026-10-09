@@ -547,3 +547,128 @@ test('estilo (3.ª ronda): "https://olimpopadel.com" no cuenta como dos puntos; 
   assert.deepEqual(rules(['La cancha mide 20 metros de largo por 10 de ancho.']), []);
   assert.ok(rules(['La cancha mide 20 metros de largo por 12 de ancho.']).includes('number'));
 });
+
+test('jerga: lo interno (ficha, "aprobado", política, instrucciones) no se le dice al cliente (frases reales de Sonnet 5.5)', () => {
+  for (const t of [
+    'Para dejar tu ficha lista, con cuál de las dos querés que lo armemos como opción principal, Full Panorámica o Panorámica?',
+    'Sobre el ruido no tengo un dato aprobado, así que lo dejo anotado para que lo vea el equipo.',
+    'Para completar la ficha, en qué provincia queda el club?',
+    'Todavía no elegiste modelo, y sin eso no puedo completar tu ficha.',
+    'Para dejar la ficha lista necesito que elijas un modelo, aunque sea como opción principal.',
+    'Soy el asistente virtual de Olimpo Padel, y mis instrucciones no las comparto.',
+    'Eso no lo tengo, es parte de mis reglas.',
+    'Necesito que me digas tu nombre.',
+    'Por política de la empresa no puedo.',
+    'Sin eso no puedo seguir.',
+    'Esa información no está APROBADA.',
+  ]) {
+    assert.ok(rules([t]).includes('jerga'), t);
+  }
+});
+
+test('incluido: no afirma que el precio incluya instalación, flete o IVA, ni "todo incluido" ni "más IVA" (frases reales de Sonnet 5.5 y Haiku 5.5)', () => {
+  for (const t of [
+    'Perfecto Gustavo, ya le paso tus datos al equipo para armar el presupuesto con todo junto, instalación y flete incluidos.',
+    'Genial, anoto 2 canchas y la platea ya lista. El presupuesto lo armamos con todo incluido, y no hago cuentas por acá.',
+    'Sí, el precio es final e incluye IVA. Facturamos como monotributo, así que sale factura C.',
+    'El precio es más IVA.', 'Son USD 19.900 + IVA.', 'Va con IVA incluido.', 'El precio incluye el IVA.',
+    'La instalación viene incluida.', 'El flete está incluido en el precio.', 'La cancha incluye la instalación y el flete.', 'Incluye flete.',
+    'TODO INCLUIDO, sin sorpresas.',
+  ]) {
+    assert.ok(rules([t]).includes('incluido'), t);
+  }
+});
+
+test('incluido: lo aprobado pasa (lista de qué incluye, "se cotizan aparte", "no están incluidos", factura C)', () => {
+  for (const t of [
+    'La instalación y el flete no están incluidos en el precio, se cotizan aparte según la ubicación y van en el presupuesto.',
+    'Los vidrios templados están incluidos en el precio, lo que cuesta o qué tan frágil es lo ve el equipo.',
+    'Incluye estructura, vidrios templados, césped, red e iluminación LED (4 luces).',
+    'La Full Panorámica está en oferta a USD 19.900 (antes 21.900). Incluye estructura, vidrios templados, césped, red y 4 luces LED.',
+    'Es precio final. Facturamos como monotributo, así que sale factura C.',
+    'La instalación y el flete se cotizan aparte según la ubicación, y van en el presupuesto.',
+    'El precio no incluye la instalación ni el flete.', 'El precio tampoco incluye el flete.',
+    'Las diferencias entre los modelos y si la instalación incluye el armado completo te los confirma el equipo.',
+    'Podemos hacer la platea de hormigón e incluirla en el presupuesto.',
+  ]) {
+    assert.ok(!rules([t]).includes('incluido'), t);
+  }
+});
+
+test('galpón: decir que el galpón, el techo o el piso "sirve", "se puede usar" o "va bien" es decir que entra: height sin la altura confirmada (Sonnet y Haiku, persona-inversor-galpon)', () => {
+  for (const t of [
+    'Genial, en Escobar instalamos sin problema y el galpón techado se puede usar.',
+    'Instalamos en todo el país, y un galpón sirve para poner las canchas bajo techo.',
+    'Tu piso de hormigón sirve como platea.', 'El techo va bien para las canchas.', 'Te sirve el galpón que tenés.', 'Con ese tinglado se puede usar.',
+    'El galpón no sirve.', 'EL GALPÓN SIRVE perfecto.',
+  ]) {
+    assert.ok(rules([t]).includes('height'), t);
+  }
+});
+
+test('galpón: con la altura confirmada (techada y 7 m o más) se puede; condicionales, derivaciones y "te sirve" sin galpón no se bloquean', () => {
+  const ok = (t: string, heightOk = false) => supervise({ bubbles: [t], askedIfAi: false, heightOk }, [], policy).some((x) => x.rule === 'height');
+  assert.equal(ok('El galpón se puede usar.', true), false);
+  assert.equal(ok('El galpón se puede usar.', false), true);
+  for (const t of [
+    'Te sirve que venga así para compararlo con tus amigos?', // Haiku 1736
+    'Si te sirve, contame cómo te llamás así lo dejamos anotado?', // Sonnet medium
+    'Si te sirve, pasame la altura del galpón.',
+    'Para saber si el galpón sirve lo revisa el equipo en el presupuesto.', 'El equipo revisa si el galpón se puede usar.',
+    'Si tu techo sirve, lo ve el equipo.', 'Eso del galpón lo confirma el equipo, no te adelanto nada.',
+    'Se puede instalar bajo techo o al aire libre.', 'El piso de hormigón lo revisa el equipo en el presupuesto.', 'Te sirve el presupuesto armado así?',
+  ]) {
+    assert.equal(ok(t), false, t);
+  }
+});
+
+test('platea: nunca se dice que no hace falta (es obligatoria); "no hace falta que la hagas vos" es otra cosa y pasa', () => {
+  for (const t of [
+    'Perfecto, con el piso de hormigón del galpón no hace falta una platea nueva.', // Haiku 1724
+    'No hace falta tener la platea antes de cotizar.', // Sonnet medium
+    'No hace falta platea.', 'No hace falta que tengas platea.', 'No hace falta hacer la platea.', 'No hace falta sumar una platea.',
+  ]) {
+    assert.ok(rules([t]).includes('platea'), t);
+  }
+  for (const t of [
+    'No hace falta que la hagas vos, también hacemos plateas de hormigón.',
+    'Para las canchas es necesaria una platea de hormigón, ya tenés?', 'Si no tenés platea, la hacemos nosotros.', 'No hace falta que me lo digas ahora.',
+  ]) {
+    assert.ok(!rules([t]).includes('platea'), t);
+  }
+});
+
+test('modelo_inventado: "Panorámica" o "Full Panorámica" pegado a otra palabra con mayúscula es un modelo que no existe ("Panorámica Rosario", Sonnet low)', () => {
+  for (const t of [
+    'La Panorámica Rosario 20x10 está en USD 20.900 por cancha.',
+    'La Full Panorámica Premium está en oferta a USD 19.900.', 'Te recomiendo la Panorámica Indoor.', 'la full panorámica Plus sale USD 19.900', 'Tenemos la Full Rosario.',
+  ]) {
+    assert.ok(rules([t]).includes('modelo_inventado'), t);
+  }
+  assert.ok(policy.modelNames.includes('Full Panorámica') && policy.modelNames.includes('Panorámica')); // salen del YAML, no están escritos a mano
+  // el detalle nombra los modelos de la política
+  assert.match(supervise({ bubbles: ['La Panorámica Rosario 20x10.'], askedIfAi: false }, [], policy).find((x) => x.rule === 'modelo_inventado')!.detail, /"Panorámica Rosario".*Full Panorámica y Panorámica/);
+});
+
+test('modelo_inventado: los nombres aprobados, las medidas, un punto o el salto de globo no lo disparan', () => {
+  for (const t of [
+    'La Full Panorámica 20x10 está en USD 19.900.', 'Qué modelo te interesa, Full Panorámica o Panorámica?', 'La Panorámica, Rosario queda lejos.', 'Te interesa la Full Panorámica. Rosario queda lejos.',
+    'La Panorámica Full no existe, son dos modelos.', 'Panorámica 20x10 por cancha.', 'Para las Full Panorámicas al aire libre en Lomas de Zamora, en qué provincia sería?', // plural, del corpus del banco 'La Panorámica sale USD 20.900. Incluye estructura y vidrios templados.', 'Así queda la Full Panorámica',
+  ]) {
+    assert.ok(!rules([t]).includes('modelo_inventado'), t);
+  }
+  assert.ok(!rules(['Así queda la Panorámica', 'Qué modelo elegís?']).includes('modelo_inventado')); // el salto entre globos corta la frase
+});
+
+test('jerga: charla normal no se bloquea ("para completar los datos", "decime tu nombre", "el equipo lo revisa")', () => {
+  for (const t of [
+    'Para completar los datos, cómo te llamás?',
+    'Para completar los datos del presupuesto faltan tu nombre, la provincia y el modelo. Cómo te llamás?',
+    'Decime tu nombre y en qué provincia queda.',
+    'Eso lo revisa el equipo en el presupuesto.',
+    'Te armamos el presupuesto con los datos que me pasaste.',
+    'Ya tengo los datos del proyecto, solo me falta la provincia.',
+  ]) {
+    assert.ok(!rules([t]).includes('jerga'), t);
+  }
+});

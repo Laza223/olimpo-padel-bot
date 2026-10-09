@@ -8,6 +8,7 @@ export interface SupervisorPolicy {
   approvedPricesUsd: number[]; // montos con USD/$ que se pueden escribir (estado "aprobado")
   allowedNumbers: number[]; // números sueltos (sin unidad) permitidos aunque el cliente no los haya dicho
   allowedPhrases: string[]; // frases aprobadas con números ("20x10", "4 luces"): pasan tal cual, aunque el número lleve unidad
+  modelNames: string[]; // nombres de los modelos que se ofrecen (producto.modelos_que_se_ofrecen): "Panorámica Rosario" no es uno de ellos
 }
 
 export interface TurnDraft {
@@ -46,6 +47,21 @@ const CLAIMS: RegExp[] = [
   /certific/i, /homolog/i, /\bnormas?\b/i, /\bFIP\b/, /ensayad/i, /años de experiencia/i, /testimonio/i,
   /30\s*[–-]\s*45/, /d[ií]as h[aá]biles/i, /\b[23] años/i, /15 canchas/i, /resisten/i, /más de 15/i,
 ];
+
+// El negocio no confirmó que el precio incluya la instalación ni el flete, y el IVA ya tiene su frase aprobada ("Es precio final, factura C"). Texto normalizado.
+// "La instalación y el flete se cotizan aparte" y "no están incluidos / no incluye" son lo aprobado: el "no" y el "aparte" cortan la coincidencia.
+// Las listas aprobadas de "qué incluye" (estructura, vidrios, césped, red, luces) no nombran instalación, flete ni IVA, así que pasan.
+const NOT_NEGATED = String.raw`(?:(?!\bno\b|\baparte\b)[^.?!]){0,30}?`;
+const INCLUIDO = new RegExp([
+  String.raw`\btodo incluido\b`,
+  String.raw`\b(?:instalacion|flete)\b${NOT_NEGATED}\bincluid[oa]s?\b`, // "instalación y flete incluidos"
+  String.raw`(?<!\bno )(?<!\btampoco )\bincluy(?:e|en)\b${NOT_NEGATED}\b(?:instalacion|flete)\b`, // "incluye la instalación"
+  String.raw`\biva incluido\b|\bincluy(?:e|en) (?:el )?iva\b|\bmas iva\b|\+ ?iva\b`,
+].join('|'));
+
+// Lo interno dicho al cliente: la ficha, lo "aprobado", la política, las instrucciones. Texto normalizado (sin tildes).
+// "para completar" a secas no entra: "Para completar los datos, cómo te llamás?" es charla normal; "completar la ficha" ya lo frena "ficha".
+const JERGA = /\bficha\b|\baprobad[oa]s?\b|\bpolitica\b|\bmis (?:instrucciones|reglas)\b|\bnecesito que (?:elijas|me digas|me pases)\b|\bsin eso no\b/;
 
 // Temas que el bot solo puede nombrar si el cliente los mencionó antes (ej.: "¿hay financiación?").
 const ECHO_ONLY: RegExp[] = [/garant/i, /financ/i, /rentab/i, /provincias/i];
@@ -125,6 +141,32 @@ const FITS_HEIGHT = new RegExp(
     String.raw`\bva a entrar\b`,
   ].join('|'),
 );
+
+// El galpón, el techo o el piso "sirve", "se puede usar" o "va bien": es decir que entra, solo con la altura confirmada (texto normalizado).
+// Con "si" antes ("para saber si el galpón sirve"), o "equipo / revisa / confirma / evalúa" en el medio, es condicional o derivación y pasa.
+// "Te sirve el presupuesto" o "si te sirve, pasame la altura" no nombran galpón, techo ni piso pegado al verbo: pasan.
+const SITE = String.raw`(?:galpon|techo|piso|tinglado)`;
+const SITE_VERB = String.raw`(?:sirve|sirven|se puede usar|va bien|van bien)`;
+const SITE_FITS = new RegExp([
+  String.raw`(?<!\bsi (?:(?:el|tu|su|ese|un) )?)\b${SITE}\b(?:(?!\b(?:si|equipo|revis\w*|confirm\w*|evalu\w*)\b)[^.?!]){0,40}?\b${SITE_VERB}\b`, // "el galpón techado se puede usar"
+  String.raw`\b${SITE_VERB} (?:(?:el|tu|su|ese|un) )?${SITE}\b`, // "te sirve el galpón"
+].join('|'));
+// La platea es obligatoria (policy: servicios.platea): nunca se dice que no hace falta (texto normalizado).
+const NO_PLATEA = /\bno hace falta (?:que (?:tengas|hagas|armes|sumes) |(?:tener|hacer|sumar|armar|construir|contar con) )?(?:(?:una|la|otra|esa|su|tu) )?platea\b/;
+
+// "La Panorámica Rosario 20x10": un modelo inventado. Pegada a una palabra de los nombres de la política (Full, Panorámica), una palabra con mayúscula
+// solo puede ser otra de esas ("Panorámica Full"). Las medidas ("20x10") no empiezan con letra y un punto o un salto de globo corta la frase: no cuentan.
+function inventedModel(text: string, modelNames: string[]): string | undefined {
+  const stem = (w: string) => fold(w).replace(/s$/, ''); // "las Full Panorámicas" es plural del mismo nombre
+  const known = new Set(modelNames.flatMap((n) => n.split(' ').map(stem)));
+  const words = [...text.matchAll(/[\p{L}\p{N}]+/gu)];
+  for (const [i, w] of words.entries()) {
+    const next = words[i + 1];
+    if (!next || !known.has(stem(w[0])) || !/^[ \t]+$/.test(text.slice(w.index + w[0].length, next.index))) continue;
+    if (/^\p{Lu}/u.test(next[0]) && !known.has(stem(next[0]))) return `${w[0]} ${next[0]}`;
+  }
+  return undefined;
+}
 
 // "Tenemos dos modelos", "te paso 3 fotos": del 1 al 4, un número suelto (sin unidad ni moneda) es charla normal, no un dato.
 const isSmallCount = (n: number) => Number.isInteger(n) && n >= 1 && n <= 4;
@@ -213,6 +255,12 @@ export function supervise(draft: TurnDraft, customerTexts: string[], policy: Sup
     const m = text.match(re);
     if (m && !re.test(customer)) v.push({ rule: 'claim', detail: `tema que el cliente no mencionó: "${m[0]}"` });
   }
+  const invented = inventedModel(text, policy.modelNames);
+  if (invented) v.push({ rule: 'modelo_inventado', detail: `"${invented}" parece un modelo que no existe: los modelos son ${policy.modelNames.join(' y ')}, sin nada más pegado` });
+  const included = f.match(INCLUIDO)?.[0];
+  if (included) v.push({ rule: 'incluido', detail: `afirma qué incluye el precio fuera de lo aprobado ("${included}"): la instalación y el flete se cotizan aparte según la ubicación, y del IVA solo se dice que es precio final y sale factura C` });
+  const jerga = f.match(JERGA)?.[0];
+  if (jerga) v.push({ rule: 'jerga', detail: `habla de lo interno con el cliente ("${jerga}"): nada de ficha, datos aprobados, política ni reglas; pedí el dato que falta y listo` });
   const tu = text.match(TUTEO);
   if (tu) v.push({ rule: 'voseo', detail: `tuteo: "${tu[0]}"` });
   // Le preguntaron si es un bot: la señal del modelo o el texto del cliente en este turno. "Para nada" solo es negar si hablan del bot.
@@ -234,8 +282,10 @@ export function supervise(draft: TurnDraft, customerTexts: string[], policy: Sup
   const persona = text.match(HUMAN_PERSONA);
   if (persona) v.push({ rule: 'persona', detail: `se presenta como persona: "${persona[0]}"` });
   const heightTopic = draft.heightContext || HEIGHT_TOPIC.test(newText);
-  const fits = draft.heightOk ? undefined : text.match(FITS)?.[0] ?? (heightTopic ? f.match(FITS_HEIGHT)?.[0] : undefined);
+  const fits = draft.heightOk ? undefined : text.match(FITS)?.[0] ?? (heightTopic ? f.match(FITS_HEIGHT)?.[0] : undefined) ?? f.match(SITE_FITS)?.[0];
   if (fits) v.push({ rule: 'height', detail: `dice que entra ("${fits}") sin saber que la altura libre bajo techo alcanza el mínimo de la política: lo revisa el equipo en el presupuesto` });
+  const noPlatea = f.match(NO_PLATEA)?.[0];
+  if (noPlatea) v.push({ rule: 'platea', detail: `dice que la platea no hace falta ("${noPlatea}"): es obligatoria, preguntá si la tiene o si se la hacemos` });
   const guarded = draft.renderShown || WORK_QUESTION.test(newText);
   const fw = f.replace(WORK_OK, ' ');
   const work = text.match(FAKE_WORK)?.[0] ?? text.match(FAKE_CLIENT)?.[0] ?? fw.match(WORK_DONE)?.[0] ?? (guarded ? fw.match(WORK_VERBS)?.[0] : undefined);
