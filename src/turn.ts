@@ -135,6 +135,13 @@ function withoutColons(turn: ModelTurn): ModelTurn {
   return { ...turn, bubbles: turn.bubbles.map((b) => b.replace(/\s*:(?!\/\/)\s*/g, ', ')) };
 }
 
+// Sonnet pega el cierre aprobado detrás de una coma y con su mayúscula ("...que faltan, Te mandamos el presupuesto..."). Es una errata, no una falla:
+// se baja solo esa primera letra y solo del texto aprobado (bajar mayúsculas en general rompería los nombres propios). Sol no pasa por acá.
+function withClosingAfterComma(turn: ModelTurn, closingText: string): ModelTurn {
+  const lowered = closingText.charAt(0).toLowerCase() + closingText.slice(1);
+  return { ...turn, bubbles: turn.bubbles.map((b) => b.replaceAll(`, ${closingText}`, () => `, ${lowered}`)) };
+}
+
 export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnResult> {
   const { llm, policy, config } = deps;
   costUsd(config.model, { inputTokens: 0, cachedTokens: 0, outputTokens: 0 }); // falla ya si el modelo no tiene precio
@@ -162,7 +169,7 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
       const r = await llm.generateTurn({ instructions, input: buildInput(input, policy, errors, { family }), model: config.model, effort: config.effort });
       Object.assign(log, { latencyMs: r.latencyMs, ...r.usage, raw: r.turn });
       log.costUsd = costUsd(config.model, r.usage);
-      const turn = family === 'claude' ? withoutColons(r.turn) : r.turn;
+      const turn = family === 'claude' ? withClosingAfterComma(withoutColons(r.turn), policy.closingText) : r.turn;
       log.violations = turnChecks(turn, input, policy);
       if (!log.violations.length) accepted = turn;
     } catch (e) {

@@ -565,6 +565,22 @@ test('Claude: los dos puntos de un globo se cambian por una coma antes del contr
   assert.ok(sol.attempts[0].violations.some((v) => v.detail === 'dos puntos'));
 });
 
+test('Claude: el cierre aprobado pegado detrás de una coma con mayúscula se arregla ("..., Te mandamos" → "..., te mandamos"), sin gastar un intento (Sonnet medium, club)', async () => {
+  const card: LeadCard = { ...emptyCard(), fields: { nombre: field('Gustavo', 'm1'), localidad: field('Rosario', 'm1') } };
+  const bubbles = [`Gracias, Gustavo. Apenas tengamos los datos que faltan, ${CLOSING}`, 'En qué provincia queda el club?'];
+  const claude = await runTurn(second('en el club', card), { llm: fakeLlm([modelTurn({ bubbles })]), policy, config: { model: 'claude-haiku-5-5', effort: 'medium' } });
+  assert.equal(claude.attempts.length, 1);
+  assert.deepEqual(claude.bubbles, [`Gracias, Gustavo. Apenas tengamos los datos que faltan, te mandamos${CLOSING.slice('Te mandamos'.length)}`, bubbles[1]]); // "Gustavo" y "Gracias" intactos
+  // con los dos puntos de por medio también ("...faltan: Te mandamos")
+  const colon = await runTurn(second('en el club', card), { llm: fakeLlm([modelTurn({ bubbles: [bubbles[0].replace('faltan,', 'faltan:'), bubbles[1]] })]), policy, config: { model: 'claude-haiku-5-5', effort: 'medium' } });
+  assert.equal(colon.bubbles[0], claude.bubbles[0]);
+  // el cierre al arranque de la frase (con punto) ya está bien y no se toca; Sol no pasa por esta reparación
+  const punto = await runTurn(second('en el club', card), { llm: fakeLlm([modelTurn({ bubbles: [`Apenas tengamos los datos que faltan. ${CLOSING}`, bubbles[1]] })]), policy, config: { model: 'claude-haiku-5-5', effort: 'medium' } });
+  assert.match(punto.bubbles[0], /\. Te mandamos/);
+  const sol = await runTurn(second('en el club', card), { llm: fakeLlm([modelTurn({ bubbles })]), policy, config: { model: 'gpt-6.1-sol', effort: 'low' } });
+  assert.equal(sol.bubbles[0], bubbles[0]);
+});
+
 // ---------- pide_financiacion la carga el código ----------
 test('pide_financiacion: un mensaje nuevo que nombra la financiación la carga el código aunque el modelo no (Haiku 1736, tono-11), citando ese mensaje', async () => {
   const r = await runTurn(first('Tienen financiación? cuotas?'), { llm: fakeLlm([modelTurn()]), policy, config });
