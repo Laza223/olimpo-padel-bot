@@ -185,9 +185,22 @@ test('AnthropicLlm: negativa (refusal) y respuesta cortada (max_tokens) → LlmO
       assert.ok(e instanceof LlmOutputError, name);
       assert.match((e as Error).message, re, name);
       assert.deepEqual((e as LlmOutputError).usage, expected, name);
+      assert.equal((e as LlmOutputError).kind, name.startsWith('negativa') ? 'refusal' : 'invalid', name); // solo la negativa no se reintenta
       return true;
     });
   }
+});
+
+test('AnthropicClient.complete: el tiempo máximo depende del esfuerzo (30 s con low y medium, 45 s con high, xhigh y max) y un timeoutMs explícito manda', async (t) => {
+  const asked: number[] = [];
+  t.mock.method(AbortSignal, 'timeout', (ms: number) => { asked.push(ms); return new AbortController().signal; });
+  const ask = async (effort: string, timeoutMs?: number) => {
+    const client = new AnthropicClient({ apiKey: KEY, fetch: fakeFetch({ body: message() }).fetch, timeoutMs });
+    await client.complete({ model: 'claude-sonnet-5-5', system: 'S', input: 'I', effort });
+  };
+  for (const effort of ['low', 'medium', 'high', 'xhigh', 'max']) await ask(effort);
+  await ask('max', 5_000);
+  assert.deepEqual(asked, [30_000, 30_000, 45_000, 45_000, 45_000, 5_000]);
 });
 
 test('AnthropicLlm: un 200 que no es JSON es LlmOutputError (no se manda el texto crudo)', async () => {

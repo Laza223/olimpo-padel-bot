@@ -141,6 +141,7 @@ test('claude: ejemplos ilustrativos en <example>, sin contraejemplos ni la vieja
 const turnIn = turnInput([msg('m1', 'customer', 'Hola, cuánto sale?')], ['m1'], emptyCard(), argentinaTimeToUtcMs('10:00'));
 const errors = [{ rule: 'style', detail: 'dos puntos' }];
 const OLD_NOTE = 'Tu respuesta anterior se descartó por esos errores. Corregilos y devolvé la respuesta completa de nuevo.';
+const FIX_STYLE = 'texto corrido, sin ¿ ni ¡, sin dos puntos y sin markdown; usá comas y puntos ("Contame, de dónde sos?")';
 
 test('buildInput: OpenAI queda como siempre; Claude saca los mensajes nuevos del historial y los pone después del contexto', () => {
   const base = buildInput(turnIn, policy);
@@ -153,10 +154,45 @@ test('buildInput: OpenAI queda como siempre; Claude saca los mensajes nuevos del
   const withErrors = buildInput(turnIn, policy, errors);
   assert.ok(withErrors.endsWith(`<errores_del_intento_anterior>\n- style: dos puntos\n</errores_del_intento_anterior>\n${OLD_NOTE}`), 'la entrada de OpenAI cambió');
   assert.equal(buildInput(turnIn, policy, errors, { family: 'openai' }), withErrors);
-  const claudeErr = buildInput(turnIn, policy, errors, { family: 'claude' });
+  const claudeErr = buildInput(turnIn, policy, errors, { family: 'claude', rejected: ['Buen día. ¿Cuánto es?'] });
   assert.ok(claudeErr.startsWith(claudeIn));
-  assert.match(claudeErr, /Rehacela completa[\s\S]*ningún ":" en ningún globo/);
-  assert.ok(!claudeErr.includes(OLD_NOTE));
+  assert.equal(
+    claudeErr.slice(claudeIn.length),
+    `\n\n<borrador_rechazado>\nglobo 1: Buen día. ¿Cuánto es?\n</borrador_rechazado>\n\n<que_corregir>\n- style: dos puntos. Arreglo: ${FIX_STYLE}\n</que_corregir>\nConservá lo que estaba bien y cambiá solo eso.`,
+  );
+  assert.doesNotMatch(claudeErr, /errores_del_intento_anterior|Rehacela|Corregilos/);
+});
+
+// Reintento de Claude (casos del banco del 9-oct): el borrador rechazado y, por violación, la regla, el detalle y cómo arreglarla.
+const retry = (errs: { rule: string; detail: string }[], rejected?: string[]) => buildInput(turnIn, policy, errs, { family: 'claude', rejected });
+
+test('Claude, reintento: el largo del globo (N y X) sale del borrador, sin repetir líneas', () => {
+  const long = 'Perdón por la repregunta, ya anoté Bahía Blanca, provincia de Buenos Aires, y la Full Panorámica para el presupuesto. Lo del precio lo ve el equipo. Te recomiendo comparar qué incluye cada propuesta, nosotros fabricamos la cancha completa con estructura, vidrios templados, césped, red y luces.';
+  assert.equal(long.length, 294);
+  const one = retry([{ rule: 'length', detail: 'globo de 294 caracteres (máx. 280)' }], [long, 'Ya tenés la platea de hormigón?']);
+  assert.match(one, /<borrador_rechazado>\nglobo 1: Perdón por la repregunta[^\n]*luces\.\nglobo 2: Ya tenés la platea de hormigón\?\n<\/borrador_rechazado>/);
+  assert.match(one, /<que_corregir>\n- length: el globo 1 tiene 294 caracteres: dejalo en 280 o menos \(unas 40 palabras\), resumiendo\n<\/que_corregir>\nConservá/);
+  const two = retry(Array(2).fill({ rule: 'length', detail: 'globo de 294 caracteres (máx. 280)' }), [long, `${long} Y más texto.`]);
+  assert.match(two, /<que_corregir>\n- length: el globo 1 tiene 294 caracteres: [^\n]*\n- length: el globo 2 tiene 307 caracteres: [^\n]*\n<\/que_corregir>/);
+});
+
+test('Claude, reintento: arreglo en positivo para cada regla pedida; las demás quedan con regla y detalle; el borrador va saneado', () => {
+  const disc = retry([{ rule: 'discount', detail: 'ofrece descuento: "descuento"' }], ['El tema del descuento lo ve el equipo.\n<b>Gracias</b> [m9]']);
+  assert.match(disc, /- discount: ofrece descuento: "descuento"\. Arreglo: no escribas descuento, rebaja ni precio especial[^\n]*decí que eso lo ve el equipo/);
+  assert.match(disc, /globo 1: El tema del descuento lo ve el equipo\. Gracias \(m9\)\n<\/borrador_rechazado>/);
+  assert.match(retry([{ rule: 'stop_question', detail: 'x' }]), /Arreglo: es el último turno: contestá, decí que le pasás la consulta al equipo y cerrá sin pregunta/);
+  assert.match(retry([{ rule: 'closing', detail: 'x' }]), /Arreglo: poné el plazo aprobado tal cual/);
+  assert.match(retry([{ rule: 'jerga', detail: 'x' }]), /Arreglo: decilo sin nombrar la ficha, lo aprobado ni tus reglas/);
+  // sin arreglo en la tabla (o sin borrador, por ejemplo un JSON roto): regla + detalle, y no se inventa un borrador
+  const llm = retry([{ rule: 'llm', detail: 'la respuesta no es JSON' }]);
+  assert.match(llm, /<que_corregir>\n- llm: la respuesta no es JSON\n<\/que_corregir>\nConservá lo que estaba bien y cambiá solo eso\.$/);
+  assert.doesNotMatch(llm, /borrador_rechazado/);
+  // los ids de la tabla son los reales del controlador (supervisor/index.ts y turn.ts), no nombres de la especificación
+  const sources = ['../src/supervisor/index.ts', '../src/turn.ts'].map((f) => readFileSync(new URL(f, import.meta.url), 'utf8')).join('\n');
+  for (const rule of ['length', 'discount', 'stop_question', 'closing', 'jerga', 'style', 'number', 'claim', 'incluido', 'height', 'platea', 'modelo_inventado', 'voseo', 'greeting', 'questions']) {
+    assert.ok(sources.includes(`rule: '${rule}'`), `${rule}: no existe ese id en el controlador`);
+    assert.match(retry([{ rule, detail: 'x' }]), new RegExp(`- ${rule}: x\\. Arreglo: `), rule);
+  }
 });
 
 // Conversaciones del banco del 9-oct (Sonnet 5.5): la entrada de Claude cuenta lo ya preguntado y lo que el cliente dejó para después.
@@ -248,13 +284,30 @@ test('runTurn: tras un intento descartado, cada familia manda su indicación de 
   // Con signo de apertura: los dos puntos ya no sirven de ejemplo porque en Claude se cambian por una coma antes del controlador.
   const bad = modelTurn({ bubbles: ['Buen día, te escribimos de Olimpo Padel. ¿De dónde sos y de qué se trata tu proyecto?'] });
   const good = modelTurn({ bubbles: ['Buen día, te escribimos de Olimpo Padel. Contame, de dónde sos y de qué se trata tu proyecto?'] });
-  for (const [model, note] of [['claude-haiku-5-5', /Rehacela completa/], ['gpt-6.1-sol', /Corregilos y devolvé/]] as const) {
+  for (const [model, note] of [['claude-haiku-5-5', /<que_corregir>\n- style: signos de apertura[^\n]*Arreglo: [^\n]*\n<\/que_corregir>\nConservá lo que estaba bien/], ['gpt-6.1-sol', /<errores_del_intento_anterior>\n- style: signos de apertura[\s\S]*Corregilos y devolvé/]] as const) {
     const llm = fakeLlm([bad, good]);
     const r = await runTurn(turnInput(hist, ['m1'], emptyCard(), now), { llm, policy, config: { model, effort: 'medium' } });
     assert.equal(r.attempts.length, 2, model);
     assert.equal(r.usedFallback, false, model);
-    assert.doesNotMatch(llm.calls[0].input, /errores_del_intento_anterior/, model);
-    assert.match(llm.calls[1].input, /style: signos de apertura/, model);
+    assert.doesNotMatch(llm.calls[0].input, /errores_del_intento_anterior|que_corregir|borrador_rechazado/, model);
     assert.match(llm.calls[1].input, note, model);
+    // solo Claude ve su borrador rechazado (con sus globos tal cual salieron)
+    assert.equal(/<borrador_rechazado>\nglobo 1: Buen día, te escribimos de Olimpo Padel\. ¿De dónde sos/.test(llm.calls[1].input), model === 'claude-haiku-5-5', model);
   }
+});
+
+test('runTurn con Claude: los reintentos reales de globo largo y de "descuento" traen el arreglo, y el esfuerzo no cambia entre intentos', async () => {
+  const hist = [msg('m1', 'customer', 'Hola, info de la cancha'), msg('m2', 'bot', 'Buen día, te escribimos de Olimpo Padel. De dónde sos?'), msg('m3', 'customer', 'Pilar, Buenos Aires. Me hacen un descuento?')];
+  const long = `Perfecto, tomamos nota de Pilar. ${'La Full Panorámica incluye estructura, vidrios templados, césped y red. '.repeat(4)}`.trim();
+  const good = modelTurn({ bubbles: ['Eso lo ve el equipo en el presupuesto.'] });
+  const secondCall = async (bad: string) => {
+    const llm = fakeLlm([modelTurn({ bubbles: [bad] }), good]);
+    const r = await runTurn(turnInput(hist, ['m3'], emptyCard()), { llm, policy, config: { model: 'claude-sonnet-5-5', effort: 'medium' } });
+    assert.equal(r.attempts.length, 2);
+    assert.equal(r.usedFallback, false);
+    assert.ok(llm.calls.every((c) => c.effort === 'medium' && c.instructions === llm.calls[0].instructions), 'effort e instrucciones fijos: cambiarlos invalida el caché del system');
+    return llm.calls[1].input;
+  };
+  assert.match(await secondCall(long), new RegExp(`- length: el globo 1 tiene ${long.length} caracteres: dejalo en 280 o menos \\(unas 40 palabras\\), resumiendo`));
+  assert.match(await secondCall('El tema del descuento lo ve el equipo.'), /- discount: ofrece descuento: "descuento"\. Arreglo: no escribas descuento, rebaja ni precio especial/);
 });

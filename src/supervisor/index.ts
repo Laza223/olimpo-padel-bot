@@ -33,7 +33,7 @@ type Product = keyof typeof PRICE_BY_PRODUCT;
 const PRODUCT_MENTION: Record<Product, RegExp> = { full: /\bfull\b/g, panoramica: /(?<!full )panoramic/g, platea: /\bplatea/g };
 
 const MAX_BUBBLES = 2;
-const MAX_CHARS = 280;
+export const MAX_CHARS = 280;
 const HUGE_CHARS = 1000; // más que esto: solo se informa el largo
 
 // Identificadores de la empresa anterior: nunca, ni aunque el cliente los diga (misma lista que landing/scripts/check.mjs).

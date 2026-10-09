@@ -7,7 +7,9 @@ import type { LlmClient } from './types.ts';
 
 export const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
 export const ANTHROPIC_VERSION = '2023-06-01';
-const TIMEOUT_MS = 30_000; // igual que OpenAiLlm
+// Tiempo máximo de un pedido según el esfuerzo: 30 s (como OpenAiLlm) con low o medium; con high, xhigh o max el modelo piensa más y se le dan 45 s.
+// Un timeoutMs explícito en el constructor manda sobre esto (lo usan las pruebas y el banco).
+const timeoutFor = (effort: string): number => (['high', 'xhigh', 'max'].includes(effort) ? 45_000 : 30_000);
 export const ANTHROPIC_EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max']; // output_config.effort; "none" (OpenAI) no existe acá
 
 // Tope de salida por pedido. El pensamiento adaptativo (Haiku 5.5 piensa por defecto) cuenta para max_tokens: si se agota antes del texto, la respuesta
@@ -99,14 +101,14 @@ const num = (x: unknown): number => (typeof x === 'number' ? x : 0);
 export class AnthropicClient {
   #apiKey: string;
   #fetch: typeof fetch;
-  #timeoutMs: number;
+  #timeoutMs?: number;
 
   constructor(opts: AnthropicClientOptions = {}) {
     const apiKey = opts.apiKey ?? process.env.ANTHROPIC_API_KEY;
     if (!apiKey) throw new Error('Falta ANTHROPIC_API_KEY (va en .env)');
     this.#apiKey = apiKey;
     this.#fetch = opts.fetch ?? fetch;
-    this.#timeoutMs = opts.timeoutMs ?? TIMEOUT_MS;
+    this.#timeoutMs = opts.timeoutMs;
   }
 
   // Un pedido de una sola vuelta. Con `schema` la salida es JSON estricto (output_config.format); sin `schema`, texto libre.
@@ -130,7 +132,7 @@ export class AnthropicClient {
         method: 'POST',
         headers: { 'x-api-key': this.#apiKey, 'anthropic-version': ANTHROPIC_VERSION, 'content-type': 'application/json' },
         body: JSON.stringify(body),
-        signal: AbortSignal.timeout(this.#timeoutMs),
+        signal: AbortSignal.timeout(this.#timeoutMs ?? timeoutFor(req.effort)),
       });
       raw = await res.text();
     } catch (e) {
@@ -157,12 +159,12 @@ export class AnthropicClient {
       outputTokens: num(data.usage?.output_tokens),
       thinkingTokens: typeof thinking === 'number' ? thinking : null, // null = la API no lo informó
     };
-    const fail = (msg: string) => new LlmOutputError(msg, usage, latencyMs);
+    const fail = (msg: string, kind?: 'refusal') => new LlmOutputError(msg, usage, latencyMs, kind);
 
     const stop = data.stop_reason;
     if (stop === 'refusal') {
       const category = data.stop_details?.category;
-      throw fail(`el modelo se negó${typeof category === 'string' && /^[a-z_]+$/.test(category) ? ` (${category})` : ''}`);
+      throw fail(`el modelo se negó${typeof category === 'string' && /^[a-z_]+$/.test(category) ? ` (${category})` : ''}`, 'refusal'); // runTurn no lo reintenta
     }
     if (stop === 'max_tokens' || stop === 'model_context_window_exceeded') throw fail(`respuesta incompleta (${stop})`);
     const text = (data.content ?? []).filter((b) => b?.type === 'text' && typeof b.text === 'string').map((b) => b.text as string).join('');
