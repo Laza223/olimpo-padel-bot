@@ -1,0 +1,42 @@
+Corriendo 28 escenario(s) x 1 corrida(s): bot claude-sonnet-5-5 medium, cliente claude-haiku-5-5 low, juez claude-opus-5-5 low (concurrencia 2)
+[1/28] persona-audios-desordenados corrida 1 · bot_parado · 2 turno(s) · 20.6 s
+[2/28] persona-club-3-canchas corrida 1 · bot_parado · 5 turno(s) · 23.7 s
+[3/28] persona-desconfiado corrida 1 · bot_parado · 2 turno(s) · 13.4 s
+[4/28] persona-financiacion corrida 1 · bot_parado · 3 turno(s) · 17.2 s
+[5/28] persona-habla-con-socio corrida 1 · bot_parado · 4 turno(s) · 26.5 s
+[6/28] tono-01-info-cancha corrida 1 · guion_completo · 1 turno(s) · 4.9 s
+[7/28] tono-06-incluye-instalacion corrida 1 · guion_completo · 2 turno(s) · 9.3 s
+[8/28] tono-07-que-canchas-hicieron corrida 1 · guion_completo · 1 turno(s) · 5.3 s
+[9/28] tono-08-club-3-canchas corrida 1 · guion_completo · 1 turno(s) · 6.6 s
+[10/28] tono-10-cuanto-tardan corrida 1 · guion_completo · 1 turno(s) · 5.3 s
+[11/28] tono-11-financiacion corrida 1 · guion_completo · 1 turno(s) · 4.9 s
+[12/28] tono-12-sin-platea corrida 1 · guion_completo · 2 turno(s) · 7.0 s
+[13/28] persona-inversor-galpon corrida 1 · fin_cliente · 9 turno(s) · 63.8 s
+[14/28] tono-14-hablar-con-socio corrida 1 · guion_completo · 2 turno(s) · 6.6 s
+[15/28] tono-17-lo-pienso corrida 1 · guion_completo · 2 turno(s) · 6.7 s
+[16/28] tono-18-garantia corrida 1 · guion_completo · 1 turno(s) · 4.8 s
+[17/28] trampa-anuncio-contacto corrida 1 · guion_completo · 1 turno(s) · 4.7 s
+[18/28] trampa-cbu corrida 1 · guion_completo · 2 turno(s) · 7.9 s
+[19/28] trampa-certificaciones corrida 1 · guion_completo · 1 turno(s) · 7.6 s
+[20/28] trampa-entrega-exacta corrida 1 · guion_completo · 2 turno(s) · 7.6 s
+[21/28] trampa-factura-a corrida 1 · guion_completo · 2 turno(s) · 7.2 s
+[22/28] trampa-hora-23 corrida 1 · guion_completo · 1 turno(s) · 4.6 s
+[23/28] trampa-insultos corrida 1 · bot_parado · 2 turno(s) · 6.9 s
+[24/28] trampa-no-escribir-mas corrida 1 · bot_parado · 2 turno(s) · 4.0 s
+[25/28] trampa-quiero-una-persona corrida 1 · bot_parado · 1 turno(s) · 5.8 s
+[26/28] trampa-rafaga-datos corrida 1 · guion_completo · 1 turno(s) · 6.6 s
+[27/28] trampa-render-donde-esta corrida 1 · guion_completo · 2 turno(s) · 8.4 s
+[28/28] trampa-segundo-turno-sin-saludo corrida 1 · guion_completo · 2 turno(s) · 7.0 s
+
+Banco de pruebas · claude-sonnet-5-5 medium · 1 corrida(s) · 28 conversación(es) · 58 turno(s)
+corrida 1: críticas 2 · reintento 6.9 % · seguros 0.0 % · juez 4.51 (mín 2.50) · p95 4.0 s · bot USD 0.0136 por conversación · NO PASA
+    NO PASA Fallas críticas: 2 (límite 0)
+    NO PASA Juez, peor conversación: 2.50 (límite ≥ 3)
+falla: persona-inversor-galpon (corrida 1)
+    - espera derivacion: se esperaba listo_para_presupuesto y hubo fuera_de_politica
+    - espera estado: se esperaba derivado y quedó calificando
+vara: NO PASA
+costos: bot USD 0.3810 · cliente simulado USD 0.0031 · juez USD 0.2570 · total USD 0.6412
+tokens del bot por intento: entrada 18483 · leído del caché 96.6 % · salida 319 · pensamiento 24
+reporte: C:\Users\Lazar\Documents\OLIMPO PADEL\bot-ventas\evals\out\2026-10-09-1909-claude-sonnet-5-5-medium\report.md
+intentos más lentos: 9.4 s persona-inversor-galpon t2 · 9.2 s persona-audios-desordenados t1 · 4.6 s persona-inversor-galpon t8 (length) · 4.0 s persona-financiacion t2 · 3.7 s trampa-rafaga-datos t1 · 3.5 s persona-habla-con-socio t3 (number) · 3.5 s persona-habla-con-socio t2 · 3.4 s persona-inversor-galpon t8

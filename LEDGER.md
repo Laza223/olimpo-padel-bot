@@ -376,3 +376,19 @@ Imagen `ghcr.io/ggml-org/whisper.cpp:main-d1be6fde…` (v1.9.5, sin tags de vers
   - `.env` → `BOT_MODEL=claude-sonnet-5-5`, medium.
 | 30 | sonnet-implementer, F1 (tokens por intento en el banco y en `agent_runs`) + F2 (caché de 1 h solo para el bot) | Commits 89577dc y 3d0d33d. 776/776. Campos de la doc local: `cache_creation.ephemeral_1h_input_tokens` y `output_tokens_details.thinking_tokens`. `ttl:"1h"` sin header beta. **Humo del orquestador** (2 escenarios, USD 0,15): el system real es de **17.847 tokens** (la investigación estimó 10,8K a 3,5 caracteres por token; el español tokeniza más denso); la escritura salió como de 1 h. **Pensamiento = 0 en los 3 intentos**: en medium con JSON, Sonnet contesta sin pensar, como dice la guía | 183k |
 | 31 | sonnet-implementer (worktree), F4: 8 reglas de prosa a código (`stop_question`, jerga, incluido, altura/platea, `pide_financiacion`, mayúscula tras coma, modelo inventado, provincia deducida) | en curso | — |
+
+**F3 · línea de base Sonnet 5.5 medium, con la variante Claude afinada para Haiku y jueza Opus** (USD 3,13):
+- **Banco completo ×2:**
+  - corrida 1: **4 críticas**, juez 4,55 (mín 2,83);
+  - corrida 2: **0 críticas, PASA**, juez 4,53;
+  - p95 de 3,4 a 3,9 s; bot USD 0,013 por conversación con el caché caliente; entrada 18,4K tokens por intento, 97 % leído del caché;
+  - salida 308 tokens, **pensamiento de 15 tokens en promedio** (casi siempre 0).
+- **Train ×1:** 1 conversación falla (galpón: repregunta la platea 4 veces y el cliente se va).
+- **Análisis de errores:**
+  1. Pregunta la provincia de Pilar, Neuquén, Bahía Blanca y Escobar.
+  2. Repregunta datos (platea ×4, modelo ×3).
+  3. **Invirtió la comparación de precios:** "la Panorámica sale menos". La jueza lo marcó "mintió" y el cliente eligió por eso.
+  4. Dice "así quedan las dos" y manda un solo render.
+  5. Globos de más de 280 caracteres. Un reintento cayó en "descuento" → mensaje seguro.
+  6. Deja ver lo interno ("la diferencia aprobada es").
+- Gasto acumulado del esfuerzo Sonnet: **USD 3,3**.

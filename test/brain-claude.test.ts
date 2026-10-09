@@ -8,7 +8,7 @@ import { isClaudeModel, promptFamily } from '../src/llm.ts';
 import { loadPolicy } from '../src/policy.ts';
 import { runTurn } from '../src/turn.ts';
 import { argentinaTimeToUtcMs } from '../src/time.ts';
-import { emptyCard } from '../src/lead.ts';
+import { DEDUCIBLE_PLACES, emptyCard } from '../src/lead.ts';
 import { fakeLlm, modelTurn, msg, turnInput } from './helpers.ts';
 
 const policy = loadPolicy();
@@ -73,8 +73,8 @@ test('claude: lo interno del YAML no entra al prompt', () => {
   assert.doesNotMatch(claude, /instalacion_usd_por_cancha|flete_bsas_usd|flete_interior_usd|vidrio_12mm_extra_usd|color_especial_estructura_usd|2500|1500-2500|3000-4000|2420/);
 });
 
-test('claude: secciones XML en orden (datos de referencia arriba, reglas después, salida al final)', () => {
-  const order = ['rol', 'politica', 'tono', 'material', 'como_trabajar_cada_turno', 'preguntar_sin_presionar', 'contenido', 'formato', 'ficha', 'cierre', 'senales', 'ejemplos', 'salida'];
+test('claude: secciones XML en orden (datos de referencia arriba, reglas después, ejemplos al final)', () => {
+  const order = ['negocio', 'lo_que_sabes', 'politica', 'tono', 'material', 'como_contestar', 'preguntar', 'temas', 'voz', 'ficha', 'cierre', 'senales', 'ejemplos'];
   const at = order.map((t) => {
     section(t);
     return claude.indexOf(`<${t}>\n`);
@@ -108,20 +108,31 @@ test('claude: conserva cada regla que el controlador o el flujo exigen (las mism
     ['ya_dudo_antes', /ya_dudo_antes[\s\S]*el chat pasa al equipo/],
     ['veces_que_regateo', /veces_que_regateo mayor a 0, el chat pasa al equipo/],
     ['club o 3 canchas: primero el modelo', /3 canchas o más, lo primero que preguntás es qué modelo/],
-    ['salida', /bubbles \(lista de 1 o 2 textos\), lead_patch[\s\S]*team_note \(texto\) y material \(lista de ids\)/],
   ];
   for (const [name, re] of must) assert.match(claude, re, name);
   assert.equal(claude.match(/empieza con "\(audio\)"/g)?.length, 1);
 });
 
-test('claude: las conductas que más fallaban están como reglas (contestar todo, no repreguntar, no presionar, no inventar modelos ni "incluidos")', () => {
-  assert.match(section('como_trabajar_cada_turno'), /Contestá cada punto de la lista[\s\S]*antes de preguntar nada vos/);
-  assert.match(section('como_trabajar_cada_turno'), /no hagas ninguna pregunta ni pidas ningún dato/);
-  assert.match(section('preguntar_sin_presionar'), /No repitas una pregunta que ya hiciste/);
-  assert.match(section('preguntar_sin_presionar'), /no pidas ningún dato en ese turno/);
-  assert.match(section('contenido'), /exactamente Full Panorámica y Panorámica, sin ciudad/);
-  assert.match(section('contenido'), /nunca digas que están incluidos/);
-  assert.match(section('contenido'), /Contacto[\s\S]*dá los de la política/);
+test('claude: las conductas que más fallaban están como reglas (contestar todo, no repreguntar, no presionar, no inventar, comparar bien los precios)', () => {
+  assert.match(section('como_contestar'), /contestá cada cosa que pide, en su orden, antes de preguntar nada vos/);
+  assert.match(section('preguntar'), /terminá sin ninguna pregunta ni pedido de datos/);
+  assert.match(section('preguntar'), /Cada dato se pide una sola vez/);
+  assert.match(section('preguntar'), /Si vuelve a postergar o ya dijo que no, cerrá amable y sin pregunta/);
+  assert.match(section('lo_que_sabes'), /Lo que sepas de pádel[\s\S]*no vale acá/);
+  assert.match(section('temas'), /exactamente Full Panorámica y Panorámica, sin ciudad/);
+  assert.match(section('temas'), /no digas que están incluidos/);
+  assert.match(section('temas'), /Contacto[\s\S]*dá los de contacto de la política/);
+  // La comparación sale de los montos aprobados (el banco del 9-oct la invirtió), no de un texto fijo.
+  assert.match(section('temas'), /la Full Panorámica \(USD 19\.900\) sale menos que la Panorámica \(USD 20\.900\)/);
+  assert.ok(section('ficha').includes(DEDUCIBLE_PLACES.join(', ')), 'los lugares con provincia deducida');
+});
+
+test('claude: ejemplos ilustrativos en <example>, sin contraejemplos ni la vieja fórmula "le aviso al equipo"', () => {
+  const ej = section('ejemplos');
+  assert.equal(ej.match(/<example>/g)?.length, 6);
+  assert.equal(ej.match(/<\/example>/g)?.length, 6);
+  assert.doesNotMatch(ej, /Mal:|Le aviso al equipo/);
+  assert.doesNotMatch(claude, /<salida>|como_trabajar_cada_turno/);
 });
 
 // ---------- La entrada del turno ----------
