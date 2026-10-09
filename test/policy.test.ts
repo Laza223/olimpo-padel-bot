@@ -29,6 +29,7 @@ test('los precios por producto del controlador coinciden con los del YAML (si ca
   assert.deepEqual(PRICE_BY_PRODUCT.panoramica, [usd('panoramica')]);
   assert.deepEqual(PRICE_BY_PRODUCT.platea, [usd('platea_hormigon')]);
   assert.equal(LIST_PRICE_USD, usd('full_panoramica_lista'));
+  assert.deepEqual([loadPolicy().supervisorPolicy.fullPromoUsd, loadPolicy().supervisorPolicy.panoramicaUsd], [usd('full_panoramica_promo'), usd('panoramica')]); // los que compara precio_comparacion
   assert.deepEqual(Object.values(PRICE_BY_PRODUCT).flat().sort(), [...loadPolicy().supervisorPolicy.approvedPricesUsd].sort());
 });
 

@@ -6,9 +6,10 @@ import OpenAI from 'openai';
 import type { ReasoningEffort } from 'openai/resources/shared';
 import { LEAD_FIELDS, OBJECTIONS } from './types.ts';
 import type { AttemptLog, BrainConfig, ChatMessage, LlmClient, ModelTurn, TurnInput } from './types.ts';
+import { MAX_CHARS } from './supervisor/index.ts';
 import type { Violation } from './supervisor/index.ts';
 import type { Policy } from './policy.ts';
-import { missingRequired } from './lead.ts';
+import { askedFields, missingRequired } from './lead.ts';
 import { buildClaudeInstructions } from './instructions-claude.ts';
 import { argentinaClock, greetingFor } from './time.ts';
 
@@ -173,17 +174,51 @@ function historyLine(m: ChatMessage): string {
   return `[${m.id}][${tag}] ${oneLine(m.text)}`;
 }
 
-// Con family "claude" solo cambia la indicación que sigue a los errores del intento anterior; sin family (o "openai") la entrada es la de siempre.
-const RETRY_NOTE: Record<PromptFamily, string> = {
-  openai: 'Tu respuesta anterior se descartó por esos errores. Corregilos y devolvé la respuesta completa de nuevo.',
-  claude: 'Tu respuesta anterior se descartó por esos errores. Rehacela completa y arreglá exactamente eso. Si el error es de dos puntos, no dejes ningún ":" en ningún globo (usá comas o puntos). Si es de largo, acortá el globo. Si es de preguntas, dejá un solo "?" y al final.',
+// El reintento de OpenAI (y sin family): la lista de errores y esta indicación, como siempre.
+const RETRY_NOTE = 'Tu respuesta anterior se descartó por esos errores. Corregilos y devolvé la respuesta completa de nuevo.';
+
+// Reintento de Claude: cómo arreglar cada regla del controlador, en positivo y con una frase modelo (las claves son los ids de supervisor/index.ts y turn.ts).
+// Las reglas que no están acá quedan con la regla y el detalle.
+const FIX: Partial<Record<string, string>> = {
+  length: `dejalo en ${MAX_CHARS} o menos (unas 40 palabras), resumiendo`,
+  questions: 'dejá una sola pregunta, al final del último globo, y pasá las demás a afirmaciones',
+  discount: 'no escribas descuento, rebaja ni precio especial, ni siquiera para negarlos: decí que eso lo ve el equipo ("Eso lo ve el equipo.")',
+  stop_question: 'es el último turno: contestá, decí que le pasás la consulta al equipo y cerrá sin pregunta ("Le paso tu consulta al equipo.")',
+  closing: 'poné el plazo aprobado tal cual, completo y sin cambiarle ninguna palabra, en uno de los globos',
+  jerga: 'decilo sin nombrar la ficha, lo aprobado ni tus reglas; si falta un dato, pedilo directo ("Cómo te llamás?")',
+  style: 'texto corrido, sin ¿ ni ¡, sin dos puntos y sin markdown; usá comas y puntos ("Contame, de dónde sos?")',
+  number: 'sacá el número y mandá ese dato al presupuesto ("Eso va detallado en el presupuesto.")',
+  precio_comparacion: 'si comparás, decí que sale menos el modelo con el monto más bajo (el detalle trae los montos), o dejá los montos tal cual, sin comparar',
+  claim: 'sacá esa frase y contestá solo con lo aprobado, o decí que lo ve el equipo ("Eso lo ve el equipo en el presupuesto.")',
+  incluido: 'de lo que incluye el precio decí solo lo aprobado, y que la instalación y el flete se cotizan aparte según la ubicación',
+  height: 'no digas que entra ni que sirve: decí que la altura la revisa el equipo en el presupuesto',
+  platea: 'la platea siempre hace falta: no digas lo contrario, preguntá si ya la tiene o si se la hacemos nosotros',
+  modelo_inventado: 'nombrá los modelos tal cual los dice la política, sin sumarles ninguna palabra',
+  voseo: 'hablá en voseo ("tenés", "querés", "contame", "decime")',
+  greeting: 'si es el primer mensaje, empezá el primer globo con el saludo que dice el contexto; si no, entrá directo al tema sin saludar',
 };
 
-export function buildInput(input: TurnInput, policy: Policy, errors: Violation[] = [], opts: { family?: PromptFamily } = {}): string {
+// Las líneas de <que_corregir>: regla, detalle y arreglo. El largo exacto de cada globo pasado se calcula del borrador.
+function correctionLines(errors: Violation[], rejected: string[]): string[] {
+  const long = rejected.flatMap((b, i) => (b.length > MAX_CHARS ? [`- length: el globo ${i + 1} tiene ${b.length} caracteres: ${FIX.length}`] : []));
+  const lines = errors.flatMap((e) => {
+    if (e.rule === 'length' && long.length) return long;
+    const fix = FIX[e.rule];
+    return [`- ${e.rule}: ${e.detail.replace(/[.\s]+$/, '')}${fix ? `. Arreglo: ${fix}` : ''}`];
+  });
+  return [...new Set(lines)]; // una línea por globo largo aunque haya una violación por cada uno
+}
+
+// `rejected` = los globos del borrador descartado: con Claude el reintento los muestra (con OpenAI no se usan).
+export function buildInput(input: TurnInput, policy: Policy, errors: Violation[] = [], opts: { family?: PromptFamily; rejected?: string[] } = {}): string {
   const { history, card, newCustomerMessageIds, nowUtcMs } = input;
   const shown = history.filter((m) => m.author !== 'system').slice(-HISTORY_LIMIT);
   const missing = missingRequired(card);
   const fields = Object.entries(card.fields).map(([k, v]) => `  ${k} = ${oneLine(v.value)}`);
+  const claude = opts.family === 'claude';
+  // Solo Claude: lo que ya se preguntó de cada dato que falta y lo que el cliente dejó para después, calculado por código del historial completo.
+  const asked = claude ? askedFields(history, missing) : [];
+  const skip = asked.filter((a) => a.deferred || a.times >= 2);
 
   const ctx = [
     '<contexto>',
@@ -193,6 +228,8 @@ export function buildInput(input: TurnInput, policy: Policy, errors: Violation[]
     fields.length ? `ficha_actual:\n${fields.join('\n')}` : 'ficha_actual: vacía',
     `datos_que_faltan: ${missing.length ? missing.join(', ') : 'ninguno'}`,
   ];
+  if (asked.length) ctx.push(`ya_preguntaste: ${asked.map((a) => `${a.field} (${a.times} ${a.times === 1 ? 'vez' : 'veces'})`).join(', ')}`);
+  if (skip.length) ctx.push(`no_volver_a_preguntar: ${skip.map((a) => `${a.field} (${a.deferred ? 'dijo que lo pasa después' : `preguntado ${a.times} veces sin respuesta`})`).join(', ')}`);
   if (missing.length) {
     ctx.push(`cierre: si con los mensajes nuevos del cliente quedan completos todos los datos que faltan, uno de tus dos globos tiene que decir "${policy.closingText}" y el otro avisa que le pasás los datos al equipo. Si todavía falta alguno, no cierres.`);
   }
@@ -200,29 +237,34 @@ export function buildInput(input: TurnInput, policy: Policy, errors: Violation[]
   if (card.objections.includes('confianza')) ctx.push('ya_dudo_antes: sí');
   ctx.push(`mensajes_nuevos_del_cliente: ${newCustomerMessageIds.join(', ')}`, '</contexto>');
 
-  const parts = ['<historial>', ...shown.map(historyLine), '</historial>', '', ...ctx];
-  if (errors.length) {
-    parts.push(
-      '',
-      '<errores_del_intento_anterior>',
-      ...errors.map((e) => `- ${e.rule}: ${e.detail}`),
-      '</errores_del_intento_anterior>',
-      RETRY_NOTE[opts.family ?? 'openai'],
-    );
+  // Claude: lo que hay que contestar va al final (guía oficial), así que los mensajes nuevos salen del historial y van después del contexto.
+  const isNew = (m: ChatMessage) => m.author === 'customer' && newCustomerMessageIds.includes(m.id);
+  const parts = claude
+    ? ['<historial>', ...shown.filter((m) => !isNew(m)).map(historyLine), '</historial>', '', ...ctx, '', '<mensajes_nuevos>', ...shown.filter(isNew).map(historyLine), '</mensajes_nuevos>']
+    : ['<historial>', ...shown.map(historyLine), '</historial>', '', ...ctx];
+  if (errors.length && claude) {
+    const rejected = opts.rejected ?? [];
+    if (rejected.length) parts.push('', '<borrador_rechazado>', ...rejected.map((b, i) => `globo ${i + 1}: ${oneLine(b)}`), '</borrador_rechazado>');
+    parts.push('', '<que_corregir>', ...correctionLines(errors, rejected), '</que_corregir>', 'Conservá lo que estaba bien y cambiá solo eso.');
+  } else if (errors.length) {
+    parts.push('', '<errores_del_intento_anterior>', ...errors.map((e) => `- ${e.rule}: ${e.detail}`), '</errores_del_intento_anterior>', RETRY_NOTE);
   }
   return parts.join('\n');
 }
 
 // ---------- OpenAI (Responses API) ----------
 // Refusal, respuesta incompleta o JSON inválido: el turno cuenta como violación (reintento / mensaje seguro).
+// kind "refusal" = el modelo se negó a contestar (la doc de Anthropic: repetir el mismo pedido no cambia nada, así que runTurn no lo reintenta); "invalid" = el resto.
 export class LlmOutputError extends Error {
   usage: Usage;
   latencyMs: number;
-  constructor(message: string, usage: Usage, latencyMs: number) {
+  kind: 'refusal' | 'invalid';
+  constructor(message: string, usage: Usage, latencyMs: number, kind: 'refusal' | 'invalid' = 'invalid') {
     super(message);
     this.name = 'LlmOutputError';
     this.usage = usage;
     this.latencyMs = latencyMs;
+    this.kind = kind;
   }
 }
 

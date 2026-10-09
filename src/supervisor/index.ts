@@ -9,6 +9,8 @@ export interface SupervisorPolicy {
   allowedNumbers: number[]; // números sueltos (sin unidad) permitidos aunque el cliente no los haya dicho
   allowedPhrases: string[]; // frases aprobadas con números ("20x10", "4 luces"): pasan tal cual, aunque el número lleve unidad
   modelNames: string[]; // nombres de los modelos que se ofrecen (producto.modelos_que_se_ofrecen): "Panorámica Rosario" no es uno de ellos
+  fullPromoUsd: number; // precios.full_panoramica_promo y precios.panoramica: contra estos montos se chequea cuál modelo "sale menos"
+  panoramicaUsd: number;
 }
 
 export interface TurnDraft {
@@ -32,8 +34,32 @@ type Product = keyof typeof PRICE_BY_PRODUCT;
 // Cómo se nombra cada producto (texto normalizado): "Panorámica" sola es la Panorámica; "Full Panorámica" es la Full.
 const PRODUCT_MENTION: Record<Product, RegExp> = { full: /\bfull\b/g, panoramica: /(?<!full )panoramic/g, platea: /\bplatea/g };
 
+// Comparaciones de precio dichas de un modelo (texto normalizado): "sale menos", "cuesta menos", "más barata", "más económica" / "sale más", "cuesta más", "más cara".
+const LESS_PRICE = /\b(?:sale|cuesta) menos\b|\bmas (?:barat|economic)[ao]s?\b/g;
+const MORE_PRICE = /\b(?:sale|cuesta) mas\b(?! (?:barat|economic))|\bmas car[ao]s?\b/g;
+const MODEL_NAME = { full: 'Full Panorámica', panoramica: 'Panorámica' };
+const usd = (n: number) => `USD ${String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '.')}`; // 19900 → USD 19.900, igual en cualquier entorno
+
+// El detalle de la violación si la frase compara mal el precio de los modelos contra los montos aprobados, o undefined.
+// El modelo de la comparación es el que la precede más cerca; si ninguno la precede ("la más económica es la Full"), el primero de la frase.
+function wrongPriceComparison(sentence: string, mentions: { product: Product; at: number }[], policy: SupervisorPolicy): string | undefined {
+  const price = { full: policy.fullPromoUsd, panoramica: policy.panoramicaUsd };
+  const models = mentions.filter((m): m is { product: 'full' | 'panoramica'; at: number } => m.product !== 'platea');
+  if (!models.length) return undefined;
+  for (const [re, less] of [[LESS_PRICE, true], [MORE_PRICE, false]] as const) {
+    for (const c of sentence.matchAll(re)) {
+      const { product } = models.findLast((m) => m.at < c.index) ?? models[0];
+      const other = product === 'full' ? 'panoramica' : 'full';
+      if (less ? price[product] < price[other] : price[product] > price[other]) continue; // coincide con los montos
+      const lowest = price.full < price.panoramica ? 'la Full Panorámica' : price.panoramica < price.full ? 'la Panorámica' : undefined;
+      return `"${c[0]}" dicho de la ${MODEL_NAME[product]} contradice los montos aprobados: la Full Panorámica está ${usd(price.full)} y la Panorámica ${usd(price.panoramica)}${lowest ? `, así que sale menos ${lowest}` : ''}`;
+    }
+  }
+  return undefined;
+}
+
 const MAX_BUBBLES = 2;
-const MAX_CHARS = 280;
+export const MAX_CHARS = 280;
 const HUGE_CHARS = 1000; // más que esto: solo se informa el largo
 
 // Identificadores de la empresa anterior: nunca, ni aunque el cliente los diga (misma lista que landing/scripts/check.mjs).
@@ -235,6 +261,8 @@ export function supervise(draft: TurnDraft, customerTexts: string[], policy: Sup
       const allowed = PRICE_BY_PRODUCT[product];
       if (!allowed.includes(n.value)) v.push({ rule: 'price_product', detail: `"${n.raw}" no es el precio de ${product} (${allowed.join(' o ')})` });
     }
+    const wrong = wrongPriceComparison(sentence, mentions, policy);
+    if (wrong) v.push({ rule: 'precio_comparacion', detail: wrong });
   }
   // "antes" es el precio de lista: cualquier monto que lo siga de cerca tiene que ser ese.
   for (const m of f.matchAll(/\bantes\b/g)) {

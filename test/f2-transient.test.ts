@@ -79,6 +79,16 @@ test('runTurn: LlmOutputError y los errores de otro tipo siguen contando como in
   assert.equal(r.attempts[0].violations[0].rule, 'llm');
 });
 
+test('runTurn: una negativa (refusal) no se reintenta y va directo al mensaje seguro', async () => {
+  const usage = { inputTokens: 10, cachedTokens: 0, outputTokens: 5 };
+  const llm = fakeLlm([new LlmOutputError('el modelo se negó (general_harms)', usage, 100, 'refusal'), modelTurn()]);
+  const r = await runTurn(turnInput([msg('m1', 'customer', 'Hola')], ['m1']), { llm, policy, config });
+  assert.equal(llm.calls.length, 1);
+  assert.equal(r.usedFallback, true);
+  assert.equal(r.attempts.length, 1);
+  assert.deepEqual(r.handoffs.map((h) => h.reason), ['falla_del_bot']);
+});
+
 test('evals/simulate: un TransientLlmError corta la conversación como error de la corrida, no como falla del bot', async () => {
   const scenarios = loadScenarios(undefined, policy.assets.map((a) => a.id));
   const sc = selectScenarios(scenarios, ['tono-02-precio'])[0];

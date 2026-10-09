@@ -161,19 +161,23 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
   const instructions = buildInstructions(policy, { family });
   const attempts: AttemptLog[] = [];
   let errors: Violation[] = [];
+  let draft: string[] | undefined; // los globos del borrador descartado: el reintento de Claude los muestra
+  let refused = false; // el modelo se negó: repetir el mismo pedido no cambia nada, va directo al mensaje seguro
   let accepted: ModelTurn | undefined;
 
-  for (let i = 0; i < MAX_ATTEMPTS && !accepted; i++) {
+  for (let i = 0; i < MAX_ATTEMPTS && !accepted && !refused; i++) {
     const log: AttemptLog = { model: config.model, effort: config.effort, latencyMs: 0, inputTokens: 0, cachedTokens: 0, outputTokens: 0, costUsd: 0, violations: [] };
     const t0 = Date.now();
     try {
-      const r = await llm.generateTurn({ instructions, input: buildInput(input, policy, errors, { family }), model: config.model, effort: config.effort });
+      const r = await llm.generateTurn({ instructions, input: buildInput(input, policy, errors, { family, rejected: draft }), model: config.model, effort: config.effort });
       Object.assign(log, { latencyMs: r.latencyMs, ...r.usage, raw: r.turn });
       log.costUsd = costUsd(config.model, r.usage);
       const turn = family === 'claude' ? withClosingAfterComma(withoutColons(r.turn), policy.closingText) : r.turn;
       log.violations = turnChecks(turn, input, policy);
       if (!log.violations.length) accepted = turn;
+      else draft = turn.bubbles;
     } catch (e) {
+      draft = undefined; // sin borrador: no hubo respuesta válida que mostrar
       // Red, timeout, 5xx, límite o sin saldo: no es falla del bot; se relanza y quien llama reintenta más tarde (sin intento ni mensaje seguro).
       if (e instanceof TransientLlmError) {
         e.attempts = attempts; // lo ya gastado en intentos anteriores de este turno no se pierde
@@ -183,6 +187,7 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
       if (e instanceof LlmOutputError) {
         Object.assign(log, { latencyMs: e.latencyMs, ...e.usage });
         log.costUsd = costUsd(config.model, e.usage);
+        refused = e.kind === 'refusal';
       } else {
         log.latencyMs = Date.now() - t0;
       }

@@ -144,3 +144,46 @@ export function computeTemperature(card: LeadCard): Temperature {
   if (have === REQUIRED_FIELDS.length && card.fields.plazo_deseado && card.fields.quien_decide) return 'caliente';
   return have >= 4 ? 'tibio' : 'frio';
 }
+
+// ---------- Qué datos ya se preguntaron (la entrada de Claude se lo muestra: no repreguntar) ----------
+// Qué dato pide un globo del bot, por palabras clave sobre la última frase que termina en "?" (texto normalizado). Sin pistas claras no cuenta.
+// Gana el primero de la lista: "Ya tenés la platea para las 2 canchas?" es de la platea, no de la cantidad.
+const QUESTION_FIELDS: [LeadField, RegExp][] = [
+  ['cantidad_canchas', /\bcuantas\b|\bcantidad de canchas\b/],
+  ['nombre', /\bcomo te llam\w*|\btu nombre\b|\bcon que nombre\b|\bnombre y apellido\b|\bcon quien (?:tengo el gusto|hablo)\b/],
+  ['platea', /\bplateas?\b|\bhormigon\b/],
+  ['ubicacion', /\bbajo techo\b|\btechad[ao]s?\b|\baire libre\b|\bcielo abierto\b/],
+  ['provincia', /\bprovincia\b/],
+  ['localidad', /\bde donde\b|\b(?:que|tu) (?:zona|localidad|ciudad|barrio|country|partido)\b|\bdonde (?:seria|estaria|queres|iria|vivis|queda)\b/],
+  ['modelo', /\bmodelos?\b|\bcual (?:te interesa|preferis|elegis|te gusta)\b|\b(?:full|panoramica)\b[^?]{0,30}\bo\b[^?]{0,20}\b(?:full|panoramica)\b|\b(?:te interesa|preferis|elegis|te inclinas|anote|anoto)\b[^?]{0,40}\b(?:full|panoramica)\b/],
+];
+
+export function questionFields(bubble: string): LeadField[] {
+  const question = bubble.slice(0, MAX_EVIDENCE_CHARS).match(/[^.!?]*\?/g)?.at(-1);
+  const hits = QUESTION_FIELDS.filter(([, re]) => question && re.test(plain(question))).map(([f]) => f);
+  return hits.includes('provincia') && hits.includes('localidad') ? ['localidad', 'provincia'] : hits.slice(0, 1); // localidad y provincia se piden juntas
+}
+
+// El cliente deja un dato para después o dice que no lo sabe (texto normalizado). "no se" cuenta solo si cierra la frase o sigue "si, cual, cuanto…": "no se puede" no posterga nada.
+const DEFER = /\bdespues te (?:lo )?paso\b|\bmas adelante\b|\bno (?:lo )?se(?= *(?:$|[,.;!?]|todavia|aun|si\b|cual|cuant|cuando|como|donde|que\b|mucho|bien|muy))|\btodavia no (?:se|lo se|lo tengo|decidi)\b|\blo veo despues\b|\bprefiero no\b|\bya veremos\b|\bpor ahora no\b|\btendria que (?:ver|medir|averiguar)\b/;
+
+export interface AskedField {
+  field: LeadField;
+  times: number; // cuántas veces lo preguntó el bot
+  deferred: boolean; // el cliente contestó una pregunta de este dato con una postergación
+}
+
+// De los datos que faltan (en ese orden), los que el bot ya preguntó. Recorre todo el historial: los mensajes nuevos del cliente pueden ser la respuesta a la última pregunta.
+export function askedFields(history: ChatMessage[], missing: LeadField[]): AskedField[] {
+  const stats = new Map<LeadField, AskedField>();
+  let current: LeadField[] = []; // lo que preguntó el último mensaje del bot: a eso responde lo que escriba el cliente
+  for (const m of history) {
+    if (m.author === 'bot') {
+      current = questionFields(m.text);
+      for (const field of current) stats.set(field, { field, times: (stats.get(field)?.times ?? 0) + 1, deferred: stats.get(field)?.deferred ?? false });
+    } else if (m.author === 'customer' && DEFER.test(plain(m.text.slice(0, MAX_EVIDENCE_CHARS)))) {
+      for (const field of current) stats.get(field)!.deferred = true;
+    }
+  }
+  return missing.flatMap((f) => stats.get(f) ?? []);
+}

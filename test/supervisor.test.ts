@@ -672,3 +672,32 @@ test('jerga: charla normal no se bloquea ("para completar los datos", "decime tu
     assert.ok(!rules([t]).includes('jerga'), t);
   }
 });
+
+// El banco del 9-oct: Sonnet dijo "la Panorámica sale menos" con la Full en oferta a USD 19.900 y la Panorámica a USD 20.900.
+test('precio_comparacion: dicha de un modelo, la comparación tiene que coincidir con los montos aprobados', () => {
+  const wrong = [
+    'La Full está USD 19.900 y la Panorámica USD 20.900, así que la Panorámica sale menos.', // el caso real
+    'La Panorámica es más barata.', 'La más económica es la Panorámica.', 'La Panorámica cuesta menos que la Full.', 'La Panorámica es la opción más económica de las dos.',
+    'La Full sale más.', 'La Full es más cara que la Panorámica.', 'La Full Panorámica cuesta más que la Panorámica.',
+  ];
+  for (const t of wrong) assert.ok(rules([t]).includes('precio_comparacion'), t);
+  const right = [
+    'La más económica es la Full Panorámica.', 'La Full sale menos.', 'La Full Panorámica es más barata que la Panorámica.', 'La Panorámica sale más que la Full.', 'La Panorámica es más cara.',
+    'Entre las dos, la que cuesta menos es la Full Panorámica.', 'La Full está USD 19.900 y la Panorámica USD 20.900, así que la Full sale menos.',
+    'La Full Panorámica 20x10 está USD 19.900 y la Panorámica USD 20.900.', 'La instalación y el flete se cotizan aparte según la zona.', 'El flete sale más si es lejos.', // sin comparar modelos
+    'Si querés la más económica, anotamos la Full Panorámica?',
+  ];
+  for (const t of right) assert.ok(!rules([t]).includes('precio_comparacion'), t);
+  // el detalle trae los montos de la política
+  const d = supervise({ bubbles: [wrong[0]], askedIfAi: false }, [], policy).find((x) => x.rule === 'precio_comparacion')!.detail;
+  assert.match(d, /"sale menos" dicho de la Panorámica contradice los montos aprobados: la Full Panorámica está USD 19\.900 y la Panorámica USD 20\.900, así que sale menos la Full Panorámica/);
+});
+
+test('precio_comparacion: los montos salen de la política (con los montos al revés, el veredicto se invierte)', () => {
+  const invertida: SupervisorPolicy = { ...policy, fullPromoUsd: policy.panoramicaUsd, panoramicaUsd: policy.fullPromoUsd };
+  const r = (t: string) => supervise({ bubbles: [t], askedIfAi: false }, [], invertida).map((x) => x.rule);
+  assert.ok(!r('La Panorámica sale menos.').includes('precio_comparacion'));
+  assert.ok(r('La Full sale menos.').includes('precio_comparacion'));
+  assert.equal(loadPolicy().supervisorPolicy.fullPromoUsd, 19900);
+  assert.equal(loadPolicy().supervisorPolicy.panoramicaUsd, 20900);
+});
