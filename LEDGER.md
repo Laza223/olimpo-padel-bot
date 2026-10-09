@@ -302,3 +302,19 @@
 | 21 | sonnet-implementer, F2b audios según `docs/F2b-audios-contrato.md` | 712/712: 66 pruebas nuevas, 4 con ffmpeg real, y 17 mutaciones muertas. Humo con Docker: la imagen con ffmpeg crece 647 MB en disco (175 MB comprimida), `/health` da 200, WAHA baja solo audios y la conversión real anda dentro del contenedor. **Corrección posterior del orquestador:** gpt-transcribe va con `languages` y `keywords`, porque la doc de OpenAI dice que `languages` reemplaza a `language`. OGG no está entre los formatos aceptados, así que ffmpeg se queda. Un 400 por un parámetro que no es el archivo es error de configuración, no audio ilegible. 712/712 | 65k |
 | 22 | sonnet-adversarial-reviewer, revisión única de F2b | APROBADO CON CAMBIOS, sin 🔴. Dejó 12 repros en `scratchpad\f2b-review\`. 🟡 H1: "ya se le pidió texto" se marcaba al encolar, así que un pedido cancelado igual derivaba el chat. 🟡 H2: una transcripción rota trababa el chat entero hasta 12 h. 🟡 H3: los rechazos sistemáticos no avisaban al equipo. 🟡 H4: el aviso de configuración de la transcripción se repetía cada vez que el cerebro contestaba bien. ⚪ H5 a H8: el tope no se revalidaba entre audios; el prefijo `(audio)` rompía la baja anclada; faltaban 2 pruebas (M4, M22); `max_audio_seconds` aceptaba 0; quedaban temporales tras un SIGKILL. Verificado sin problemas: SSRF, migración V3, topes en el código, carreras y doble cobro | 289k |
 | 23 | sonnet-implementer, ronda de arreglos de F2b (H1–H8 + saludo en el pedido de texto) | 742/742, 30 pruebas nuevas. "Ya se pidió" ahora se mide sobre el eco del bot en `messages`, y la columna salió de V3. **Verificación del orquestador** sin otra revisión: `pnpm verify` 742/742; los repros del revisor 1, 2, 3 y 8 pasan; repro9 y repro10 adaptados (su modelo guionado saludaba siempre) muestran el pedido con saludo, la respuesta siguiente sin mensaje seguro y el texto contestado con la transcripción mal configurada. Queda abierto: una falla pasajera de WAHA al bajar el audio, o ffmpeg ausente, se sigue reintentando sin límite (el contador de 3 es solo para la transcripción) | 297k |
+
+## 2026-10-09 · Sonnet 5.5 como cerebro (créditos promocionales de Anthropic)
+
+- Lazar recibió USD 100 en créditos promocionales de la API de Anthropic, en la misma cuenta que la clave del `.env` (quedan USD 99,83 después de una prueba cortada de USD 0,17).
+- Banco completo con `claude-sonnet-5-5`, esfuerzo low, 2 corridas. Cliente simulado Haiku y jueza Sonnet 5.5: la jueza es el mismo modelo que el bot.
+  - Corrida 1: 10 críticas, juez 4,44.
+  - Corrida 2: 3 críticas, juez 4,53.
+  - p95 de 5 a 6 s. Bot USD 0,0117 por conversación, el doble que Sol (USD 0,0061). Total gastado USD 1,81. **NO PASA.**
+- Fallas reales:
+  - inventó un modelo ("Panorámica Rosario");
+  - dijo "instalación y flete incluidos" en el presupuesto;
+  - dio "la platea mide 22 x 11 m" como requisito;
+  - no dio el contacto cuando se lo pidieron;
+  - ignoró preguntas.
+- Reporte en `evals/out/2026-10-09-1332-claude-sonnet-5-5-low/`.
+- Veredicto: el cerebro sigue siendo Sol low. Falta probar Sonnet con esfuerzo medio, si Lazar quiere gastar créditos promocionales en eso.
