@@ -104,6 +104,27 @@ export function financingFromCustomer(card: LeadCard, history: ChatMessage[], ne
   return m && { value: 'si', evidenceMsgId: m.id };
 }
 
+// Provincia deducida de la localidad (Lazar, 9-oct): solo las localidades que no se repiten en otra provincia, y solo si la localidad coincide EXACTO.
+// Quedan afuera a propósito San Martín, San Miguel, San Fernando, Merlo, Ituzaingó, Avellaneda, Pilar, Santa Rosa y Rawson: se siguen preguntando.
+// Córdoba, Mendoza, Salta, Santa Fe, San Juan, San Luis, Formosa, Corrientes, La Rioja y Santiago del Estero no van: ahí la provincia aparece literal y ya la toma el mecanismo de siempre.
+const PROVINCE_OF = new Map(Object.entries({
+  CABA: 'CABA, Capital Federal, Ciudad de Buenos Aires',
+  'Buenos Aires': 'Almirante Brown, Berazategui, Esteban Echeverría, Ezeiza, Florencio Varela, Hurlingham, José C. Paz, La Matanza, Lanús, Lomas de Zamora, Malvinas Argentinas, Moreno, Morón, Quilmes, San Isidro, Tigre, Tres de Febrero, Vicente López, Escobar, Luján, Berisso, Ensenada, Cañuelas, Marcos Paz, General Rodríguez, Campana, Zárate, Exaltación de la Cruz, Nordelta, La Plata',
+  'Entre Ríos': 'Paraná', Neuquén: 'Neuquén', 'Río Negro': 'Viedma', 'Santa Cruz': 'Río Gallegos', 'Tierra del Fuego': 'Ushuaia', Jujuy: 'San Salvador de Jujuy',
+  Tucumán: 'San Miguel de Tucumán', Catamarca: 'San Fernando del Valle de Catamarca', Chaco: 'Resistencia', Misiones: 'Posadas',
+}).flatMap(([province, places]) => places.split(', ').map((p): [string, string] => [squash(p), province])));
+function squash(s: string): string { return plain(s).replace(/\./g, '').replace(/\s+/g, ' ').trim(); } // minúsculas, sin tildes ni puntos ("José C. Paz"), sin espacios de más
+
+export const DEDUCED = 'deducida de '; // en evidenceMsgId: no hay mensaje que citar, queda a la vista de dónde salió el dato
+// Con localidad y sin provincia, la completa si la localidad está en la lista. Una deducción vieja se rehace (la localidad pudo cambiar); lo que dijo el cliente no se toca.
+export function withDeducedProvince(card: LeadCard): void {
+  if (card.fields.provincia && !card.fields.provincia.evidenceMsgId.startsWith(DEDUCED)) return;
+  delete card.fields.provincia;
+  const place = card.fields.localidad?.value;
+  const province = place ? PROVINCE_OF.get(squash(place)) : undefined;
+  if (province) card.fields.provincia = { value: province, evidenceMsgId: `${DEDUCED}${place}` };
+}
+
 // platea no_tiene no alcanza: se le ofrece y falta que diga si se la hacemos o la hace él (Lazar, F0).
 export function missingRequired(card: LeadCard): LeadField[] {
   return REQUIRED_FIELDS.filter((f) => !card.fields[f] || (f === 'platea' && card.fields.platea?.value === 'no_tiene'));

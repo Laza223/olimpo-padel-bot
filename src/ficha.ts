@@ -1,7 +1,7 @@
 // Ficha para el equipo (en F2 sale por Telegram): motivo, datos, qué falta y la charla reciente.
 import { LEAD_FIELDS } from './types.ts';
 import type { ChatMessage, HandoffDecision, HandoffReason, LeadCard, LeadField } from './types.ts';
-import { missingRequired } from './lead.ts';
+import { DEDUCED, missingRequired } from './lead.ts';
 import { argentinaClock } from './time.ts';
 
 const LABELS: Record<LeadField, string> = {
@@ -34,7 +34,11 @@ const flat = (s: string) => s.replace(/\s*\n\s*/g, ' ').trim();
 const show = (s: string) => flat(s).replaceAll('_', ' '); // full_panoramica se lee mejor sin guion bajo
 
 export function buildFicha(card: LeadCard, history: ChatMessage[], handoff: HandoffDecision): string {
-  const rows = LEAD_FIELDS.filter((f) => card.fields[f]).map((f) => `${LABELS[f]}  ${show(card.fields[f]!.value)}`);
+  // Un dato deducido (la provincia a partir de la localidad) lleva de dónde salió: el equipo tiene que ver que el cliente no lo dijo.
+  const rows = LEAD_FIELDS.filter((f) => card.fields[f]).map((f) => {
+    const { value, evidenceMsgId } = card.fields[f]!;
+    return `${LABELS[f]}  ${show(value)}${evidenceMsgId.startsWith(DEDUCED) ? ` (${flat(evidenceMsgId)})` : ''}`;
+  });
   const missing = missingRequired(card).map((f) => LABELS[f].toLowerCase());
   const recent = history.slice(-RECENT).map((m) => {
     const text = flat(m.text);

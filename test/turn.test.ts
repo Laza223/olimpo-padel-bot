@@ -581,6 +581,66 @@ test('Claude: el cierre aprobado pegado detrás de una coma con mayúscula se ar
   assert.equal(sol.bubbles[0], bubbles[0]);
 });
 
+// ---------- provincia deducida de la localidad (Lazar, 9-oct) ----------
+const provinceAfter = (localidad: string, provincia?: { value: string; evidenceMsgId: string }) => {
+  const card: LeadCard = { ...emptyCard(), fields: { localidad: field(localidad, 'm1'), ...(provincia && { provincia }) } };
+  return nextCard(second('ok', card), modelTurn(), policy).card.fields.provincia;
+};
+const list = (s: string) => s.split(', ');
+
+test('provincia deducida: las localidades de la lista de Lazar completan la provincia con la evidencia "deducida de <localidad>"', () => {
+  const expected: [string, string[]][] = [
+    ['CABA', list('CABA, capital federal, Ciudad de Buenos Aires')],
+    ['Buenos Aires', list('Almirante Brown, Berazategui, Esteban Echeverría, Ezeiza, Florencio Varela, Hurlingham, José C. Paz, La Matanza, Lanús, Lomas de Zamora, Malvinas Argentinas, Moreno, Morón, Quilmes, San Isidro, Tigre, Tres de Febrero, Vicente López, Escobar, Luján, Berisso, Ensenada, Cañuelas, Marcos Paz, General Rodríguez, Campana, Zárate, Exaltación de la Cruz, Nordelta, La Plata')],
+    ['Entre Ríos', ['Paraná']], ['Neuquén', ['Neuquén']], ['Río Negro', ['Viedma']], ['Santa Cruz', ['Río Gallegos']], ['Tierra del Fuego', ['Ushuaia']],
+    ['Jujuy', ['San Salvador de Jujuy']], ['Tucumán', ['San Miguel de Tucumán']], ['Catamarca', ['San Fernando del Valle de Catamarca']], ['Chaco', ['Resistencia']], ['Misiones', ['Posadas']],
+  ];
+  for (const [province, places] of expected) {
+    for (const place of places) assert.deepEqual(provinceAfter(place), { value: province, evidenceMsgId: `deducida de ${place}` }, place);
+  }
+  // minúsculas, sin tildes y espacios de más
+  assert.equal(provinceAfter('  lomas   de ZAMORA ')?.value, 'Buenos Aires');
+  assert.equal(provinceAfter('Jose C Paz')?.value, 'Buenos Aires');
+  assert.equal(provinceAfter('canuelas')?.value, 'Buenos Aires');
+});
+
+test('provincia deducida: las que se repiten en otras provincias se siguen preguntando (Pilar, San Martín, Merlo...), y solo vale la coincidencia exacta', () => {
+  for (const place of ['Pilar', ...list('San Martín, San Miguel, San Fernando, Merlo, Ituzaingó, Avellaneda, Santa Rosa, Rawson'), 'Luján de Cuyo', 'Tigre Norte', 'Rosario', 'constructor', 'toString']) {
+    assert.equal(provinceAfter(place), undefined, place);
+  }
+  // sin localidad no hay nada que deducir
+  assert.equal(nextCard(second('ok'), modelTurn(), policy).card.fields.provincia, undefined);
+});
+
+test('provincia deducida: la que dijo el cliente no se toca; si la ciudad se llama igual que la provincia, la toma el mecanismo de siempre (literal en el mensaje)', () => {
+  assert.deepEqual(provinceAfter('Neuquén', field('Río Negro', 'm1')), field('Río Negro', 'm1'));
+  for (const name of list('Córdoba, Mendoza, Salta, Santa Fe, San Juan, San Luis, Formosa, Corrientes, La Rioja, Santiago del Estero')) {
+    const history = [msg('m1', 'customer', 'Hola'), msg('m2', 'bot', GREETING_TEXT), msg('m3', 'customer', `Soy de ${name}`)];
+    const patch = (f: 'localidad' | 'provincia') => ({ field: f, value: name, evidence_msg_id: 'm3' });
+    const c = nextCard(input(history, ['m3']), modelTurn({ lead_patch: [patch('localidad'), patch('provincia')] }), policy).card;
+    assert.deepEqual(c.fields.provincia, { value: name, evidenceMsgId: 'm3' }, name); // sin deducir: evidencia = el mensaje del cliente
+    assert.equal(provinceAfter(name), undefined, `${name}: solo la localidad, no se duplica en la lista`);
+  }
+  // una deducción vieja se rehace si la localidad cambió
+  assert.equal(provinceAfter('La Plata', field('Buenos Aires', 'deducida de Tigre'))?.evidenceMsgId, 'deducida de La Plata');
+  assert.equal(provinceAfter('Rosario', field('Buenos Aires', 'deducida de Tigre')), undefined);
+});
+
+test('provincia deducida: con la localidad en la lista la ficha puede completarse sin preguntar la provincia (pide el cierre y deriva)', async () => {
+  const card = cardWith(['provincia'], { localidad: field('Tigre', 'm1') });
+  const sinCierre = modelTurn({ bubbles: ['Perfecto, ya le paso tus datos al equipo.'] });
+  const conCierre = modelTurn({ bubbles: ['Perfecto, ya le paso tus datos al equipo.', CLOSING] });
+  const r = await runTurn(second('dale, mandame el presupuesto', card), { llm: fakeLlm([sinCierre, conCierre]), policy, config });
+  assert.equal(r.attempts[0].violations[0].rule, 'closing');
+  assert.deepEqual(r.card.fields.provincia, { value: 'Buenos Aires', evidenceMsgId: 'deducida de Tigre' });
+  assert.deepEqual(r.handoffs, [{ reason: 'listo_para_presupuesto', priority: 'normal', mode: 'stop' }]);
+  // la ficha del turno siguiente ya le muestra la provincia al modelo
+  const llm = fakeLlm([modelTurn({ bubbles: ['Anotado. Cuántas canchas serían?'] })]);
+  await runTurn(second('ok', cardWith(['cantidad_canchas'], { localidad: field('Tigre', 'm1'), provincia: field('Buenos Aires', 'deducida de Tigre') })), { llm, policy, config });
+  assert.match(llm.calls[0].input, /provincia = Buenos Aires/);
+  assert.match(llm.calls[0].input, /datos_que_faltan: cantidad_canchas/);
+});
+
 // ---------- pide_financiacion la carga el código ----------
 test('pide_financiacion: un mensaje nuevo que nombra la financiación la carga el código aunque el modelo no (Haiku 1736, tono-11), citando ese mensaje', async () => {
   const r = await runTurn(first('Tienen financiación? cuotas?'), { llm: fakeLlm([modelTurn()]), policy, config });

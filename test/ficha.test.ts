@@ -31,6 +31,13 @@ test('ficha para el equipo: motivo, prioridad, datos, faltantes, nota y últimos
   assert.ok(t.length < 4000);
 });
 
+test('ficha: la provincia deducida de la localidad muestra de dónde salió; la que dijo el cliente, no', () => {
+  const deduced = { ...cardWith([], { localidad: field('Tigre', 'm1'), provincia: field('Buenos Aires', 'deducida de Tigre') }) };
+  const t = buildFicha(deduced, history, { reason: 'listo_para_presupuesto', priority: 'normal', mode: 'stop' });
+  assert.match(t, /Provincia\s+Buenos Aires \(deducida de Tigre\)/);
+  assert.match(buildFicha(cardWith(), history, { reason: 'listo_para_presupuesto', priority: 'normal', mode: 'stop' }), /Provincia\s+Buenos Aires\n/);
+});
+
 test('ficha con ficha vacía y mensajes largos no se rompe ni se pasa de largo', () => {
   const long = [msg('m1', 'customer', 'x'.repeat(5000))];
   const t = buildFicha({ ...cardWith(), fields: {} }, long, { reason: 'falla_del_bot', priority: 'alta', mode: 'stop' });
