@@ -165,7 +165,7 @@ export function questionFields(bubble: string): LeadField[] {
 }
 
 // El cliente deja un dato para después o dice que no lo sabe (texto normalizado). "no se" cuenta solo si cierra la frase o sigue "si, cual, cuanto…": "no se puede" no posterga nada.
-const DEFER = /\bdespues te (?:lo )?paso\b|\bmas adelante\b|\bno (?:lo )?se(?= *(?:$|[,.;!?]|todavia|aun|si\b|cual|cuant|cuando|como|donde|que\b|mucho|bien|muy))|\btodavia no (?:se|lo se|lo tengo|decidi)\b|\blo veo despues\b|\bprefiero no\b|\bya veremos\b|\bpor ahora no\b|\btendria que (?:ver|medir|averiguar)\b/;
+const DEFER = /\bdespues te (?:lo )?paso\b|\bmas adelante\b|\bno (?:lo )?se(?= *(?:$|[,.;!?]|todavia|aun|si\b|cual|cuant|cuando|como|donde|que\b|bien|muy))|\btodavia no (?:se|lo se|lo tengo|decidi)\b|\blo veo despues\b|\bprefiero no\b|\bya veremos\b|\bpor ahora no\b|\btendria que (?:ver|medir|averiguar)\b/;
 
 export interface AskedField {
   field: LeadField;

@@ -202,7 +202,7 @@ const contextOf = (h: ChatMessage[], newIds: string[], without: LeadField[]) => 
   return { input, lines: input.split('\n').filter((l) => /^(ya_preguntaste|no_volver_a_preguntar|datos_que_faltan):/.test(l)) };
 };
 
-test('Claude, persona-particular-country: el modelo preguntado 3 veces, y "no sé mucho de modelos" lo deja para después', () => {
+test('Claude, persona-particular-country: el modelo preguntado 3 veces sin respuesta no se vuelve a preguntar ("no sé mucho de modelos" pide ayuda, no posterga)', () => {
   const h = talk([
     ['bot', 'Ya tenés la platea de hormigón para la cancha?'],
     ['customer', 'Ah no, todavía no tenemos platea. ¿La pueden hacer ustedes también?'],
@@ -217,7 +217,7 @@ test('Claude, persona-particular-country: el modelo preguntado 3 veces, y "no s�
     ['customer', 'Pensándolo mejor, vamos con la Panorámica, así no pagamos mil dólares más.'],
   ]);
   const { input, lines } = contextOf(h, ['m10', 'm11'], ['modelo']);
-  assert.deepEqual(lines, ['datos_que_faltan: modelo', 'ya_preguntaste: modelo (3 veces)', 'no_volver_a_preguntar: modelo (dijo que lo pasa después)']);
+  assert.deepEqual(lines, ['datos_que_faltan: modelo', 'ya_preguntaste: modelo (3 veces)', 'no_volver_a_preguntar: modelo (preguntado 3 veces sin respuesta)']);
   assert.match(input, /<mensajes_nuevos>\n\[m10\]\[cliente 14:00\] Uh, entonces[^\n]*\n\[m11\]\[cliente 14:00\] Pensándolo mejor[^\n]*\n<\/mensajes_nuevos>$/);
   assert.doesNotMatch(input.split('<contexto>')[0], /Pensándolo mejor|Uh, entonces/, 'el historial no repite los mensajes nuevos');
 });
@@ -239,7 +239,7 @@ test('Claude, persona-inversor-galpon: la platea preguntada 4 veces, y "no sé s
     ['bot', 'Cuando tengas la altura, pasámela. Querés que la platea la hagamos nosotros o usamos el piso de hormigón que ya tenés?'],
     ['customer', 'Ok, entonces no me sirve.'],
   ]);
-  assert.deepEqual(contextOf(h, ['m14'], ['platea']).lines, ['datos_que_faltan: platea', 'ya_preguntaste: platea (4 veces)', 'no_volver_a_preguntar: platea (dijo que lo pasa después)']);
+  assert.deepEqual(contextOf(h, ['m14'], ['platea']).lines, ['datos_que_faltan: platea', 'ya_preguntaste: platea (4 veces)', 'no_volver_a_preguntar: platea (dijo que no sabe o que lo ve después)']);
   // sin postergación, a la segunda vez sin respuesta el aviso es por las veces
   const twice = talk([['bot', 'Ya tenés platea?'], ['customer', 'Hola'], ['bot', 'Contame, tenés la platea de hormigón?'], ['customer', 'Cuánto tarda?']]);
   assert.deepEqual(contextOf(twice, ['m4'], ['platea']).lines.slice(1), ['ya_preguntaste: platea (2 veces)', 'no_volver_a_preguntar: platea (preguntado 2 veces sin respuesta)']);
@@ -255,7 +255,7 @@ test('Claude, persona-curioso-sin-datos: "por ahora no te puedo decir de dónde,
     ['customer', 'Una sola cancha, por ahora. Y cuánto tarda el armado?'],
   ]);
   const { lines } = contextOf(h, ['m6'], ['nombre', 'localidad', 'provincia', 'cantidad_canchas', 'modelo', 'platea', 'ubicacion']);
-  assert.deepEqual(lines.slice(1), ['ya_preguntaste: localidad (1 vez), cantidad_canchas (1 vez)', 'no_volver_a_preguntar: localidad (dijo que lo pasa después)']);
+  assert.deepEqual(lines.slice(1), ['ya_preguntaste: localidad (1 vez), cantidad_canchas (1 vez)', 'no_volver_a_preguntar: localidad (dijo que no sabe o que lo ve después)']);
   // OpenAI no recibe nada de esto
   assert.doesNotMatch(buildInput(turnInput(h, ['m6']), policy), /ya_preguntaste|no_volver_a_preguntar/);
 });

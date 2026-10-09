@@ -229,7 +229,7 @@ export function buildInput(input: TurnInput, policy: Policy, errors: Violation[]
     `datos_que_faltan: ${missing.length ? missing.join(', ') : 'ninguno'}`,
   ];
   if (asked.length) ctx.push(`ya_preguntaste: ${asked.map((a) => `${a.field} (${a.times} ${a.times === 1 ? 'vez' : 'veces'})`).join(', ')}`);
-  if (skip.length) ctx.push(`no_volver_a_preguntar: ${skip.map((a) => `${a.field} (${a.deferred ? 'dijo que lo pasa después' : `preguntado ${a.times} veces sin respuesta`})`).join(', ')}`);
+  if (skip.length) ctx.push(`no_volver_a_preguntar: ${skip.map((a) => `${a.field} (${a.deferred ? 'dijo que no sabe o que lo ve después' : `preguntado ${a.times} veces sin respuesta`})`).join(', ')}`);
   if (missing.length) {
     ctx.push(`cierre: si con los mensajes nuevos del cliente quedan completos todos los datos que faltan, uno de tus dos globos tiene que decir "${policy.closingText}" y el otro avisa que le pasás los datos al equipo. Si todavía falta alguno, no cierres.`);
   }
