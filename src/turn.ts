@@ -50,6 +50,30 @@ function finish(before: LeadCard, card: LeadCard, handoffs: HandoffDecision[]): 
   return card;
 }
 
+// La ficha que resulta del turno propuesto, antes de las derivaciones, el estado y la temperatura. Pura: no toca `input`.
+// La usan el chequeo del turno (para saber qué pasaría) y runTurn (para armar la ficha real).
+export function nextCard(input: TurnInput, turn: ModelTurn, policy: Policy): { card: LeadCard; rejected: RejectedPatch[] } {
+  const { card: before, history } = input;
+  const s = turn.signals;
+  const closing = s.opt_out || s.not_a_lead; // baja o no es cliente: no se toma ningún dato ni contador de este turno
+  const { card: patched, rejected } = closing ? { card: structuredClone(before), rejected: [] } : applyPatch(before, turn.lead_patch, history);
+  const card: LeadCard = {
+    ...patched,
+    objections: closing ? patched.objections : [...new Set([...patched.objections, ...turn.objections])],
+    teamNote: turn.team_note.trim() || patched.teamNote,
+    flags: {
+      negotiatingCount: patched.flags.negotiatingCount + (!closing && s.negotiating ? 1 : 0),
+      offKnowledgeCount: patched.flags.offKnowledgeCount + (!closing && s.off_knowledge ? 1 : 0),
+    },
+  };
+  // Techada con menos del mínimo: queda anotado para el equipo (sin derivar).
+  const alt = Number(card.fields.altura_libre_m?.value);
+  if (card.fields.ubicacion?.value === 'techada' && alt > 0 && alt < policy.minHeightM && !/altura libre/i.test(card.teamNote)) {
+    card.teamNote = `${card.teamNote} Altura libre ${alt} m (mínimo ${policy.minHeightM}): revisar si entra antes del presupuesto.`.trim();
+  }
+  return { card, rejected };
+}
+
 // Chequeos de turno que se suman a supervise().
 function turnChecks(turn: ModelTurn, input: TurnInput, policy: Policy): Violation[] {
   const s = turn.signals;
@@ -58,7 +82,7 @@ function turnChecks(turn: ModelTurn, input: TurnInput, policy: Policy): Violatio
   const customerTexts = history.filter((m) => m.author === 'customer').map((m) => m.text);
   const newTexts = history.filter((m) => m.author === 'customer' && input.newCustomerMessageIds.includes(m.id)).map((m) => m.text);
   // Solo con la ficha en techada y la altura libre en el mínimo de la política el bot puede decir que entra.
-  const after = applyPatch(card, turn.lead_patch, history).card;
+  const after = nextCard(input, turn, policy).card;
   const heightOk = after.fields.ubicacion?.value === 'techada' && Number(after.fields.altura_libre_m?.value) >= policy.minHeightM;
   const renderShown = turn.material.some((id) => policy.assets.find((a) => a.id === id)?.tipo === 'render');
   // Techada, con altura cargada o con la altura en la nota del equipo: de la altura no se afirma nada sin los 7 m.
@@ -94,6 +118,11 @@ function turnChecks(turn: ModelTurn, input: TurnInput, policy: Policy): Violatio
   const conditional = turn.bubbles.some((b) => words(b).includes(approved) && /\b(apenas|cuando|en cuanto|una vez que|ni bien)\b/.test(words(b)));
   if (saysClosing && !conditional && missingRequired(after).length > 0) {
     v.push({ rule: 'closing_early', detail: `todavía faltan datos obligatorios (${missingRequired(after).join(', ')}): no prometas el presupuesto, pedí el dato que falta` });
+  }
+  // Si con este turno el chat pasa al equipo, el cliente no tiene a quién contestarle: ninguna pregunta (los textos aprobados de cierre no llevan "?").
+  const stops = decideHandoffs({ before: card, after, turn, customerText: newTexts.join('\n') }).some((h) => h.mode === 'stop');
+  if (stops && turn.bubbles.some((b) => b.includes('?'))) {
+    v.push({ rule: 'stop_question', detail: 'en el turno en que el chat pasa al equipo no se pregunta nada: contestá, avisá que le pasás la consulta al equipo y cerrá sin pregunta' });
   }
   return v;
 }
@@ -162,23 +191,8 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
   }
 
   const s = accepted.signals;
-  const closing = s.opt_out || s.not_a_lead; // baja o no es cliente: no se toma ningún dato ni contador de este turno
-  const { card: patched, rejected } = closing ? { card: structuredClone(before), rejected: [] } : applyPatch(before, accepted.lead_patch, input.history);
+  const { card, rejected } = nextCard(input, accepted, policy);
   if (rejected.length) deps.onRejected?.(rejected);
-  const card: LeadCard = {
-    ...patched,
-    objections: closing ? patched.objections : [...new Set([...patched.objections, ...accepted.objections])],
-    teamNote: accepted.team_note.trim() || patched.teamNote,
-    flags: {
-      negotiatingCount: patched.flags.negotiatingCount + (!closing && s.negotiating ? 1 : 0),
-      offKnowledgeCount: patched.flags.offKnowledgeCount + (!closing && s.off_knowledge ? 1 : 0),
-    },
-  };
-  // Techada con menos del mínimo: queda anotado para el equipo (sin derivar).
-  const alt = Number(card.fields.altura_libre_m?.value);
-  if (card.fields.ubicacion?.value === 'techada' && alt > 0 && alt < policy.minHeightM && !/altura libre/i.test(card.teamNote)) {
-    card.teamNote = `${card.teamNote} Altura libre ${alt} m (mínimo ${policy.minHeightM}): revisar si entra antes del presupuesto.`.trim();
-  }
   const handoffs = decideHandoffs({ before, after: card, turn: accepted, customerText: newText });
   const stopBot = handoffs.some((h) => h.mode === 'stop');
   card.state = s.opt_out ? 'baja' : s.not_a_lead ? 'no_es_cliente' : stopBot ? 'derivado' : computeState(card);

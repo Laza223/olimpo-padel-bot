@@ -427,7 +427,9 @@ test('pide_verificacion de punta a punta: sin señal de desconfianza en el texto
   const r1 = await runTurn(second('ok y cuánto sale?', card), { llm: fakeLlm([turn]), policy, config });
   assert.deepEqual(r1.handoffs, []);
   assert.equal(r1.stopBot, false);
-  const r2 = await runTurn(second('y dónde queda el taller? quiero ver una obra', card), { llm: fakeLlm([turn]), policy, config });
+  // el turno que frena el chat no lleva pregunta (stop_question)
+  const stopTurn = modelTurn({ bubbles: ['Eso lo ve el equipo, le paso tu consulta para que te contacten.'], objections: ['precio', 'confianza'] });
+  const r2 = await runTurn(second('y dónde queda el taller? quiero ver una obra', card), { llm: fakeLlm([stopTurn]), policy, config });
   assert.deepEqual(r2.handoffs, [{ reason: 'pide_verificacion', priority: 'alta', mode: 'stop' }]);
   assert.equal(r2.stopBot, true);
 });
@@ -561,4 +563,70 @@ test('Claude: los dos puntos de un globo se cambian por una coma antes del contr
   assert.equal(claude.bubbles[1], 'Te cuento la diferencia, la Full Panorámica no lleva postes en las esquinas.');
   const sol = await runTurn(first(), { llm: fakeLlm([turn, turn, turn]), policy, config: { model: 'gpt-6.1-sol', effort: 'low' } });
   assert.ok(sol.attempts[0].violations.some((v) => v.detail === 'dos puntos'));
+});
+
+// ---------- stop_question: en el turno en que el chat pasa al equipo no se pregunta nada ----------
+const attemptRules = (r: Awaited<ReturnType<typeof runTurn>>) => r.attempts[0].violations.map((v) => v.rule);
+
+test('stop_question: los textos aprobados del cierre no llevan "?" (la regla no los toca)', () => {
+  for (const t of [policy.closingText, policy.eliteAnswerText, FALLBACK_TEXT]) assert.ok(!t.includes('?'), t);
+});
+
+test('stop_question: pide_verificacion con "en qué localidad de Mendoza sería?" (Sonnet medium, persona-desconfiado) → reintento sin pregunta', async () => {
+  const card: LeadCard = { ...emptyCard(), objections: ['confianza'] };
+  const customer = 'Ah, las fotos bien. Y de dónde soy... de Mendoza, pero primero quiero saber hace cuánto están en el rubro y dónde queda el taller';
+  const con = modelTurn({
+    bubbles: ['Entiendo la duda, es lógico querer saber con quién se trabaja. Eso lo ve el equipo y por eso le paso tu consulta para que te contacten.', 'Mientras tanto, contame, en qué localidad de Mendoza sería la cancha?'],
+    objections: ['confianza'],
+  });
+  const sin = modelTurn({ bubbles: ['Entiendo la duda, es lógico querer saber con quién se trabaja. Eso lo ve el equipo y por eso le paso tu consulta para que te contacten.'], objections: ['confianza'] });
+  const llm = fakeLlm([con, sin]);
+  const r = await runTurn(second(customer, card), { llm, policy, config });
+  assert.deepEqual(attemptRules(r), ['stop_question']);
+  assert.match(r.attempts[0].violations[0].detail, /el chat pasa al equipo no se pregunta nada/);
+  assert.match(llm.calls[1].input, /- stop_question: /);
+  assert.deepEqual(r.bubbles, sin.bubbles);
+  assert.equal(r.stopBot, true);
+});
+
+test('stop_question: pregunta por la empresa anterior con "contame de dónde sos?" (Sonnet medium, trampa-elite-reclamo)', async () => {
+  const con = modelTurn({ bubbles: ['No, somos Olimpo Padel, una empresa aparte. Le aviso al equipo para que vea tu consulta.', 'Si querés avanzar con una cancha nueva, contame de dónde sos y de qué se trata tu proyecto?'] });
+  const r = await runTurn(second('Elite Padel cerró? Tenía una cancha comprada ahí, ustedes se hacen cargo?'), { llm: fakeLlm([con, modelTurn({ bubbles: [con.bubbles[0]] })]), policy, config });
+  assert.deepEqual(attemptRules(r), ['stop_question']);
+  assert.deepEqual(r.handoffs, [{ reason: 'pregunta_por_empresa_anterior', priority: 'normal', mode: 'stop' }]);
+  assert.equal(r.attempts.length, 2);
+});
+
+test('stop_question: 2.º regateo (el chat se frena) con "cuántas canchas serían?" (Sonnet medium, persona-regateador)', async () => {
+  const card: LeadCard = { ...emptyCard(), flags: { negotiatingCount: 1, offKnowledgeCount: 0 }, notified: ['regateo'] };
+  const con = withSignals({ negotiating: true }, { bubbles: ['Entiendo, tu consulta por el precio la ve el equipo. Le aviso para que te contacten.', 'Mientras tanto, para dejarte el presupuesto armado, cuántas canchas serían?'] });
+  const sin = withSignals({ negotiating: true }, { bubbles: ['Entiendo, tu consulta por el precio la ve el equipo. Le aviso para que te contacten.'] });
+  const r = await runTurn(second('Mirá, si no me bajan algo ya le pregunto a la otra empresa', card), { llm: fakeLlm([con, sin]), policy, config });
+  assert.deepEqual(attemptRules(r), ['stop_question']);
+  assert.deepEqual(r.handoffs, [{ reason: 'regateo', priority: 'normal', mode: 'stop' }]);
+});
+
+test('stop_question: la ficha que queda completa (listo_para_presupuesto) tampoco lleva pregunta junto al cierre', async () => {
+  const card = cardWith(['platea', 'ubicacion']);
+  const history = [msg('m1', 'customer', 'Pedro, 2 canchas'), msg('m2', 'bot', GREETING_TEXT), msg('m3', 'customer', 'tengo platea y la quiero techada')];
+  const lead_patch = [
+    { field: 'platea' as const, value: 'tiene', evidence_msg_id: 'm3' },
+    { field: 'ubicacion' as const, value: 'techada', evidence_msg_id: 'm3' },
+  ];
+  const con = modelTurn({ bubbles: ['Perfecto, ya le paso tus datos al equipo.', `${CLOSING} Querés agregar algo?`], lead_patch });
+  const sin = modelTurn({ bubbles: ['Perfecto, ya le paso tus datos al equipo.', CLOSING], lead_patch });
+  const r = await runTurn(input(history, ['m3'], card), { llm: fakeLlm([con, sin]), policy, config });
+  assert.deepEqual(attemptRules(r), ['stop_question']);
+  assert.deepEqual(r.bubbles, sin.bubbles);
+});
+
+test('stop_question: no bloquea si no hay "?", ni las derivaciones que solo avisan (1.er regateo)', async () => {
+  // el chat se frena y el globo cierra sin pregunta: pasa
+  const ok = await runTurn(second('Ustedes no son los de Elite?'), { llm: fakeLlm([modelTurn({ bubbles: [policy.eliteAnswerText] })]), policy, config });
+  assert.deepEqual(ok.attempts[0].violations, []);
+  // 1.er regateo: solo aviso, el bot sigue y puede preguntar
+  const flag = withSignals({ negotiating: true }, { bubbles: ['Es entendible. En qué zona sería la cancha?'] });
+  const r = await runTurn(second('me hacés 18.000?'), { llm: fakeLlm([flag]), policy, config });
+  assert.deepEqual(r.attempts[0].violations, []);
+  assert.equal(r.stopBot, false);
 });
