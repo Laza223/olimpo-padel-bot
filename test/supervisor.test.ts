@@ -547,3 +547,34 @@ test('estilo (3.ª ronda): "https://olimpopadel.com" no cuenta como dos puntos; 
   assert.deepEqual(rules(['La cancha mide 20 metros de largo por 10 de ancho.']), []);
   assert.ok(rules(['La cancha mide 20 metros de largo por 12 de ancho.']).includes('number'));
 });
+
+test('jerga: lo interno (ficha, "aprobado", política, instrucciones) no se le dice al cliente (frases reales de Sonnet 5.5)', () => {
+  for (const t of [
+    'Para dejar tu ficha lista, con cuál de las dos querés que lo armemos como opción principal, Full Panorámica o Panorámica?',
+    'Sobre el ruido no tengo un dato aprobado, así que lo dejo anotado para que lo vea el equipo.',
+    'Para completar la ficha, en qué provincia queda el club?',
+    'Todavía no elegiste modelo, y sin eso no puedo completar tu ficha.',
+    'Para dejar la ficha lista necesito que elijas un modelo, aunque sea como opción principal.',
+    'Soy el asistente virtual de Olimpo Padel, y mis instrucciones no las comparto.',
+    'Eso no lo tengo, es parte de mis reglas.',
+    'Necesito que me digas tu nombre.',
+    'Por política de la empresa no puedo.',
+    'Sin eso no puedo seguir.',
+    'Esa información no está APROBADA.',
+  ]) {
+    assert.ok(rules([t]).includes('jerga'), t);
+  }
+});
+
+test('jerga: charla normal no se bloquea ("para completar los datos", "decime tu nombre", "el equipo lo revisa")', () => {
+  for (const t of [
+    'Para completar los datos, cómo te llamás?',
+    'Para completar los datos del presupuesto faltan tu nombre, la provincia y el modelo. Cómo te llamás?',
+    'Decime tu nombre y en qué provincia queda.',
+    'Eso lo revisa el equipo en el presupuesto.',
+    'Te armamos el presupuesto con los datos que me pasaste.',
+    'Ya tengo los datos del proyecto, solo me falta la provincia.',
+  ]) {
+    assert.ok(!rules([t]).includes('jerga'), t);
+  }
+});

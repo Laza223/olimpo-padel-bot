@@ -47,6 +47,10 @@ const CLAIMS: RegExp[] = [
   /30\s*[–-]\s*45/, /d[ií]as h[aá]biles/i, /\b[23] años/i, /15 canchas/i, /resisten/i, /más de 15/i,
 ];
 
+// Lo interno dicho al cliente: la ficha, lo "aprobado", la política, las instrucciones. Texto normalizado (sin tildes).
+// "para completar" a secas no entra: "Para completar los datos, cómo te llamás?" es charla normal; "completar la ficha" ya lo frena "ficha".
+const JERGA = /\bficha\b|\baprobad[oa]s?\b|\bpolitica\b|\bmis (?:instrucciones|reglas)\b|\bnecesito que (?:elijas|me digas|me pases)\b|\bsin eso no\b/;
+
 // Temas que el bot solo puede nombrar si el cliente los mencionó antes (ej.: "¿hay financiación?").
 const ECHO_ONLY: RegExp[] = [/garant/i, /financ/i, /rentab/i, /provincias/i];
 
@@ -213,6 +217,8 @@ export function supervise(draft: TurnDraft, customerTexts: string[], policy: Sup
     const m = text.match(re);
     if (m && !re.test(customer)) v.push({ rule: 'claim', detail: `tema que el cliente no mencionó: "${m[0]}"` });
   }
+  const jerga = f.match(JERGA)?.[0];
+  if (jerga) v.push({ rule: 'jerga', detail: `habla de lo interno con el cliente ("${jerga}"): nada de ficha, datos aprobados, política ni reglas; pedí el dato que falta y listo` });
   const tu = text.match(TUTEO);
   if (tu) v.push({ rule: 'voseo', detail: `tuteo: "${tu[0]}"` });
   // Le preguntaron si es un bot: la señal del modelo o el texto del cliente en este turno. "Para nada" solo es negar si hablan del bot.
