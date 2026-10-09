@@ -51,6 +51,8 @@ export function loadPolicy(dir: URL = DEFAULT_DIR): Policy {
   if (!Array.isArray(assets) || assets.length === 0) throw new Error('assets.yaml: no hay assets');
   const minHeightM: unknown = y?.producto?.altura_libre_minima_m?.valor;
   if (typeof minHeightM !== 'number') throw new Error('olimpo.yaml: falta producto.altura_libre_minima_m.valor');
+  const modelNames: unknown = y?.producto?.modelos_que_se_ofrecen;
+  if (!Array.isArray(modelNames) || modelNames.length === 0 || !modelNames.every((n) => typeof n === 'string' && n.trim())) throw new Error('olimpo.yaml: falta producto.modelos_que_se_ofrecen (lista de textos)');
   const primerMensaje: unknown = y?.presentacion?.primer_mensaje;
 
   const approvedPricesUsd: number[] = y.precios.filter((p: { estado?: string }) => p.estado === 'aprobado').map((p: { usd: number }) => p.usd);
@@ -60,7 +62,7 @@ export function loadPolicy(dir: URL = DEFAULT_DIR): Policy {
     yamlText,
     toneText,
     assets,
-    supervisorPolicy: { approvedPricesUsd, allowedNumbers: y.numeros_permitidos, allowedPhrases: y.frases_con_numeros_permitidas },
+    supervisorPolicy: { approvedPricesUsd, allowedNumbers: y.numeros_permitidos, allowedPhrases: y.frases_con_numeros_permitidas, modelNames },
     required: REQUIRED_FIELDS,
     closingText,
     eliteAnswerText,

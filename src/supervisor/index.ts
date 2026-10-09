@@ -8,6 +8,7 @@ export interface SupervisorPolicy {
   approvedPricesUsd: number[]; // montos con USD/$ que se pueden escribir (estado "aprobado")
   allowedNumbers: number[]; // números sueltos (sin unidad) permitidos aunque el cliente no los haya dicho
   allowedPhrases: string[]; // frases aprobadas con números ("20x10", "4 luces"): pasan tal cual, aunque el número lleve unidad
+  modelNames: string[]; // nombres de los modelos que se ofrecen (producto.modelos_que_se_ofrecen): "Panorámica Rosario" no es uno de ellos
 }
 
 export interface TurnDraft {
@@ -153,6 +154,20 @@ const SITE_FITS = new RegExp([
 // La platea es obligatoria (policy: servicios.platea): nunca se dice que no hace falta (texto normalizado).
 const NO_PLATEA = /\bno hace falta (?:que (?:tengas|hagas|armes|sumes) |(?:tener|hacer|sumar|armar|construir|contar con) )?(?:(?:una|la|otra|esa|su|tu) )?platea\b/;
 
+// "La Panorámica Rosario 20x10": un modelo inventado. Pegada a una palabra de los nombres de la política (Full, Panorámica), una palabra con mayúscula
+// solo puede ser otra de esas ("Panorámica Full"). Las medidas ("20x10") no empiezan con letra y un punto o un salto de globo corta la frase: no cuentan.
+function inventedModel(text: string, modelNames: string[]): string | undefined {
+  const stem = (w: string) => fold(w).replace(/s$/, ''); // "las Full Panorámicas" es plural del mismo nombre
+  const known = new Set(modelNames.flatMap((n) => n.split(' ').map(stem)));
+  const words = [...text.matchAll(/[\p{L}\p{N}]+/gu)];
+  for (const [i, w] of words.entries()) {
+    const next = words[i + 1];
+    if (!next || !known.has(stem(w[0])) || !/^[ \t]+$/.test(text.slice(w.index + w[0].length, next.index))) continue;
+    if (/^\p{Lu}/u.test(next[0]) && !known.has(stem(next[0]))) return `${w[0]} ${next[0]}`;
+  }
+  return undefined;
+}
+
 // "Tenemos dos modelos", "te paso 3 fotos": del 1 al 4, un número suelto (sin unidad ni moneda) es charla normal, no un dato.
 const isSmallCount = (n: number) => Number.isInteger(n) && n >= 1 && n <= 4;
 
@@ -240,6 +255,8 @@ export function supervise(draft: TurnDraft, customerTexts: string[], policy: Sup
     const m = text.match(re);
     if (m && !re.test(customer)) v.push({ rule: 'claim', detail: `tema que el cliente no mencionó: "${m[0]}"` });
   }
+  const invented = inventedModel(text, policy.modelNames);
+  if (invented) v.push({ rule: 'modelo_inventado', detail: `"${invented}" parece un modelo que no existe: los modelos son ${policy.modelNames.join(' y ')}, sin nada más pegado` });
   const included = f.match(INCLUIDO)?.[0];
   if (included) v.push({ rule: 'incluido', detail: `afirma qué incluye el precio fuera de lo aprobado ("${included}"): la instalación y el flete se cotizan aparte según la ubicación, y del IVA solo se dice que es precio final y sale factura C` });
   const jerga = f.match(JERGA)?.[0];

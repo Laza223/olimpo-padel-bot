@@ -638,6 +638,28 @@ test('platea: nunca se dice que no hace falta (es obligatoria); "no hace falta q
   }
 });
 
+test('modelo_inventado: "Panorámica" o "Full Panorámica" pegado a otra palabra con mayúscula es un modelo que no existe ("Panorámica Rosario", Sonnet low)', () => {
+  for (const t of [
+    'La Panorámica Rosario 20x10 está en USD 20.900 por cancha.',
+    'La Full Panorámica Premium está en oferta a USD 19.900.', 'Te recomiendo la Panorámica Indoor.', 'la full panorámica Plus sale USD 19.900', 'Tenemos la Full Rosario.',
+  ]) {
+    assert.ok(rules([t]).includes('modelo_inventado'), t);
+  }
+  assert.ok(policy.modelNames.includes('Full Panorámica') && policy.modelNames.includes('Panorámica')); // salen del YAML, no están escritos a mano
+  // el detalle nombra los modelos de la política
+  assert.match(supervise({ bubbles: ['La Panorámica Rosario 20x10.'], askedIfAi: false }, [], policy).find((x) => x.rule === 'modelo_inventado')!.detail, /"Panorámica Rosario".*Full Panorámica y Panorámica/);
+});
+
+test('modelo_inventado: los nombres aprobados, las medidas, un punto o el salto de globo no lo disparan', () => {
+  for (const t of [
+    'La Full Panorámica 20x10 está en USD 19.900.', 'Qué modelo te interesa, Full Panorámica o Panorámica?', 'La Panorámica, Rosario queda lejos.', 'Te interesa la Full Panorámica. Rosario queda lejos.',
+    'La Panorámica Full no existe, son dos modelos.', 'Panorámica 20x10 por cancha.', 'Para las Full Panorámicas al aire libre en Lomas de Zamora, en qué provincia sería?', // plural, del corpus del banco 'La Panorámica sale USD 20.900. Incluye estructura y vidrios templados.', 'Así queda la Full Panorámica',
+  ]) {
+    assert.ok(!rules([t]).includes('modelo_inventado'), t);
+  }
+  assert.ok(!rules(['Así queda la Panorámica', 'Qué modelo elegís?']).includes('modelo_inventado')); // el salto entre globos corta la frase
+});
+
 test('jerga: charla normal no se bloquea ("para completar los datos", "decime tu nombre", "el equipo lo revisa")', () => {
   for (const t of [
     'Para completar los datos, cómo te llamás?',

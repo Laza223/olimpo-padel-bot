@@ -21,7 +21,7 @@ const corpus: Entry[] = JSON.parse(readFileSync(new URL('./fixtures/good-bubbles
 test('el corpus de globos buenos no está vacío', () => assert.ok(corpus.length >= 100, `solo ${corpus.length} turnos`));
 
 // Los textos aprobados de la política (cada "texto" y "especificaciones" del YAML) no pueden disparar las reglas que bloquean lo interno, lo no confirmado y lo inventado.
-const GUARDED_RULES = ['jerga', 'incluido', 'height', 'platea'];
+const GUARDED_RULES = ['jerga', 'incluido', 'height', 'platea', 'modelo_inventado'];
 const approvedTexts = (node: unknown, key = ''): string[] =>
   typeof node === 'string' ? (key === 'texto' || key === 'especificaciones' ? [node] : [])
   : node && typeof node === 'object' ? Object.entries(node).flatMap(([k, v]) => approvedTexts(v, k)) : [];
