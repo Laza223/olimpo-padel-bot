@@ -318,3 +318,9 @@
   - ignoró preguntas.
 - Reporte en `evals/out/2026-10-09-1332-claude-sonnet-5-5-low/`.
 - Veredicto: el cerebro sigue siendo Sol low. Falta probar Sonnet con esfuerzo medio, si Lazar quiere gastar créditos promocionales en eso.
+- **Sonnet 5.5 en esfuerzo medio** (pedido de Lazar, es el default de Sonnet), 2 corridas:
+  - corrida 1: 6 críticas; corrida 2: 4 críticas;
+  - juez 4,47 y 4,52;
+  - bot USD 0,0124 y 0,0131 por conversación;
+  - USD 1,94 en total. **NO PASA.**
+  Fallas: inventó un dato (`persona-inversor-galpon`), presionó (regateador, curioso, desconfiado) e ignoró preguntas (desconfiado, Elite). Reporte en `evals/out/2026-10-09-1344-claude-sonnet-5-5-medium/`. Sigue Sol low. Créditos promocionales gastados en total ≈ USD 3,9.
