@@ -8,7 +8,7 @@ import { LEAD_FIELDS, OBJECTIONS } from './types.ts';
 import type { AttemptLog, BrainConfig, ChatMessage, LlmClient, ModelTurn, TurnInput } from './types.ts';
 import type { Violation } from './supervisor/index.ts';
 import type { Policy } from './policy.ts';
-import { missingRequired } from './lead.ts';
+import { askedFields, missingRequired } from './lead.ts';
 import { buildClaudeInstructions } from './instructions-claude.ts';
 import { argentinaClock, greetingFor } from './time.ts';
 
@@ -184,6 +184,10 @@ export function buildInput(input: TurnInput, policy: Policy, errors: Violation[]
   const shown = history.filter((m) => m.author !== 'system').slice(-HISTORY_LIMIT);
   const missing = missingRequired(card);
   const fields = Object.entries(card.fields).map(([k, v]) => `  ${k} = ${oneLine(v.value)}`);
+  const claude = opts.family === 'claude';
+  // Solo Claude: lo que ya se preguntó de cada dato que falta y lo que el cliente dejó para después, calculado por código del historial completo.
+  const asked = claude ? askedFields(history, missing) : [];
+  const skip = asked.filter((a) => a.deferred || a.times >= 2);
 
   const ctx = [
     '<contexto>',
@@ -193,6 +197,8 @@ export function buildInput(input: TurnInput, policy: Policy, errors: Violation[]
     fields.length ? `ficha_actual:\n${fields.join('\n')}` : 'ficha_actual: vacía',
     `datos_que_faltan: ${missing.length ? missing.join(', ') : 'ninguno'}`,
   ];
+  if (asked.length) ctx.push(`ya_preguntaste: ${asked.map((a) => `${a.field} (${a.times} ${a.times === 1 ? 'vez' : 'veces'})`).join(', ')}`);
+  if (skip.length) ctx.push(`no_volver_a_preguntar: ${skip.map((a) => `${a.field} (${a.deferred ? 'dijo que lo pasa después' : `preguntado ${a.times} veces sin respuesta`})`).join(', ')}`);
   if (missing.length) {
     ctx.push(`cierre: si con los mensajes nuevos del cliente quedan completos todos los datos que faltan, uno de tus dos globos tiene que decir "${policy.closingText}" y el otro avisa que le pasás los datos al equipo. Si todavía falta alguno, no cierres.`);
   }
@@ -200,7 +206,11 @@ export function buildInput(input: TurnInput, policy: Policy, errors: Violation[]
   if (card.objections.includes('confianza')) ctx.push('ya_dudo_antes: sí');
   ctx.push(`mensajes_nuevos_del_cliente: ${newCustomerMessageIds.join(', ')}`, '</contexto>');
 
-  const parts = ['<historial>', ...shown.map(historyLine), '</historial>', '', ...ctx];
+  // Claude: lo que hay que contestar va al final (guía oficial), así que los mensajes nuevos salen del historial y van después del contexto.
+  const isNew = (m: ChatMessage) => m.author === 'customer' && newCustomerMessageIds.includes(m.id);
+  const parts = claude
+    ? ['<historial>', ...shown.filter((m) => !isNew(m)).map(historyLine), '</historial>', '', ...ctx, '', '<mensajes_nuevos>', ...shown.filter(isNew).map(historyLine), '</mensajes_nuevos>']
+    : ['<historial>', ...shown.map(historyLine), '</historial>', '', ...ctx];
   if (errors.length) {
     parts.push(
       '',
