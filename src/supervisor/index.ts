@@ -141,6 +141,18 @@ const FITS_HEIGHT = new RegExp(
   ].join('|'),
 );
 
+// El galpón, el techo o el piso "sirve", "se puede usar" o "va bien": es decir que entra, solo con la altura confirmada (texto normalizado).
+// Con "si" antes ("para saber si el galpón sirve"), o "equipo / revisa / confirma / evalúa" en el medio, es condicional o derivación y pasa.
+// "Te sirve el presupuesto" o "si te sirve, pasame la altura" no nombran galpón, techo ni piso pegado al verbo: pasan.
+const SITE = String.raw`(?:galpon|techo|piso|tinglado)`;
+const SITE_VERB = String.raw`(?:sirve|sirven|se puede usar|va bien|van bien)`;
+const SITE_FITS = new RegExp([
+  String.raw`(?<!\bsi (?:(?:el|tu|su|ese|un) )?)\b${SITE}\b(?:(?!\b(?:si|equipo|revis\w*|confirm\w*|evalu\w*)\b)[^.?!]){0,40}?\b${SITE_VERB}\b`, // "el galpón techado se puede usar"
+  String.raw`\b${SITE_VERB} (?:(?:el|tu|su|ese|un) )?${SITE}\b`, // "te sirve el galpón"
+].join('|'));
+// La platea es obligatoria (policy: servicios.platea): nunca se dice que no hace falta (texto normalizado).
+const NO_PLATEA = /\bno hace falta (?:que (?:tengas|hagas|armes|sumes) |(?:tener|hacer|sumar|armar|construir|contar con) )?(?:(?:una|la|otra|esa|su|tu) )?platea\b/;
+
 // "Tenemos dos modelos", "te paso 3 fotos": del 1 al 4, un número suelto (sin unidad ni moneda) es charla normal, no un dato.
 const isSmallCount = (n: number) => Number.isInteger(n) && n >= 1 && n <= 4;
 
@@ -253,8 +265,10 @@ export function supervise(draft: TurnDraft, customerTexts: string[], policy: Sup
   const persona = text.match(HUMAN_PERSONA);
   if (persona) v.push({ rule: 'persona', detail: `se presenta como persona: "${persona[0]}"` });
   const heightTopic = draft.heightContext || HEIGHT_TOPIC.test(newText);
-  const fits = draft.heightOk ? undefined : text.match(FITS)?.[0] ?? (heightTopic ? f.match(FITS_HEIGHT)?.[0] : undefined);
+  const fits = draft.heightOk ? undefined : text.match(FITS)?.[0] ?? (heightTopic ? f.match(FITS_HEIGHT)?.[0] : undefined) ?? f.match(SITE_FITS)?.[0];
   if (fits) v.push({ rule: 'height', detail: `dice que entra ("${fits}") sin saber que la altura libre bajo techo alcanza el mínimo de la política: lo revisa el equipo en el presupuesto` });
+  const noPlatea = f.match(NO_PLATEA)?.[0];
+  if (noPlatea) v.push({ rule: 'platea', detail: `dice que la platea no hace falta ("${noPlatea}"): es obligatoria, preguntá si la tiene o si se la hacemos` });
   const guarded = draft.renderShown || WORK_QUESTION.test(newText);
   const fw = f.replace(WORK_OK, ' ');
   const work = text.match(FAKE_WORK)?.[0] ?? text.match(FAKE_CLIENT)?.[0] ?? fw.match(WORK_DONE)?.[0] ?? (guarded ? fw.match(WORK_VERBS)?.[0] : undefined);

@@ -595,6 +595,49 @@ test('incluido: lo aprobado pasa (lista de qué incluye, "se cotizan aparte", "n
   }
 });
 
+test('galpón: decir que el galpón, el techo o el piso "sirve", "se puede usar" o "va bien" es decir que entra: height sin la altura confirmada (Sonnet y Haiku, persona-inversor-galpon)', () => {
+  for (const t of [
+    'Genial, en Escobar instalamos sin problema y el galpón techado se puede usar.',
+    'Instalamos en todo el país, y un galpón sirve para poner las canchas bajo techo.',
+    'Tu piso de hormigón sirve como platea.', 'El techo va bien para las canchas.', 'Te sirve el galpón que tenés.', 'Con ese tinglado se puede usar.',
+    'El galpón no sirve.', 'EL GALPÓN SIRVE perfecto.',
+  ]) {
+    assert.ok(rules([t]).includes('height'), t);
+  }
+});
+
+test('galpón: con la altura confirmada (techada y 7 m o más) se puede; condicionales, derivaciones y "te sirve" sin galpón no se bloquean', () => {
+  const ok = (t: string, heightOk = false) => supervise({ bubbles: [t], askedIfAi: false, heightOk }, [], policy).some((x) => x.rule === 'height');
+  assert.equal(ok('El galpón se puede usar.', true), false);
+  assert.equal(ok('El galpón se puede usar.', false), true);
+  for (const t of [
+    'Te sirve que venga así para compararlo con tus amigos?', // Haiku 1736
+    'Si te sirve, contame cómo te llamás así lo dejamos anotado?', // Sonnet medium
+    'Si te sirve, pasame la altura del galpón.',
+    'Para saber si el galpón sirve lo revisa el equipo en el presupuesto.', 'El equipo revisa si el galpón se puede usar.',
+    'Si tu techo sirve, lo ve el equipo.', 'Eso del galpón lo confirma el equipo, no te adelanto nada.',
+    'Se puede instalar bajo techo o al aire libre.', 'El piso de hormigón lo revisa el equipo en el presupuesto.', 'Te sirve el presupuesto armado así?',
+  ]) {
+    assert.equal(ok(t), false, t);
+  }
+});
+
+test('platea: nunca se dice que no hace falta (es obligatoria); "no hace falta que la hagas vos" es otra cosa y pasa', () => {
+  for (const t of [
+    'Perfecto, con el piso de hormigón del galpón no hace falta una platea nueva.', // Haiku 1724
+    'No hace falta tener la platea antes de cotizar.', // Sonnet medium
+    'No hace falta platea.', 'No hace falta que tengas platea.', 'No hace falta hacer la platea.', 'No hace falta sumar una platea.',
+  ]) {
+    assert.ok(rules([t]).includes('platea'), t);
+  }
+  for (const t of [
+    'No hace falta que la hagas vos, también hacemos plateas de hormigón.',
+    'Para las canchas es necesaria una platea de hormigón, ya tenés?', 'Si no tenés platea, la hacemos nosotros.', 'No hace falta que me lo digas ahora.',
+  ]) {
+    assert.ok(!rules([t]).includes('platea'), t);
+  }
+});
+
 test('jerga: charla normal no se bloquea ("para completar los datos", "decime tu nombre", "el equipo lo revisa")', () => {
   for (const t of [
     'Para completar los datos, cómo te llamás?',
