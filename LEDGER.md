@@ -374,3 +374,5 @@ Imagen `ghcr.io/ggml-org/whisper.cpp:main-d1be6fde…` (v1.9.5, sin tags de vers
   - "No dice cuál es la altura mínima" se agrega a la política. Ya está hecho; el golden de Sol se regeneró y solo cambia esa línea.
   - El código completa la provincia de lugares inequívocos.
   - `.env` → `BOT_MODEL=claude-sonnet-5-5`, medium.
+| 30 | sonnet-implementer, F1 (tokens por intento en el banco y en `agent_runs`) + F2 (caché de 1 h solo para el bot) | Commits 89577dc y 3d0d33d. 776/776. Campos de la doc local: `cache_creation.ephemeral_1h_input_tokens` y `output_tokens_details.thinking_tokens`. `ttl:"1h"` sin header beta. **Humo del orquestador** (2 escenarios, USD 0,15): el system real es de **17.847 tokens** (la investigación estimó 10,8K a 3,5 caracteres por token; el español tokeniza más denso); la escritura salió como de 1 h. **Pensamiento = 0 en los 3 intentos**: en medium con JSON, Sonnet contesta sin pensar, como dice la guía | 183k |
+| 31 | sonnet-implementer (worktree), F4: 8 reglas de prosa a código (`stop_question`, jerga, incluido, altura/platea, `pide_financiacion`, mayúscula tras coma, modelo inventado, provincia deducida) | en curso | — |

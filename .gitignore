@@ -9,3 +9,6 @@ backups/
 *.sqlite-*
 evals/out/
 whisper-models/
+
+# worktrees de subagentes
+.claude/worktrees/
