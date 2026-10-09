@@ -55,8 +55,8 @@ producto:
   altura_libre_minima_m:
     valor: 7
     estado: aprobado
-    regla: "Solo si va bajo techo. Con menos de 7 m o sin dato, el bot nunca dice que entra: anota la altura en la ficha y dice que el equipo lo revisa en el presupuesto."
-    fuente: "Lazar 7-oct (reflectores de la Rev. D a 5,93 m)"
+    regla: "Solo si va bajo techo. Con menos de 7 m o sin dato, el bot nunca dice que entra: anota la altura en la ficha y dice que el equipo lo revisa en el presupuesto. No dice cuál es la altura mínima."
+    fuente: "Lazar 7-oct (reflectores de la Rev. D a 5,93 m); no decir el mínimo: Lazar 9-oct"
   medidas: "20x10"
   ubicacion:
     texto: "Se puede instalar bajo techo o al aire libre."

@@ -348,3 +348,29 @@ Imagen `ghcr.io/ggml-org/whisper.cpp:main-d1be6fde…` (v1.9.5, sin tags de vers
 **Fricciones abiertas que vio el hillclimb (no se tocaron):**
 - La provincia tiene que aparecer literal en un mensaje del cliente (`lead.ts`). Por eso el bot pregunta "¿de qué provincia sos?" aunque el cliente haya dicho Pilar.
 - La rúbrica del juez no conoce la regla de no decir la altura mínima de 7 m.
+
+### 2026-10-09 · Todo Sonnet 5.5: entorno diseñado para él
+
+- **Lazar:** el cerebro pasa a Sonnet 5.5; prefiere pagar unos dólares más que arriesgar con Haiku.
+- **Pedido de Lazar:**
+  - Opus 5.5 diseña el entorno. Es un override del modelo, decidido por él.
+  - Antes hay que investigar a fondo la doc oficial de Anthropic, sus recursos y lo que recomiendan los expertos, sobre todo para bajar costos (caché, etc.).
+- **Plan:**
+  1. 3 investigaciones en paralelo (Sonnet): cómo escribirle a Sonnet 5.5, costos y caché, recursos de ingeniería y expertos.
+  2. Diseño a cargo de Opus 5.5.
+  3. El orquestador revisa el diseño.
+  4. Implementación.
+  5. Banco con jueza Opus. La jueza no puede ser Sonnet, porque se juzgaría a sí mismo.
+
+| # | Finalidad | Resultado | Tokens aprox. |
+|---|---|---|---|
+| 26 | Sonnet (Explore), investigación: cómo escribirle a Sonnet 5.5 (doc oficial + skill claude-api), contrastado con `instructions-claude.ts` | Hay guía oficial "Prompting Claude Sonnet 5.5". Con JSON en low o medium suele contestar **sin pensar**; el arreglo oficial es "Think the problem through before you answer." y/o high. Es literal, sobreaplica los "nunca" y copia los ejemplos. Problemas del prompt: 5 pasos + checklist; "copiá SU pregunta" contra "si posterga no preguntes"; ejemplos "Mal:" con precios fijos; no restringe el conocimiento externo (de ahí "Panorámica Rosario" y "platea 22x11"). Quedarse en `json_schema`, porque `tool_choice` da 400 en 5.5 | — |
+| 27 | Sonnet (Explore), investigación: costos (caché, TTL, esfuerzo, Batch para el banco) + perfil de tokens real del bot | Precios verificados (escritura de 1 h USD 4; el 0,20 de lectura de `models.md` está desactualizado, es 0,10). **El banco mide con caché caliente.** En producción, con tráfico esporádico, el TTL de 5 min casi nunca acierta: ≈ USD 0,08 por conversación; con TTL de 1 h ≈ 0,02–0,05. La salida es el 55–75 % del costo. No hay tokens por intento en los logs (hay que instrumentar). Segundo breakpoint del historial: no vale la pena. Batch para la jueza: ≈ −12 %, solo en las finales | — |
+| 28 | Sonnet (Explore), investigación: recursos de ingeniería de Anthropic, cookbook y expertos (agentes conversacionales, barandas, evals) | Mantener una llamada por turno + supervisor en código: es un workflow, no un agente. El advisor tool no aplica. Reintento con el borrador rechazado + arreglo en positivo. Pasar a código lo que se viola en prosa. Estado calculado en el input. Evals: análisis de errores, ≥ 3–5 corridas por el ruido, jueza distinta del bot. Fuga de ejemplos: los `tono-*` son los ejemplos del prompt | — |
+| 29 | **Opus 5.5** (Plan, override de Lazar), diseño del entorno para Sonnet 5.5 | Plan en 10 fases (`~/.claude/plans/frolicking-hugging-gem.md`), aprobado por Lazar: medir tokens → caché de 1 h solo para el bot → línea de base → 8 reglas de prosa a código (la mitad de los críticos de Sonnet medium es preguntar en el turno de derivación) → prompt reescrito → schema con las decisiones antes de los globos → `<mensajes_nuevos>` + `ya_preguntaste` → reintento con el borrador → barrido medium/high → final. Estimado ≈ USD 24 | — |
+
+- **Decisiones de Lazar, 9-oct:**
+  - Tope de USD 30, con corte en 25.
+  - "No dice cuál es la altura mínima" se agrega a la política. Ya está hecho; el golden de Sol se regeneró y solo cambia esa línea.
+  - El código completa la provincia de lugares inequívocos.
+  - `.env` → `BOT_MODEL=claude-sonnet-5-5`, medium.
