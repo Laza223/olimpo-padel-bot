@@ -101,6 +101,7 @@ export function createApp(o: AppOptions = {}): App {
   const policy = loadPolicy();
   const brain = configFromEnv(env);
   const llm = o.llm ?? (cfg.llm === 'fake' ? new FakeLlm(policy) : createLlm(brain.model, env)); // antes de abrir la base: si falta la clave, no se toca nada
+  const audio = o.audio ?? createAudio(env, cfg.llm === 'fake'); // también antes de abrir la base: un BOT_TRANSCRIBER inválido no toca nada
   const ownsDb = !o.db;
   const db = o.db ?? openDb(o.dbPath ?? DEFAULT_DB);
   const bootAt = clock.now();
@@ -119,7 +120,7 @@ export function createApp(o: AppOptions = {}): App {
   const alert = (text: string, urgent = false) => sendAlert(db, notifier, clock, text, { urgent });
 
   const outbox = createOutbox({ db, channel, notifier, clock, onExpired: (chatId) => worker.onCustomerMessage(chatId) });
-  const worker = createWorker({ db, channel, llm, policy, config: brain, audio: o.audio ?? createAudio(env, cfg.llm === 'fake'), notifier, clock, kickOutbox });
+  const worker = createWorker({ db, channel, llm, policy, config: brain, audio, notifier, clock, kickOutbox });
   const ingest = createIngest({ db, channel, clock, notifier, onCustomerMessage: (chatId) => worker.onCustomerMessage(chatId), onOutboxChange: kickOutbox });
   const recovery = createRecovery({ db, channel, clock, notifier, worker, onReady: () => { outboxOpen = true; outbox.kick(); } });
   const session = createSession({

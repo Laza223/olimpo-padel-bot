@@ -9,6 +9,7 @@ import type { AttemptLog, BrainConfig, ChatMessage, LlmClient, ModelTurn, TurnIn
 import type { Violation } from './supervisor/index.ts';
 import type { Policy } from './policy.ts';
 import { missingRequired } from './lead.ts';
+import { buildClaudeInstructions } from './instructions-claude.ts';
 import { argentinaClock, greetingFor } from './time.ts';
 
 // ---------- Configuración y costo ----------
@@ -30,6 +31,7 @@ export const PRICES: Record<string, { input: number; cached: number; output: num
   'gpt-6-astra': { input: 10, cached: 1, output: 50 },
   'claude-haiku-5-5': { input: 0.1, cached: 0.01, cacheWrite: 0.125, output: 0.5 },
   'claude-sonnet-5-5': { input: 2, cached: 0.1, cacheWrite: 2.5, output: 10 },
+  'claude-opus-5-5': { input: 4, cached: 0.2, cacheWrite: 5, output: 20 }, // jueza de la confirmación final del banco (--judge-model)
 };
 
 // inputTokens es el total de entrada (incluye lo leído y lo escrito del caché); cachedTokens = leído; cacheWriteTokens = escrito (solo Anthropic).
@@ -77,7 +79,11 @@ export const TURN_SCHEMA = obj({
 // El bloque `interno:` (montos internos) queda en el YAML para el equipo y la ficha, pero no entra al prompt del bot.
 export const stripInterno = (yaml: string): string => yaml.replace(/^(?:#.*\n)*interno:\n(?:[ \t]+.*\n?|\n)*/m, '');
 
-export function buildInstructions(policy: Policy): string {
+// "openai" es el prompt de siempre (gpt-6.1-sol pasa la vara con él: no se toca, lo cuida test/brain-claude.test.ts); "claude" es la variante para modelos claude-* (instructions-claude.ts).
+export type PromptFamily = 'openai' | 'claude';
+
+export function buildInstructions(policy: Policy, opts: { family?: PromptFamily } = {}): string {
+  if (opts.family === 'claude') return buildClaudeInstructions(policy, stripInterno(policy.yamlText).trim());
   const assets = policy.assets.map((a) => `- ${a.id} (${a.tipo}). Cuándo: ${a.cuando} Frase: "${a.texto}"`).join('\n');
   return `# ROL
 Sos el asistente virtual de WhatsApp de Olimpo Padel, una empresa que fabrica e instala canchas de pádel en todo el país. Hablás como "Olimpo Padel", sin nombre de persona. Tu trabajo es atender a quien escribe, responderle lo que pregunta y juntar los datos para que el equipo le mande el presupuesto. No negociás ni cerrás ventas: eso lo hace el equipo.
@@ -163,7 +169,13 @@ function historyLine(m: ChatMessage): string {
   return `[${m.id}][${tag}] ${oneLine(m.text)}`;
 }
 
-export function buildInput(input: TurnInput, policy: Policy, errors: Violation[] = []): string {
+// Con family "claude" solo cambia la indicación que sigue a los errores del intento anterior; sin family (o "openai") la entrada es la de siempre.
+const RETRY_NOTE: Record<PromptFamily, string> = {
+  openai: 'Tu respuesta anterior se descartó por esos errores. Corregilos y devolvé la respuesta completa de nuevo.',
+  claude: 'Tu respuesta anterior se descartó por esos errores. Rehacela completa y arreglá exactamente eso. Si el error es de dos puntos, no dejes ningún ":" en ningún globo (usá comas o puntos). Si es de largo, acortá el globo. Si es de preguntas, dejá un solo "?" y al final.',
+};
+
+export function buildInput(input: TurnInput, policy: Policy, errors: Violation[] = [], opts: { family?: PromptFamily } = {}): string {
   const { history, card, newCustomerMessageIds, nowUtcMs } = input;
   const shown = history.filter((m) => m.author !== 'system').slice(-HISTORY_LIMIT);
   const missing = missingRequired(card);
@@ -191,7 +203,7 @@ export function buildInput(input: TurnInput, policy: Policy, errors: Violation[]
       '<errores_del_intento_anterior>',
       ...errors.map((e) => `- ${e.rule}: ${e.detail}`),
       '</errores_del_intento_anterior>',
-      'Tu respuesta anterior se descartó por esos errores. Corregilos y devolvé la respuesta completa de nuevo.',
+      RETRY_NOTE[opts.family ?? 'openai'],
     );
   }
   return parts.join('\n');

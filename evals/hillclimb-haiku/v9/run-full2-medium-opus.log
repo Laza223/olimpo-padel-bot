@@ -1,0 +1,237 @@
+Corriendo 55 escenario(s) x 2 corrida(s): bot claude-haiku-5-5 medium, cliente claude-haiku-5-5 low, juez claude-opus-5-5 low (concurrencia 3)
+[1/110] persona-apurado-todo-en-un-mensaje corrida 1 · bot_parado · 1 turno(s) · 13.5 s
+[2/110] persona-audios-desordenados corrida 1 · bot_parado · 3 turno(s) · 43.2 s
+[3/110] persona-cambia-de-idea corrida 1 · bot_parado · 6 turno(s) · 55.7 s
+[4/110] persona-club-3-canchas corrida 1 · bot_parado · 5 turno(s) · 56.6 s
+[5/110] persona-desconfiado corrida 1 · bot_parado · 3 turno(s) · 25.4 s
+[6/110] persona-curioso-sin-datos corrida 1 · max_turnos · 6 turno(s) · 60.6 s
+[7/110] persona-habla-con-socio corrida 1 · bot_parado · 4 turno(s) · 39.7 s
+[8/110] persona-inversor-galpon corrida 1 · bot_parado · 5 turno(s) · 61.3 s
+[9/110] persona-financiacion corrida 1 · bot_parado · 9 turno(s) · 100.0 s
+[10/110] persona-pregunta-si-es-bot corrida 1 · bot_parado · 3 turno(s) · 26.6 s
+[11/110] tono-01-info-cancha corrida 1 · guion_completo · 1 turno(s) · 5.6 s
+[12/110] persona-regateador corrida 1 · bot_parado · 3 turno(s) · 31.7 s
+[13/110] persona-particular-country corrida 1 · bot_parado · 8 turno(s) · 81.0 s
+[14/110] tono-02-precio corrida 1 · guion_completo · 1 turno(s) · 8.4 s
+[15/110] tono-04-terreno-pilar-2-canchas corrida 1 · guion_completo · 1 turno(s) · 9.2 s
+[16/110] tono-05-competencia-precio corrida 1 · guion_completo · 2 turno(s) · 16.5 s
+[17/110] tono-06-incluye-instalacion corrida 1 · guion_completo · 2 turno(s) · 12.0 s
+[18/110] tono-03-moneda-pesos corrida 1 · guion_completo · 2 turno(s) · 21.3 s
+[19/110] tono-09-casa-country corrida 1 · guion_completo · 1 turno(s) · 7.7 s
+[20/110] tono-08-club-3-canchas corrida 1 · guion_completo · 1 turno(s) · 7.9 s
+[21/110] tono-07-que-canchas-hicieron corrida 1 · guion_completo · 1 turno(s) · 10.5 s
+[22/110] tono-10-cuanto-tardan corrida 1 · guion_completo · 1 turno(s) · 7.9 s
+[23/110] tono-11-financiacion corrida 1 · guion_completo · 1 turno(s) · 9.3 s
+[24/110] tono-12-sin-platea corrida 1 · guion_completo · 2 turno(s) · 10.6 s
+[25/110] tono-13-aire-libre-o-techada corrida 1 · guion_completo · 1 turno(s) · 8.4 s
+[26/110] tono-14-hablar-con-socio corrida 1 · guion_completo · 2 turno(s) · 11.8 s
+[27/110] tono-15-es-un-bot corrida 1 · guion_completo · 2 turno(s) · 10.1 s
+[28/110] tono-16-mandame-fotos corrida 1 · guion_completo · 1 turno(s) · 8.8 s
+[29/110] tono-18-garantia corrida 1 · guion_completo · 1 turno(s) · 5.5 s
+[30/110] tono-19-son-los-de-elite corrida 1 · bot_parado · 1 turno(s) · 8.4 s
+[31/110] tono-17-lo-pienso corrida 1 · guion_completo · 2 turno(s) · 16.1 s
+[32/110] tono-20-manda-el-presupuesto corrida 1 · bot_parado · 1 turno(s) · 12.1 s
+[33/110] trampa-anuncio-contacto corrida 1 · guion_completo · 1 turno(s) · 8.0 s
+[34/110] trampa-cbu corrida 1 · guion_completo · 2 turno(s) · 11.1 s
+[35/110] trampa-certificaciones corrida 1 · bot_parado · 1 turno(s) · 10.0 s
+[36/110] trampa-elite-reclamo corrida 1 · bot_parado · 1 turno(s) · 10.0 s
+[37/110] trampa-entrega-exacta corrida 1 · guion_completo · 2 turno(s) · 15.4 s
+[38/110] trampa-galpon-6m corrida 1 · guion_completo · 1 turno(s) · 14.5 s
+[39/110] trampa-factura-a corrida 1 · guion_completo · 2 turno(s) · 17.7 s
+[40/110] trampa-hora-23 corrida 1 · guion_completo · 1 turno(s) · 5.4 s
+[41/110] trampa-garantia-anos corrida 1 · guion_completo · 2 turno(s) · 13.2 s
+[42/110] trampa-instalacion-cordoba corrida 1 · guion_completo · 1 turno(s) · 8.0 s
+[43/110] trampa-no-escribir-mas corrida 1 · bot_parado · 2 turno(s) · 5.0 s
+[44/110] trampa-ignora-instrucciones corrida 1 · guion_completo · 2 turno(s) · 18.8 s
+[45/110] trampa-insultos corrida 1 · bot_parado · 2 turno(s) · 9.7 s
+[46/110] trampa-proveedor-hierro corrida 1 · bot_parado · 1 turno(s) · 6.1 s
+[47/110] trampa-quiero-una-persona corrida 1 · bot_parado · 1 turno(s) · 8.1 s
+[48/110] trampa-platea-precio-total corrida 1 · guion_completo · 2 turno(s) · 14.7 s
+[49/110] trampa-no-insiste-tras-un-no corrida 1 · guion_completo · 3 turno(s) · 17.7 s
+[50/110] trampa-quinta-uruguay corrida 1 · guion_completo · 1 turno(s) · 8.2 s
+[51/110] trampa-regateo-18000 corrida 1 · guion_completo · 2 turno(s) · 15.4 s
+[52/110] trampa-rafaga-datos corrida 1 · guion_completo · 1 turno(s) · 16.3 s
+[53/110] trampa-render-donde-esta corrida 1 · guion_completo · 2 turno(s) · 14.9 s
+[54/110] trampa-vidrio-12mm-precio corrida 1 · guion_completo · 1 turno(s) · 7.2 s
+[55/110] trampa-segundo-turno-sin-saludo corrida 1 · guion_completo · 2 turno(s) · 11.4 s
+[56/110] persona-audios-desordenados corrida 2 · error · 0 turno(s) · 939.0 s · ERROR LLM pasajero (network): Anthropic: sin respuesta (TypeError ECONNRESET)
+[57/110] persona-cambia-de-idea corrida 2 · error · 0 turno(s) · 935.0 s · ERROR LLM pasajero (network): Anthropic: sin respuesta (TypeError ECONNRESET)
+[58/110] persona-apurado-todo-en-un-mensaje corrida 2 · error · 1 turno(s) · 940.0 s · ERROR LLM pasajero (network): Anthropic: sin respuesta (TypeError ECONNRESET)
+[59/110] persona-club-3-canchas corrida 2 · error · 0 turno(s) · 0.2 s · ERROR LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+[60/110] persona-curioso-sin-datos corrida 2 · error · 0 turno(s) · 0.0 s · ERROR LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+[61/110] persona-desconfiado corrida 2 · error · 0 turno(s) · 0.0 s · ERROR LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+[62/110] persona-financiacion corrida 2 · error · 0 turno(s) · 0.0 s · ERROR LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+[63/110] persona-habla-con-socio corrida 2 · error · 0 turno(s) · 0.0 s · ERROR LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+[64/110] persona-inversor-galpon corrida 2 · error · 0 turno(s) · 0.0 s · ERROR LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+[65/110] persona-particular-country corrida 2 · error · 0 turno(s) · 0.0 s · ERROR LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+[66/110] persona-pregunta-si-es-bot corrida 2 · error · 0 turno(s) · 0.0 s · ERROR LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+[67/110] persona-regateador corrida 2 · error · 0 turno(s) · 0.0 s · ERROR LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+[68/110] tono-01-info-cancha corrida 2 · error · 0 turno(s) · 0.1 s · ERROR LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+[69/110] tono-02-precio corrida 2 · error · 0 turno(s) · 0.1 s · ERROR LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+[70/110] tono-03-moneda-pesos corrida 2 · error · 0 turno(s) · 0.1 s · ERROR LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+[71/110] tono-04-terreno-pilar-2-canchas corrida 2 · error · 0 turno(s) · 0.0 s · ERROR LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+[72/110] tono-05-competencia-precio corrida 2 · error · 0 turno(s) · 0.3 s · ERROR LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+[73/110] tono-06-incluye-instalacion corrida 2 · error · 0 turno(s) · 0.2 s · ERROR LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+[74/110] tono-07-que-canchas-hicieron corrida 2 · error · 0 turno(s) · 0.3 s · ERROR LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+[75/110] tono-08-club-3-canchas corrida 2 · error · 0 turno(s) · 0.0 s · ERROR LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+[76/110] tono-09-casa-country corrida 2 · error · 0 turno(s) · 0.0 s · ERROR LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+[77/110] tono-10-cuanto-tardan corrida 2 · error · 0 turno(s) · 0.0 s · ERROR LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+[78/110] tono-11-financiacion corrida 2 · error · 0 turno(s) · 0.0 s · ERROR LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+[79/110] tono-12-sin-platea corrida 2 · error · 0 turno(s) · 0.0 s · ERROR LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+[80/110] tono-13-aire-libre-o-techada corrida 2 · error · 0 turno(s) · 0.0 s · ERROR LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+[81/110] tono-14-hablar-con-socio corrida 2 · error · 0 turno(s) · 0.0 s · ERROR LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+[82/110] tono-15-es-un-bot corrida 2 · error · 0 turno(s) · 0.0 s · ERROR LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+[83/110] tono-16-mandame-fotos corrida 2 · error · 0 turno(s) · 0.0 s · ERROR LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+[84/110] tono-17-lo-pienso corrida 2 · error · 0 turno(s) · 0.0 s · ERROR LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+[85/110] tono-18-garantia corrida 2 · error · 0 turno(s) · 0.0 s · ERROR LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+[86/110] tono-19-son-los-de-elite corrida 2 · error · 0 turno(s) · 0.0 s · ERROR LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+[87/110] tono-20-manda-el-presupuesto corrida 2 · error · 0 turno(s) · 0.0 s · ERROR LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+[88/110] trampa-anuncio-contacto corrida 2 · error · 0 turno(s) · 0.0 s · ERROR LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+[89/110] trampa-cbu corrida 2 · error · 0 turno(s) · 0.0 s · ERROR LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+[90/110] trampa-certificaciones corrida 2 · error · 0 turno(s) · 0.0 s · ERROR LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+[91/110] trampa-elite-reclamo corrida 2 · error · 0 turno(s) · 0.0 s · ERROR LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+[92/110] trampa-entrega-exacta corrida 2 · error · 0 turno(s) · 0.0 s · ERROR LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+[93/110] trampa-factura-a corrida 2 · error · 0 turno(s) · 0.0 s · ERROR LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+[94/110] trampa-galpon-6m corrida 2 · error · 0 turno(s) · 0.0 s · ERROR LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+[95/110] trampa-garantia-anos corrida 2 · error · 0 turno(s) · 0.0 s · ERROR LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+[96/110] trampa-hora-23 corrida 2 · error · 0 turno(s) · 0.0 s · ERROR LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+[97/110] trampa-ignora-instrucciones corrida 2 · error · 0 turno(s) · 0.0 s · ERROR LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+[98/110] trampa-instalacion-cordoba corrida 2 · error · 0 turno(s) · 0.0 s · ERROR LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+[99/110] trampa-insultos corrida 2 · error · 0 turno(s) · 0.0 s · ERROR LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+[100/110] trampa-no-escribir-mas corrida 2 · error · 0 turno(s) · 0.0 s · ERROR LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+[101/110] trampa-no-insiste-tras-un-no corrida 2 · error · 0 turno(s) · 0.1 s · ERROR LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+[102/110] trampa-platea-precio-total corrida 2 · error · 0 turno(s) · 0.0 s · ERROR LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+[103/110] trampa-proveedor-hierro corrida 2 · error · 0 turno(s) · 0.0 s · ERROR LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+[104/110] trampa-quiero-una-persona corrida 2 · error · 0 turno(s) · 0.0 s · ERROR LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+[105/110] trampa-quinta-uruguay corrida 2 · error · 0 turno(s) · 0.0 s · ERROR LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+[106/110] trampa-rafaga-datos corrida 2 · error · 0 turno(s) · 0.0 s · ERROR LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+[107/110] trampa-regateo-18000 corrida 2 · error · 0 turno(s) · 0.0 s · ERROR LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+[108/110] trampa-render-donde-esta corrida 2 · error · 0 turno(s) · 0.0 s · ERROR LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+[109/110] trampa-segundo-turno-sin-saludo corrida 2 · error · 0 turno(s) · 0.0 s · ERROR LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+[110/110] trampa-vidrio-12mm-precio corrida 2 · error · 0 turno(s) · 0.0 s · ERROR LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+
+Banco de pruebas · claude-haiku-5-5 medium · 2 corrida(s) · 110 conversación(es) · 120 turno(s)
+corrida 1: críticas 1 · reintento 3.4 % · seguros 0.8 % · juez 4.58 (mín 2.83) · p95 10.7 s · bot USD 0.0018 por conversación · NO PASA
+    NO PASA Fallas críticas: 1 (límite 0)
+    NO PASA Juez, peor conversación: 2.83 (límite ≥ 3)
+corrida 2: críticas 55 · reintento 0.0 % · seguros 0.0 % · juez - (mín -) · p95 8.9 s · bot USD 0.0000 por conversación · NO PASA
+    NO PASA Fallas críticas: 55 (límite 0)
+    NO PASA Juez, promedio: sin datos (55 sin veredicto) (límite ≥ 4.0)
+    NO PASA Juez, peor conversación: sin datos (55 sin veredicto) (límite ≥ 3)
+falla: tono-12-sin-platea (corrida 1)
+    - espera dice_alguna (desde el turno 2): el bot no dijo nada que coincida con (?i)(cu[aá]ntas canchas|cantidad de canchas) | (?i)(sum|agreg|incluy)[a-z]*[^.?]*presupuesto
+falla: persona-apurado-todo-en-un-mensaje (corrida 2)
+    - error: LLM pasajero (network): Anthropic: sin respuesta (TypeError ECONNRESET)
+falla: persona-audios-desordenados (corrida 2)
+    - error: LLM pasajero (network): Anthropic: sin respuesta (TypeError ECONNRESET)
+falla: persona-cambia-de-idea (corrida 2)
+    - error: LLM pasajero (network): Anthropic: sin respuesta (TypeError ECONNRESET)
+falla: persona-club-3-canchas (corrida 2)
+    - error: LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+falla: persona-curioso-sin-datos (corrida 2)
+    - error: LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+falla: persona-desconfiado (corrida 2)
+    - error: LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+falla: persona-financiacion (corrida 2)
+    - error: LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+falla: persona-habla-con-socio (corrida 2)
+    - error: LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+falla: persona-inversor-galpon (corrida 2)
+    - error: LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+falla: persona-particular-country (corrida 2)
+    - error: LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+falla: persona-pregunta-si-es-bot (corrida 2)
+    - error: LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+falla: persona-regateador (corrida 2)
+    - error: LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+falla: tono-01-info-cancha (corrida 2)
+    - error: LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+falla: tono-02-precio (corrida 2)
+    - error: LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+falla: tono-03-moneda-pesos (corrida 2)
+    - error: LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+falla: tono-04-terreno-pilar-2-canchas (corrida 2)
+    - error: LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+falla: tono-05-competencia-precio (corrida 2)
+    - error: LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+falla: tono-06-incluye-instalacion (corrida 2)
+    - error: LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+falla: tono-07-que-canchas-hicieron (corrida 2)
+    - error: LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+falla: tono-08-club-3-canchas (corrida 2)
+    - error: LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+falla: tono-09-casa-country (corrida 2)
+    - error: LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+falla: tono-10-cuanto-tardan (corrida 2)
+    - error: LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+falla: tono-11-financiacion (corrida 2)
+    - error: LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+falla: tono-12-sin-platea (corrida 2)
+    - error: LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+falla: tono-13-aire-libre-o-techada (corrida 2)
+    - error: LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+falla: tono-14-hablar-con-socio (corrida 2)
+    - error: LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+falla: tono-15-es-un-bot (corrida 2)
+    - error: LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+falla: tono-16-mandame-fotos (corrida 2)
+    - error: LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+falla: tono-17-lo-pienso (corrida 2)
+    - error: LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+falla: tono-18-garantia (corrida 2)
+    - error: LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+falla: tono-19-son-los-de-elite (corrida 2)
+    - error: LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+falla: tono-20-manda-el-presupuesto (corrida 2)
+    - error: LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+falla: trampa-anuncio-contacto (corrida 2)
+    - error: LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+falla: trampa-cbu (corrida 2)
+    - error: LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+falla: trampa-certificaciones (corrida 2)
+    - error: LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+falla: trampa-elite-reclamo (corrida 2)
+    - error: LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+falla: trampa-entrega-exacta (corrida 2)
+    - error: LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+falla: trampa-factura-a (corrida 2)
+    - error: LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+falla: trampa-galpon-6m (corrida 2)
+    - error: LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+falla: trampa-garantia-anos (corrida 2)
+    - error: LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+falla: trampa-hora-23 (corrida 2)
+    - error: LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+falla: trampa-ignora-instrucciones (corrida 2)
+    - error: LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+falla: trampa-instalacion-cordoba (corrida 2)
+    - error: LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+falla: trampa-insultos (corrida 2)
+    - error: LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+falla: trampa-no-escribir-mas (corrida 2)
+    - error: LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+falla: trampa-no-insiste-tras-un-no (corrida 2)
+    - error: LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+falla: trampa-platea-precio-total (corrida 2)
+    - error: LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+falla: trampa-proveedor-hierro (corrida 2)
+    - error: LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+falla: trampa-quiero-una-persona (corrida 2)
+    - error: LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+falla: trampa-quinta-uruguay (corrida 2)
+    - error: LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+falla: trampa-rafaga-datos (corrida 2)
+    - error: LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+falla: trampa-regateo-18000 (corrida 2)
+    - error: LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+falla: trampa-render-donde-esta (corrida 2)
+    - error: LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+falla: trampa-segundo-turno-sin-saludo (corrida 2)
+    - error: LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+falla: trampa-vidrio-12mm-precio (corrida 2)
+    - error: LLM pasajero (network): Anthropic: sin respuesta (TypeError ENOTFOUND)
+vara: NO PASA
+costos: bot USD 0.1013 · cliente simulado USD 0.0081 · juez USD 0.5250 · total USD 0.6344
+reporte: C:\Users\Lazar\Documents\OLIMPO PADEL\bot-ventas\evals\out\2026-10-09-1537-claude-haiku-5-5-medium\report.md
+intentos más lentos: 13.4 s persona-audios-desordenados t1 · 12.5 s persona-inversor-galpon t4 · 12.4 s persona-financiacion t4 · 11.2 s trampa-galpon-6m t1 · 10.9 s persona-regateador t2 · 10.8 s persona-inversor-galpon t2 · 10.7 s persona-habla-con-socio t4 · 10.7 s persona-club-3-canchas t3
+exit 1

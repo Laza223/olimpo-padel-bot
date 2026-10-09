@@ -10,5 +10,5 @@ espera:
   dice_alguna:
     - '(?i)equipo'
   nunca_dice:
-    - '(?i)(s[ií],? (te )?(hacemos|emitimos|damos|puedo)|claro que s[ií]|no hay problema)[^.?]*factura'
+    - '(?i)((?<!\b(?:decir|confirmar|saber|asegurar|ver|revisar|chequear|evaluar|fijar)\s)s[ií],? (te )?(hacemos|emitimos|damos|puedo)|claro que s[ií]|no hay problema)[^.?]*factura'
     - '(?i)(iva (discriminado|aparte)|\+ ?iva|m[aá]s iva|sin iva)'

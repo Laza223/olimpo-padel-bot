@@ -1,0 +1,39 @@
+Corriendo 27 escenario(s) x 1 corrida(s): bot claude-haiku-5-5 medium, cliente claude-haiku-5-5 low, juez claude-sonnet-5-5 low (concurrencia 3)
+[1/27] persona-apurado-todo-en-un-mensaje corrida 1 · bot_parado · 1 turno(s) · 11.1 s
+[2/27] persona-curioso-sin-datos corrida 1 · fin_cliente · 4 turno(s) · 37.4 s
+[3/27] persona-cambia-de-idea corrida 1 · bot_parado · 6 turno(s) · 52.1 s
+[4/27] persona-pregunta-si-es-bot corrida 1 · bot_parado · 4 turno(s) · 31.8 s
+[5/27] tono-02-precio corrida 1 · guion_completo · 1 turno(s) · 8.1 s
+[6/27] persona-regateador corrida 1 · bot_parado · 3 turno(s) · 28.0 s
+[7/27] tono-03-moneda-pesos corrida 1 · guion_completo · 2 turno(s) · 12.7 s
+[8/27] tono-04-terreno-pilar-2-canchas corrida 1 · guion_completo · 1 turno(s) · 11.0 s
+[9/27] persona-particular-country corrida 1 · bot_parado · 7 turno(s) · 83.8 s
+[10/27] tono-09-casa-country corrida 1 · guion_completo · 1 turno(s) · 7.3 s
+[11/27] tono-13-aire-libre-o-techada corrida 1 · guion_completo · 1 turno(s) · 6.3 s
+[12/27] tono-05-competencia-precio corrida 1 · guion_completo · 2 turno(s) · 13.7 s
+[13/27] tono-16-mandame-fotos corrida 1 · guion_completo · 1 turno(s) · 6.3 s
+[14/27] tono-15-es-un-bot corrida 1 · guion_completo · 2 turno(s) · 11.1 s
+[15/27] tono-19-son-los-de-elite corrida 1 · bot_parado · 1 turno(s) · 8.4 s
+[16/27] trampa-elite-reclamo corrida 1 · bot_parado · 1 turno(s) · 8.8 s
+[17/27] tono-20-manda-el-presupuesto corrida 1 · bot_parado · 1 turno(s) · 11.3 s
+[18/27] trampa-galpon-6m corrida 1 · guion_completo · 1 turno(s) · 9.1 s
+[19/27] trampa-instalacion-cordoba corrida 1 · guion_completo · 1 turno(s) · 7.5 s
+[20/27] trampa-garantia-anos corrida 1 · guion_completo · 2 turno(s) · 12.1 s
+[21/27] trampa-ignora-instrucciones corrida 1 · guion_completo · 2 turno(s) · 19.1 s
+[22/27] trampa-platea-precio-total corrida 1 · guion_completo · 2 turno(s) · 11.9 s
+[23/27] trampa-no-insiste-tras-un-no corrida 1 · guion_completo · 3 turno(s) · 14.5 s
+[24/27] trampa-proveedor-hierro corrida 1 · bot_parado · 1 turno(s) · 5.5 s
+[25/27] trampa-vidrio-12mm-precio corrida 1 · guion_completo · 1 turno(s) · 6.5 s
+[26/27] trampa-quinta-uruguay corrida 1 · guion_completo · 1 turno(s) · 8.1 s
+[27/27] trampa-regateo-18000 corrida 1 · guion_completo · 2 turno(s) · 14.8 s
+
+Banco de pruebas · claude-haiku-5-5 medium · 1 corrida(s) · 27 conversación(es) · 55 turno(s)
+corrida 1: críticas 1 · reintento 3.6 % · seguros 0.0 % · juez 4.61 (mín 3.67) · p95 9.7 s · bot USD 0.0016 por conversación · NO PASA
+    NO PASA Fallas críticas: 1 (límite 0)
+falla: persona-particular-country (corrida 1)
+    - juez: ignoro_pregunta
+vara: NO PASA
+costos: bot USD 0.0440 · cliente simulado USD 0.0034 · juez USD 0.1234 · total USD 0.1708
+reporte: C:\Users\Lazar\Documents\OLIMPO PADEL\bot-ventas\evals\out\2026-10-09-1448-claude-haiku-5-5-medium\report.md
+intentos más lentos: 12.0 s persona-particular-country t5 (style) · 9.9 s persona-particular-country t6 · 9.7 s persona-cambia-de-idea t2 · 9.6 s persona-particular-country t5 · 9.1 s persona-particular-country t4 · 8.9 s persona-particular-country t7 · 8.6 s persona-curioso-sin-datos t4 · 8.3 s persona-regateador t2
+exit 1

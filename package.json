@@ -7,6 +7,7 @@
   },
   "scripts": {
     "chat": "node scripts/chat.ts",
+    "whisper:model": "node scripts/whisper-model.ts",
     "eval": "node evals/run.ts",
     "eval:compare": "node evals/compare.ts",
     "typecheck": "tsc --noEmit",

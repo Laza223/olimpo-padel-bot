@@ -105,3 +105,65 @@ Una revisión adversarial encontró defectos; las decisiones las tomó el orques
 - **`/set max_audio_seconds`** rechaza valores menores a 10.
 - **Al arrancar** se borran los temporales `olimpo-audio-*` de `os.tmpdir()` con más de 10 minutos.
 - **Pruebas nuevas:** `test/f2b-audio-fixes.test.ts` (un bloque por punto, incluidas las dos que faltaban: un segundo audio mientras se transcribe el primero, y `setTranscript` solo sobre pendientes).
+
+## Transcriptor local (whisper.cpp), 9-oct
+
+El dueño no tiene saldo de OpenAI y aprobó instalar Whisper en la notebook hasta tenerlo. Esto manda sobre lo de arriba donde contradiga (transcripción, costo y avisos). Todo lo demás (descarga, conversión con ffmpeg, ilegibles, reintentos, topes) queda igual.
+
+### Decisiones
+
+- **Selección:** `BOT_TRANSCRIBER=local|openai`, por defecto `local`. Con `BOT_LLM=fake` sigue el transcriptor falso. Un valor raro corta el arranque ("BOT_TRANSCRIBER tiene que ser local u openai"), también con el falso, y antes de abrir la base. Con `openai` todo funciona como antes (`BOT_TRANSCRIBE_MODEL`, `OPENAI_API_KEY`). Con `local` no hace falta ninguna clave de OpenAI para los audios.
+- **El server:** `whisper-server` de la imagen oficial `ghcr.io/ggml-org/whisper.cpp`.
+  - Esa imagen no publica tags de versión (solo `main` y `main-<commit>`): se fija `main-d1be6fde11ac6e0407606b4e42fe72d34add8037`, el commit del release v1.9.5.
+  - Trae `whisper-server`, `whisper-cli`, ffmpeg y curl. Pesa 1,69 GB en disco (505 MB de bajada).
+  - Su entrypoint es `bash -c`: el compose lo reemplaza por `whisper-server` y pasa los argumentos sueltos.
+- **Servicio `whisper` en `docker-compose.yml`:**
+  - modelo `ggml-small.bin` montado de solo lectura desde `./whisper-models`;
+  - `-l es`, `-t ${WHISPER_THREADS:-4}`, puerto 8080;
+  - `restart: unless-stopped`;
+  - healthcheck con `GET /health` (503 mientras carga el modelo, 200 listo);
+  - **sin puertos publicados** (el servidor de whisper.cpp acepta `POST /load`, que cambia el modelo, y no tiene clave). El bot lo llama por `http://whisper:8080` (`WHISPER_URL`).
+  - El bot no depende de él (`depends_on`): con `BOT_TRANSCRIBER=openai` no lo necesita, y si Whisper cae el bot sigue contestando.
+- **El pedido (`LocalWhisperTranscriber` en `src/audio.ts`):**
+  - `POST {WHISPER_URL}/inference`, multipart: `file` (el mp3 de `convertAudio`, tal cual: el server lo lee sin `--convert`), `temperature=0`, `temperature_inc=0`, `response_format=json`, `language=es` y `prompt`.
+  - `temperature_inc=0` evita que whisper.cpp reintente con temperaturas más altas: mismo audio, mismo texto, y demora acotada.
+  - El prompt es el vocabulario de siempre más "Pilar" y "Córdoba". Sin él, el modelo `small` escribía "pade el techada" y "galpón empilar".
+  - Timeout de 120 s. Costo 0. En `agent_runs` queda el modelo `whisper-small`.
+- **La respuesta:** `{"text": "..."}`. Si todo el texto son marcas de "no hay voz" (`[MÚSICA]`, `[BLANK_AUDIO]`, `(aplausos)`: es lo que escribe con silencio o ruido), se devuelve vacío, y el worker lo deja ilegible como cualquier transcripción vacía.
+- **Errores:**
+  - Conexión rechazada, timeout, 5xx, o un 200 que no es el JSON del server: `TransientLlmError('network')`. Entra en la lógica de siempre: reintentos con espera y, al 4.º fallo seguido del mismo audio, ilegible (causa `no_responde`).
+  - Un 4xx: `MediaUnreadableError` con causa `rechazo` (el server no aceptó ese audio). Un 404 o 401 por tener mal `WHISPER_URL` cae acá también: todos los audios quedan ilegibles y el aviso dice "no aceptó el archivo".
+  - Texto vacío: ilegible.
+  - Ningún error copia el cuerpo de la respuesta (puede traer texto del cliente).
+- **Avisos al equipo:** `Transcriber.local` marca al transcriptor de la notebook, y los avisos del worker dicen "el transcriptor local (Whisper)" en lugar de "OpenAI" (ilegibles por rechazo o por falla repetida, y el motivo de espera). Con OpenAI los textos son los de antes.
+- **`pnpm whisper:model`** (`scripts/whisper-model.ts`): baja `ggml-small.bin` de `huggingface.co/ggerganov/whisper.cpp` a `whisper-models/` (en `.gitignore`) con `fetch`, mostrando el avance. Verifica tamaño y SHA-256 (el mismo que publica Hugging Face) y no baja nada si ya está completo.
+
+### Spike (notebook de Lazar: Ryzen 7 5825U, 15,4 GB de RAM; Docker con 6 CPU y 5 GB; 4 hilos; enchufada)
+
+La muestra son dos notas de voz en español hechas con la voz "Microsoft Sabina Desktop" (es-MX) de Windows, pasadas a OGG/Opus mono 16 kHz y de ahí al mp3 que deja `convertAudio`: una de 6,6 s y una de 29,1 s con palabras del negocio. Los tiempos son la parte de Whisper (el pedido HTTP completo). La notebook estaba ocupada con otras cosas (entre 4 % y 100 % de CPU en el host), así que hay dispersión: se ponen todas las corridas.
+
+| | `ggml-small.bin` (487,6 MB) | `ggml-large-v3-turbo-q5_0.bin` (574,0 MB) |
+|---|---|---|
+| Carga del modelo al arrancar el server | 3,7 a 7,5 s | 11,1 s |
+| Primer pedido después de arrancar (6,6 s) | 3,9 a 5,2 s | 33,7 s |
+| Audio corto (6,6 s) | 4,4 a 7,7 s | 23,2 a 30,1 s |
+| Audio de 29 s, sin prompt | 9,0 a 16,6 s | 24,8 a 30,9 s |
+| Audio de 29 s, con prompt | 13,4 a 19,7 s (14,6 / 13,8 / 14,8 con 6 hilos; 12,5 s en la prueba real final) | 28,1 a 30,7 s |
+| RAM del contenedor (`docker stats`) | 560 MiB en reposo, 630 a 690 durante, pico 695 | 613 MiB en reposo, 755 a 781 durante, pico 786 |
+| Palabras del negocio, sin prompt | falla "pádel" (corto: "pade el Techada") y "en Pilar" ("empilar") | sin errores |
+| Palabras del negocio, con prompt | sin errores | sin errores |
+
+- **Elegido: `ggml-small.bin` con el prompt.** El turbo transcribe un poco mejor sin ayuda, pero tarda 25 a 31 s para 30 s de audio: no llega a los 15 s pedidos. `small` con el vocabulario no se equivoca en ninguna palabra del negocio y está en el borde de los 15 s: 13 a 15 s en las corridas con la notebook más libre y hasta 20 s con el host al 100 %. El cómputo puro (whisper-cli, sin carga del modelo): encode 3,5 a 4,2 s + decode 5,0 s ≈ 9 a 10 s.
+- `small` escribe "20 x 10" donde el cliente dijo "20 por 10" (el turbo escribe "20 por 10"); para el modelo del bot es lo mismo. También cambia alguna palabra común ("Querías" por "Quería", "Quedó atento" por "Quedo atento"): no es del vocabulario del negocio y se entiende igual.
+- Silencio o un tono: `[MÚSICA]` (con o sin prompt). No repite el prompt.
+
+### Pruebas
+
+- `test/f2b-whisper.test.ts`, con fetch falso: el pedido (URL, campos, prompt, timeout de 120 s), el mapeo de errores, el texto vacío y las marcas sin voz, la selección por env (`createAudio` y `createApp`) y los avisos del worker nombrando al transcriptor local.
+- `test/f2b-whisper-e2e.test.ts`, **real y de punta a punta**: `test/fixtures/voz-cliente.ogg` (29 s, OGG/Opus) → `convertAudio` (ffmpeg real) → `LocalWhisperTranscriber` → texto con galpón, Pilar, pádel, techada, Full Panorámica, Panorámica, platea, aire libre, Córdoba y "20 por 10"; y un silencio que vuelve vacío. Se saltea si Whisper no está levantado o falta ffmpeg. Como el compose no publica puertos, para correrla se levanta una copia que sí publica uno, solo en 127.0.0.1: `docker compose run -d --rm --name whisper-e2e -p 127.0.0.1:18080:8080 whisper` (y después `docker rm -f whisper-e2e`). Otra dirección: `WHISPER_E2E_URL`.
+- El test de `createAudio` de `f2b-audio.test.ts` ahora pide `BOT_TRANSCRIBER=openai` para probar OpenAI (el valor por defecto cambió).
+
+### Pendiente
+
+- Probar con una nota de voz real de WhatsApp (acento, ruido, audio largo): la muestra es voz sintética limpia. Mismo pendiente que con OpenAI.
+- Si el audio es de más de un minuto o llegan varios juntos, el tiempo crece: Whisper atiende de a uno y procesa por tramos de 30 s.

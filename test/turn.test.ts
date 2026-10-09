@@ -551,3 +551,14 @@ test('respaldo de baja por texto (3.ª ronda): horarios, "por ahora", "todavía"
     assert.equal((await run(t)).card.state, 'baja', t);
   }
 });
+
+test('Claude: los dos puntos de un globo se cambian por una coma antes del controlador (no gasta un intento); Sol no pasa por esa limpieza', async () => {
+  const withColon = 'Te cuento la diferencia: la Full Panorámica no lleva postes en las esquinas.';
+  const turn = modelTurn({ bubbles: [GREETING_TEXT, withColon] });
+  const claude = await runTurn(first(), { llm: fakeLlm([turn, turn, turn]), policy, config: { model: 'claude-haiku-5-5', effort: 'medium' } });
+  assert.equal(claude.usedFallback, false);
+  assert.equal(claude.attempts.length, 1);
+  assert.equal(claude.bubbles[1], 'Te cuento la diferencia, la Full Panorámica no lleva postes en las esquinas.');
+  const sol = await runTurn(first(), { llm: fakeLlm([turn, turn, turn]), policy, config: { model: 'gpt-6.1-sol', effort: 'low' } });
+  assert.ok(sol.attempts[0].violations.some((v) => v.detail === 'dos puntos'));
+});

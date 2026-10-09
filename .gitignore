@@ -8,3 +8,4 @@ backups/
 *.sqlite
 *.sqlite-*
 evals/out/
+whisper-models/

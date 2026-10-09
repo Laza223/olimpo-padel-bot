@@ -158,25 +158,29 @@ export class OpenAiJudge implements Judge {
 }
 
 // El mismo juez y el mismo esquema estricto del veredicto sobre Anthropic (output_config.format). Un veredicto roto, una negativa o una respuesta cortada fallan con el costo ya gastado.
+// `model` es claude-sonnet-5-5 salvo que se pida otro (--judge-model, por ejemplo claude-opus-5-5 para la confirmación final); el modelo tiene que estar en PRICES.
 export class AnthropicJudge implements Judge {
-  label = `${ANTHROPIC_JUDGE_MODEL} ${ANTHROPIC_JUDGE_EFFORT}`;
+  label: string;
   #api: AnthropicClient;
   #instructions: string;
+  #model: string;
 
-  constructor(api: AnthropicClient, policy: Policy) {
+  constructor(api: AnthropicClient, policy: Policy, model: string = ANTHROPIC_JUDGE_MODEL) {
     this.#api = api;
     this.#instructions = buildJudgeInstructions(policy);
+    this.#model = model;
+    this.label = `${model} ${ANTHROPIC_JUDGE_EFFORT}`;
   }
 
   async evaluate(input: JudgeInput) {
     let r;
     try {
-      r = await this.#api.complete({ model: ANTHROPIC_JUDGE_MODEL, system: this.#instructions, input: buildJudgeInput(input), effort: ANTHROPIC_JUDGE_EFFORT, schema: VERDICT_SCHEMA });
+      r = await this.#api.complete({ model: this.#model, system: this.#instructions, input: buildJudgeInput(input), effort: ANTHROPIC_JUDGE_EFFORT, schema: VERDICT_SCHEMA });
     } catch (e) {
-      if (e instanceof LlmOutputError) throw new CallError(`el juez no terminó (${e.message})`, costUsd(ANTHROPIC_JUDGE_MODEL, e.usage));
+      if (e instanceof LlmOutputError) throw new CallError(`el juez no terminó (${e.message})`, costUsd(this.#model, e.usage));
       throw e;
     }
-    const cost = costUsd(ANTHROPIC_JUDGE_MODEL, r.usage);
+    const cost = costUsd(this.#model, r.usage);
     try {
       return { verdict: parseVerdict(r.text), costUsd: cost };
     } catch (e) {

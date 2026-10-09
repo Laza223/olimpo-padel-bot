@@ -324,3 +324,27 @@
   - bot USD 0,0124 y 0,0131 por conversación;
   - USD 1,94 en total. **NO PASA.**
   Fallas: inventó un dato (`persona-inversor-galpon`), presionó (regateador, curioso, desconfiado) e ignoró preguntas (desconfiado, Elite). Reporte en `evals/out/2026-10-09-1344-claude-sonnet-5-5-medium/`. Sigue Sol low. Créditos promocionales gastados en total ≈ USD 3,9.
+
+### 2026-10-09 · Todo Haiku 5.5 + transcriptor local
+
+- **Lazar:** solo tiene saldo en la Claude Platform (USD ~96 de créditos promocionales).
+  - Decidió **adaptar el bot completamente a Haiku 5.5**, con tope de USD 15.
+  - Para los audios eligió **Whisper local en la notebook**, hasta tener saldo de OpenAI. Esa decisión aprueba la dependencia nueva (imagen de whisper.cpp más el modelo).
+- **Diagnóstico del orquestador, a partir de la observación de Lazar:** el prompt se pulió contra Sol en varias rondas; Haiku y Sonnet se probaron con ese mismo texto sin adaptar. Plan:
+  - variante del prompt solo para Claude, con el prompt de Sol intacto;
+  - hillclimb con split train/test;
+  - confirmación final de 2 corridas con jueza Opus 5.5, para evitar que Sonnet se juzgue a sí mismo.
+
+| # | Finalidad | Resultado | Tokens aprox. |
+|---|---|---|---|
+| 24 | sonnet-implementer, adaptar el prompt y la llamada a Haiku 5.5 (hillclimb, tope USD 13) | El agente armó `src/instructions-claude.ts`: secciones XML, el prompt de Sol queda idéntico y lo cuida un golden. Probó high contra medium y se trabó a los ~USD 5,8 (lo cortó el watchdog de 600 s). **Siguió el orquestador:**<br>• limpieza de dos puntos solo para Claude en `turn.ts`;<br>• reglas de IVA, provincia, `pide_financiacion`, no repreguntar y no prometer plazo con datos faltantes;<br>• regex de 4 escenarios corregidas por clase (el "si" condicional ya no cuenta como promesa).<br>Esfuerzo elegido: **medium**. Pasó de 15 críticas con el prompt original a 1–5. Confirmaciones finales con jueza Opus, 2 corridas cada una: 5/1, 2/2, 3/5 y 3/3. **NO PASA la vara de 0.** La última: 0 datos inventados, mentiras ni presión; 0 % de mensajes seguros; juez 4,63; p95 10–11 s; bot USD 0,0017 por conversación (un tercio de Sol). Lo que queda:<br>• `pide_financiacion`: arreglado y probado 3/3;<br>• el flujo largo de country;<br>• `ignoro_pregunta` de la jueza, y una de esas es falso positivo, porque espera la altura mínima de 7 m que Lazar prohíbe decir.<br>Gasto total de Haiku: **USD 11,39** de 13. Se frena el gasto | — |
+| 25 | sonnet-implementer, transcriptor local whisper.cpp (spike de modelos + servicio + `LocalWhisperTranscriber`) | **Spike** (Ryzen 7 5825U, 4 hilos):
+  - `ggml-small` con prompt transcribe 29 s de audio en 13 a 15 s (hasta 20 s con la CPU al 100 %), usa 560 a 695 MiB de RAM y no tiene errores en las palabras del negocio;
+  - `large-v3-turbo-q5_0` tarda 28 a 31 s;
+  - elegido **small**.
+
+Imagen `ghcr.io/ggml-org/whisper.cpp:main-d1be6fde…` (v1.9.5, sin tags de versión): 1,69 GB. Suma unos 2,2 GB de disco. Servicio sin puertos, `BOT_TRANSCRIBER=local` por defecto, `pnpm whisper:model` con verificación SHA-256 y filtro de `[MÚSICA]`. 769 pruebas; la e2e real con el contenedor corrió: 13,6 s. **Verificación del orquestador:** las pruebas de audio y Whisper dan 85/85, el modelo está en `whisper-models/` (ignorado por git) y la imagen está fijada. Pendiente: probar una nota de voz real de WhatsApp | 278k |
+
+**Fricciones abiertas que vio el hillclimb (no se tocaron):**
+- La provincia tiene que aparecer literal en un mensaje del cliente (`lead.ts`). Por eso el bot pregunta "¿de qué provincia sos?" aunque el cliente haya dicho Pilar.
+- La rúbrica del juez no conoce la regla de no decir la altura mínima de 7 m.

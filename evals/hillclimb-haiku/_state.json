@@ -1,0 +1,14 @@
+{
+  "flow": "adaptar el cerebro del bot a claude-haiku-5-5 (variante de prompt solo para claude-*; el de OpenAI/Sol no se toca)",
+  "started": "2026-10-09",
+  "goal": { "target": "criticas", "direction": "lower", "hold": ["reintento", "seguros", "juez_promedio", "juez_minimo", "p95", "costo_bot"], "final": "banco completo, --runs 2, jueza claude-opus-5-5: PASA las dos corridas" },
+  "bot": { "model": "claude-haiku-5-5", "effort": "high", "thinking": "adaptive" },
+  "eval": { "customer": "claude-haiku-5-5 low", "judge_iteration": "claude-sonnet-5-5 low", "judge_final": "claude-opus-5-5 low", "runs_per_round": 1, "concurrency": 3 },
+  "split": "split.json (semilla 20261009, estratificado por tipo: persona / tono / trampa; sorteado, no por resultado)",
+  "approve_each_round": false,
+  "budget_usd": { "cap": 13, "reserve_final": 3.5, "spent": 0 },
+  "stop": ["la confirmación final pasa", "8 iteraciones seguidas sin mejora en train", "el gasto se acerca al tope"],
+  "harness_paths": ["evals/run.ts (solo se agregó --judge-model)", "evals/judge.ts (solo el constructor de AnthropicJudge)"],
+  "off_limits": ["evals/scenarios/", "evals/gate.ts", "src/supervisor/", "policy/", "rúbrica y prompt del juez", "cliente simulado", "prompt de Sol (buildInstructions sin family)", "src/audio.ts", "src/worker.ts", "src/main.ts", "docker-compose.yml"],
+  "rounds": []
+}

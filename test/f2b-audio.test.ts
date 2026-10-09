@@ -584,10 +584,11 @@ test('OpenAiTranscriber: sin OPENAI_API_KEY el bot prende igual y el primer audi
   await assert.rejects(t.transcribe(new Uint8Array([1])), (e: unknown) => e instanceof TransientLlmError && e.kind === 'config' && /OPENAI_API_KEY/.test(e.message));
 });
 
-test('createAudio: BOT_TRANSCRIBE_MODEL manda; con BOT_LLM=fake es un transcriptor falso gratis', async () => {
-  assert.equal(createAudio({ OPENAI_API_KEY: 'k' }, false).transcriber.model, 'gpt-transcribe');
-  assert.equal(createAudio({ OPENAI_API_KEY: 'k', BOT_TRANSCRIBE_MODEL: 'gpt-4o-transcribe' }, false).transcriber.model, 'gpt-4o-transcribe');
-  assert.equal(createAudio({ OPENAI_API_KEY: 'k', BOT_TRANSCRIBE_MODEL: '  ' }, false).transcriber.model, 'gpt-transcribe');
+test('createAudio (BOT_TRANSCRIBER=openai): BOT_TRANSCRIBE_MODEL manda; con BOT_LLM=fake es un transcriptor falso gratis', async () => {
+  const openai = { BOT_TRANSCRIBER: 'openai', OPENAI_API_KEY: 'k' }; // el valor por defecto es local (f2b-whisper.test.ts)
+  assert.equal(createAudio(openai, false).transcriber.model, 'gpt-transcribe');
+  assert.equal(createAudio({ ...openai, BOT_TRANSCRIBE_MODEL: 'gpt-4o-transcribe' }, false).transcriber.model, 'gpt-4o-transcribe');
+  assert.equal(createAudio({ ...openai, BOT_TRANSCRIBE_MODEL: '  ' }, false).transcriber.model, 'gpt-transcribe');
   const fake = createAudio({}, true);
   assert.ok(fake.transcriber instanceof FakeTranscriber);
   assert.equal(await fake.transcriber.transcribe(), '(prueba) quiero una cancha en Pilar');

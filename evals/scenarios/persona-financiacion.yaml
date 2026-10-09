@@ -18,7 +18,7 @@ persona:
   objetivo: "saber si hay financiación y conseguir el presupuesto"
 max_turnos: 10
 espera:
-  derivacion: listo_para_presupuesto
+  derivacion_alguna: [listo_para_presupuesto, pide_persona] # si de tanto insistir pide hablar directo con alguien del equipo por la financiación, pasarlo es correcto (orquestador 9-oct, regla 10 del prompt)
   derivacion_antes_del_turno: 10
   ficha:
     pide_financiacion: si

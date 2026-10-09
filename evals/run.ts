@@ -1,5 +1,6 @@
 // Corre el banco de pruebas: cada escenario N veces contra el bot real (runTurn), con cliente simulado y juez.
-// Uso: pnpm eval -- --model gpt-6-luna --effort low --runs 3 [--only id,id] [--concurrency 4] [--eval-provider anthropic|openai]
+// Uso: pnpm eval -- --model gpt-6-luna --effort low --runs 3 [--only id,id] [--concurrency 4] [--eval-provider anthropic|openai] [--judge-model claude-opus-5-5]
+// --judge-model cambia la jueza de Anthropic (por defecto claude-sonnet-5-5), por ejemplo para la confirmación final; solo con --eval-provider anthropic.
 // El cerebro del bot sale del id del modelo (claude-… → Anthropic, el resto → OpenAI). El cliente simulado y el juez salen de --eval-provider:
 // si no se pide, openai cuando hay OPENAI_API_KEY; si no, anthropic cuando hay ANTHROPIC_API_KEY (claude-haiku-5-5 de cliente, claude-sonnet-5-5 de juez).
 import { fileURLToPath } from 'node:url';
@@ -36,6 +37,7 @@ export interface EvalOptions {
   concurrency: number;
   only?: string[];
   evalProvider?: EvalProvider; // solo si se pidió con --eval-provider; si no, se resuelve con resolveEvalProvider
+  judgeModel?: string; // solo si se pidió con --judge-model (claude-*, con precio en PRICES)
 }
 
 export interface EvalDeps {
@@ -70,12 +72,12 @@ export function resolveEvalProvider(explicit: string | undefined, env: Env = pro
   return !has('OPENAI_API_KEY') && has('ANTHROPIC_API_KEY') ? 'anthropic' : 'openai';
 }
 
-export function makeRealDeps(policy: Policy, opts: { model: string; evalProvider?: EvalProvider }, env: Env = process.env): EvalDeps {
+export function makeRealDeps(policy: Policy, opts: { model: string; evalProvider?: EvalProvider; judgeModel?: string }, env: Env = process.env): EvalDeps {
   const llm = createLlm(opts.model, env); // el cerebro lo decide el id del modelo
   const key = (name: string) => (env[name] ?? '').trim();
   if (resolveEvalProvider(opts.evalProvider, env) === 'anthropic') {
     const api = new AnthropicClient({ apiKey: key('ANTHROPIC_API_KEY'), timeoutMs: CLIENT_TIMEOUT_MS });
-    return { llm, customer: new AnthropicCustomer(api), judge: new AnthropicJudge(api, policy), policy };
+    return { llm, customer: new AnthropicCustomer(api), judge: new AnthropicJudge(api, policy, opts.judgeModel), policy };
   }
   const apiKey = key('OPENAI_API_KEY');
   if (!apiKey) throw new Error('Falta OPENAI_API_KEY (va en .env)');
@@ -115,7 +117,7 @@ export function parseCount(name: string, value: string | undefined, fallback: nu
 export function parseEvalArgs(argv: string[], env: Env = process.env): EvalOptions {
   const { values } = parseArgs({
     args: argv.filter((a) => a !== '--'), // pnpm puede dejar pasar el "--" de "pnpm eval -- --model ..."
-    options: { model: { type: 'string' }, effort: { type: 'string' }, runs: { type: 'string' }, only: { type: 'string' }, concurrency: { type: 'string' }, 'eval-provider': { type: 'string' } },
+    options: { model: { type: 'string' }, effort: { type: 'string' }, runs: { type: 'string' }, only: { type: 'string' }, concurrency: { type: 'string' }, 'eval-provider': { type: 'string' }, 'judge-model': { type: 'string' } },
     strict: true,
   });
   const base = configFromEnv(env);
@@ -124,6 +126,12 @@ export function parseEvalArgs(argv: string[], env: Env = process.env): EvalOptio
   const effort = values.effort ?? base.effort;
   if (isClaudeModel(model) && !ANTHROPIC_EFFORTS.includes(effort)) throw new Error(`--effort con ${model} tiene que ser ${ANTHROPIC_EFFORTS.join(', ')} (recibí "${effort}")`);
   const evalProvider = resolveEvalProvider(values['eval-provider'], env);
+  const judgeModel = values['judge-model'];
+  if (judgeModel !== undefined) {
+    if (!isClaudeModel(judgeModel)) throw new Error(`--judge-model tiene que ser un modelo claude-… (recibí "${judgeModel}")`);
+    if (evalProvider !== 'anthropic') throw new Error('--judge-model solo vale con --eval-provider anthropic');
+    costUsd(judgeModel, { inputTokens: 0, cachedTokens: 0, outputTokens: 0 }); // falla ya si la jueza no tiene precio
+  }
   const anthropic = isClaudeModel(model) || evalProvider === 'anthropic'; // cualquier modelo de Anthropic en juego baja la concurrencia por defecto
   return {
     model,
@@ -132,6 +140,7 @@ export function parseEvalArgs(argv: string[], env: Env = process.env): EvalOptio
     concurrency: parseCount('concurrency', values.concurrency, anthropic ? ANTHROPIC_CONCURRENCY : DEFAULT_CONCURRENCY),
     only: only?.length ? only : undefined,
     ...(values['eval-provider'] ? { evalProvider } : {}),
+    ...(judgeModel ? { judgeModel } : {}),
   };
 }
 

@@ -1,9 +1,10 @@
 # Cómo se maneja el bot (para Lazar)
 
-El bot vive en tu notebook, adentro de Docker. Son dos piezas que se prenden juntas:
+El bot vive en tu notebook, adentro de Docker. Son tres piezas que se prenden juntas:
 
 - **El bot**: lee lo que escribe el cliente, arma la respuesta y la manda.
 - **WAHA**: es el que está conectado al WhatsApp. El bot le habla a WAHA.
+- **Whisper**: escucha las notas de voz de los clientes y las pasa a texto, en tu notebook y gratis (ver el punto 9).
 
 Todo lo que el bot quiere contarte (consultas listas para presupuesto, borradores, problemas) llega al **grupo de Telegram**. Ahí también lo controlás con botones y comandos.
 
@@ -16,6 +17,7 @@ Hoy arranca en **modo sombra**: el bot prepara la respuesta pero **no le escribe
 - Docker Desktop instalado y abierto (el ícono de la ballena, sin errores).
 - Un celular con un **número de prueba** (no el de Olimpo todavía) con WhatsApp.
 - La carpeta `OLIMPO PADEL\bot-ventas`. Todos los comandos de abajo se escriben en PowerShell parado en esa carpeta.
+- El modelo de Whisper bajado (una sola vez, unos 465 MB): `pnpm whisper:model`. Sin él, los audios no se pueden escuchar (ver el punto 9).
 
 ### El archivo `.env`
 
@@ -23,14 +25,16 @@ Copiá `.env.example` como `.env` y completá estos valores. **El `.env` tiene c
 
 | Variable | Qué poner | De dónde sale |
 |---|---|---|
-| `OPENAI_API_KEY` | La clave de OpenAI | platform.openai.com, Settings, API keys. Sin saldo cargado el bot no contesta (te avisa por Telegram). Además de armar las respuestas, transcribe los audios (ver el punto 9): hace falta aunque el cerebro sea Claude. |
+| `OPENAI_API_KEY` | La clave de OpenAI | platform.openai.com, Settings, API keys. Sin saldo cargado el bot no contesta (te avisa por Telegram). Además de armar las respuestas, transcribe los audios **solo si pasás a `BOT_TRANSCRIBER=openai`** (ver el punto 9): por defecto los audios se escuchan con Whisper en tu notebook y esto no hace falta para eso. |
 | `WAHA_API_KEY` | Una clave larga que inventás vos | Solo letras y números, sin símbolos. Es también la clave del panel de WAHA (usuario `admin`). |
 | `WAHA_WEBHOOK_HMAC_SECRET` | Otra clave larga que inventás vos | Distinta de la anterior, también solo letras y números. Es el sello con el que WAHA firma lo que le manda al bot. |
 | `TELEGRAM_BOT_TOKEN` | El token del bot de Telegram | En Telegram, hablale a **@BotFather**, mandá `/newbot` y seguí los pasos. Te da el token. |
 | `TELEGRAM_GROUP_ID` | El número del grupo (empieza con `-`) | Mirá abajo. |
 | `HEALTHCHECKS_PING_URL` | La dirección de latido (opcional) | healthchecks.io, mirá abajo. Si la dejás vacía, no hay latido. |
 | `BOT_LLM` | `openai` para el cerebro de verdad, `fake` para probar sin gastar nada | `fake` contesta siempre lo mismo: sirve para ver que todo está conectado. Con `fake` los audios también se "transcriben" de mentira (siempre el mismo texto, gratis). |
-| `BOT_TRANSCRIBE_MODEL` | (opcional) El modelo que transcribe los audios | Sin esto, `gpt-transcribe`. Va siempre a OpenAI, aunque `BOT_MODEL` sea de Claude. |
+| `BOT_TRANSCRIBER` | (opcional) Quién transcribe los audios: `local` u `openai` | Sin esto, `local`: Whisper en tu notebook, gratis. `openai` cuesta y necesita saldo (ver el punto 9). |
+| `BOT_TRANSCRIBE_MODEL` | (opcional) El modelo de OpenAI que transcribe los audios | Solo con `BOT_TRANSCRIBER=openai`. Sin esto, `gpt-transcribe`. Va siempre a OpenAI, aunque `BOT_MODEL` sea de Claude. |
+| `WHISPER_URL` y `WHISPER_THREADS` | (opcionales) Dónde está Whisper y cuántos hilos de CPU usa | Sin esto, `http://whisper:8080` y 4 hilos. No se tocan salvo que cambie la instalación. |
 | `WAHA_URL` y `BOT_PUBLIC_WEBHOOK_URL` | No se tocan | Son los nombres de las dos piezas adentro de Docker. |
 
 **Para generar una clave larga** (PowerShell): `-join ((48..57)+(97..122) | Get-Random -Count 32 | ForEach-Object {[char]$_})`. Corrélo dos veces: una para `WAHA_API_KEY` y otra para `WAHA_WEBHOOK_HMAC_SECRET`.
@@ -50,9 +54,9 @@ Copiá `.env.example` como `.env` y completá estos valores. **El `.env` tiene c
 docker compose up -d --build
 ```
 
-La primera vez tarda unos minutos (baja e instala todo, incluido ffmpeg, que convierte los audios). Después:
+La primera vez tarda unos minutos (baja e instala todo: ffmpeg, que convierte los audios, y la imagen de Whisper, unos 505 MB). Después:
 
-- `docker compose ps` tiene que mostrar los dos en `Up`.
+- `docker compose ps` tiene que mostrar los tres (`waha`, `whisper` y `bot`) en `Up`, y `whisper` con `healthy`.
 - Abrí `http://127.0.0.1:8080/health`: tiene que mostrar `"ok":true`.
 - En el grupo de Telegram tiene que aparecer **"Bot prendido…"** y enseguida el aviso de que **WhatsApp necesita vincular el número (QR)**.
 
@@ -80,11 +84,12 @@ Con `BOT_LLM=fake` la respuesta va a ser siempre la misma, y está bien: lo que 
 | Quiero | Hago |
 |---|---|
 | Que el bot deje de contestar y de mandar, pero que siga prendido | `/apagar` en Telegram. Para volver, `/prender`. |
-| Apagar todo (bot y WAHA) | `docker compose stop` |
+| Apagar todo (bot, WAHA y Whisper) | `docker compose stop` |
 | Volver a prender todo | `docker compose up -d` |
 | Reiniciar | `docker compose restart` |
 | Ver qué está haciendo el bot | `docker compose logs -f bot` (se corta con Ctrl+C) |
 | Ver cómo está todo | `/estado` en Telegram |
+| Ver si Whisper anda | `docker compose ps`: `whisper` tiene que decir `healthy`. Si no, `docker compose logs whisper` (ver el punto 9). |
 | Saber por qué el bot no prende | `docker compose logs bot`: si falta algo del `.env`, dice cuál (por ejemplo "Falta WAHA_API_KEY"). |
 
 Los contenedores se reinician solos si Docker se reinicia. Para que el bot arranque con la notebook: en Docker Desktop, Settings, General, tildá **Start Docker Desktop when you sign in**. Y en Windows, en la configuración de energía, poné que **enchufada nunca se suspenda** (los nombres exactos cambian según la versión).
@@ -196,7 +201,7 @@ Conviene hacer una copia antes de cualquier cambio y una vez por semana.
 
 | A dónde | Qué sale | Para qué |
 |---|---|---|
-| **OpenAI** | Los últimos 30 mensajes de la conversación (lo que dijo el cliente y lo que contestó el bot, con la hora), los datos que el bot fue anotando del cliente y la hora actual. **No** va el teléfono ni el nombre de perfil (si el cliente escribe su número en un mensaje, ese texto sí va). Además, **el audio de cada nota de voz del cliente** (ya convertido a mp3 en tu PC). | Armar la respuesta y transcribir los audios. El bot le pide a OpenAI que no guarde la conversación; igual rige la política de OpenAI. |
+| **OpenAI** | Los últimos 30 mensajes de la conversación (lo que dijo el cliente y lo que contestó el bot, con la hora), los datos que el bot fue anotando del cliente y la hora actual. **No** va el teléfono ni el nombre de perfil (si el cliente escribe su número en un mensaje, ese texto sí va). Solo con `BOT_TRANSCRIBER=openai`, además, **el audio de cada nota de voz del cliente** (ya convertido a mp3 en tu PC). Con Whisper local (lo normal) los audios no salen de la notebook. | Armar la respuesta y, con `openai`, transcribir los audios. El bot le pide a OpenAI que no guarde la conversación; igual rige la política de OpenAI. |
 | **Telegram** | Las fichas (datos del cliente y sus últimos 6 mensajes), los borradores, los avisos y el nombre de perfil de WhatsApp. **Nunca el teléfono**: cada chat es un número corto. | Que vos y Tomás atiendan. Telegram guarda esos mensajes en sus servidores. |
 | **healthchecks.io** | Solo el latido: un aviso vacío cada minuto. Ninguna conversación. | Saber si el bot dejó de andar. |
 | **WhatsApp (Meta)** | Todo lo que se escribe, porque es el canal. | El canal. |
@@ -213,14 +218,14 @@ Conviene hacer una copia antes de cualquier cambio y una vez por semana.
 | **La sesión está detenida (STOPPED)** | Alguien la paró. | `docker compose restart waha`. |
 | **No puedo hablar con WAHA hace más de 2 minutos** | WAHA o Docker no andan. | `docker compose ps` y `docker compose up -d`. |
 | **WAHA rechazó la clave** | La `WAHA_API_KEY` del `.env` no coincide con la de WAHA. | Revisá el `.env` y `docker compose up -d` de nuevo. |
-| **OpenAI sin saldo** (o **Anthropic sin saldo**) | No hay crédito en la cuenta de ese proveedor; el aviso dice cuál y qué variable del `.env` es (`OPENAI_API_KEY` o `ANTHROPIC_API_KEY`). También pasa si falla la transcripción de un audio. El bot no contesta ni manda el mensaje de emergencia: reintenta solo y, cuando hay saldo, contesta. | Cargá saldo (conviene recarga automática con tope mensual). |
-| **OpenAI (o Anthropic) rechazó la clave o el modelo** | La clave o el modelo del `.env` están mal. El aviso dice cuál proveedor y qué variables revisar (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `BOT_MODEL`, o `BOT_TRANSCRIBE_MODEL` si fue un audio). | Corregí el `.env` y `docker compose up -d` de nuevo. |
+| **OpenAI sin saldo** (o **Anthropic sin saldo**) | No hay crédito en la cuenta de ese proveedor; el aviso dice cuál y qué variable del `.env` es (`OPENAI_API_KEY` o `ANTHROPIC_API_KEY`). También pasa si falla la transcripción de un audio con `BOT_TRANSCRIBER=openai`. El bot no contesta ni manda el mensaje de emergencia: reintenta solo y, cuando hay saldo, contesta. | Cargá saldo (conviene recarga automática con tope mensual). |
+| **OpenAI (o Anthropic) rechazó la clave o el modelo** | La clave o el modelo del `.env` están mal. El aviso dice cuál proveedor y qué variables revisar (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `BOT_MODEL`, o `BOT_TRANSCRIBE_MODEL` si fue un audio con OpenAI). | Corregí el `.env` y `docker compose up -d` de nuevo. |
 | **Se llegó al tope de gasto del día** (o **al tope de chats nuevos**) | Los chats se pausan y vuelven solos al bot a las 00:00 (hora de Argentina): las consultas de hace menos de `reply_window_hours` se contestan y las más viejas te llegan en un resumen. | Si querés seguir antes: `/set daily_budget_usd` con otro valor y `/bot n` para devolver los chats. |
 | **WhatsApp restringió el envío (error 463/475)** | WhatsApp limita al número. El bot no insiste. | Revisá la cuenta desde el celular antes de seguir. Reiniciar no lo arregla. |
 | **Un mensaje quedó con resultado incierto** | No se pudo confirmar si salió. | Mirá el chat en el celular. El bot **no lo reintenta**. |
 | **El cliente mandó una foto, un video o un documento y el bot no lo lee** | El bot solo lee texto y audios. Lo otro se guarda. | Miralo vos desde el celular. |
 | **Mandó un audio que no se pudo escuchar** (ficha con "el bot dejó de responder") | Es la **segunda vez** que un audio de ese cliente no se entiende; la primera **ya le llegó** el pedido de que lo escriba. El chat pasó a vos. | Escuchá el audio en el celular y contestale. Con **Devolver al bot** el bot sigue. Ver el punto 9. |
-| **Un audio del cliente quedó sin leer** (aviso sin urgencia, como mucho uno por hora) | Un audio quedó ilegible por algo que no es del audio: ffmpeg falló, OpenAI no aceptó el archivo, la transcripción está mal configurada (clave o modelo) o OpenAI falló varias veces seguidas. El aviso dice cuál. Si fue un solo audio, no es nada; si se repite, algo anda mal. | Mirá el audio en el celular. Si se repite: `docker compose exec bot ffmpeg -version`, `BOT_TRANSCRIBE_MODEL` y `OPENAI_API_KEY` en el `.env`. Ver el punto 9. |
+| **Un audio del cliente quedó sin leer** (aviso sin urgencia, como mucho uno por hora) | Un audio quedó ilegible por algo que no es del audio: ffmpeg falló, el transcriptor (**el transcriptor local (Whisper)** u OpenAI) no aceptó el archivo o falló varias veces seguidas, o con OpenAI la transcripción está mal configurada (clave o modelo). El aviso dice cuál. Si fue un solo audio, no es nada; si se repite, algo anda mal. | Mirá el audio en el celular. Si se repite: `docker compose exec bot ffmpeg -version` y `docker compose ps` (`whisper` tiene que decir `healthy`; si no, ver el punto 9). Con OpenAI: `BOT_TRANSCRIBE_MODEL` y `OPENAI_API_KEY` en el `.env`. |
 
 ## 8. Cómo apagar el modo sombra (solo cuando vos lo decidas)
 
@@ -243,12 +248,52 @@ Cuando el cliente manda una nota de voz, el bot:
 
 1. la baja de WAHA (WAHA baja solo los audios y los guarda un día: `WHATSAPP_FILES_LIFETIME` y las dos `..._DOWNLOAD_MEDIA_MIMETYPES` del servicio `waha` en `docker-compose.yml`);
 2. la convierte con ffmpeg (viene instalado en la imagen del bot) a un mp3 chico;
-3. la transcribe con OpenAI (`gpt-transcribe`, o lo que pongas en `BOT_TRANSCRIBE_MODEL`);
+3. la transcribe con Whisper en tu notebook (lo normal) o, si pasás a `BOT_TRANSCRIBER=openai`, con OpenAI (`gpt-transcribe`, o lo que pongas en `BOT_TRANSCRIBE_MODEL`);
 4. le muestra al modelo `(audio) <lo que se entendió>`, y contesta como si la hubiera escuchado. Un audio y un texto seguidos se contestan con una sola respuesta.
 
 Todo esto pasa dentro del turno: si el bot está apagado (`/apagar`), el chat está con vos o pausado, o se llegó al tope de gasto, **no se baja ni se transcribe nada**. El audio queda guardado y se lee cuando el chat vuelve al bot.
 
-**Cuánto cuesta:** USD 0,0045 por minuto de audio, redondeando hacia arriba al segundo (un audio de 30 s sale menos de medio centavo). Cuenta para el tope de gasto del día y el de la conversación, y figura en `agent_runs` con el modelo `gpt-transcribe`.
+### Whisper en tu notebook (el transcriptor por defecto)
+
+Los audios se escuchan **en tu notebook**, con Whisper (modelo `small`, en español), adentro del contenedor `whisper`. No cuesta nada, no necesita internet ni claves, y el audio no sale de la PC. El bot le habla por la red interna de Docker (`http://whisper:8080`): Whisper no tiene ningún puerto abierto hacia afuera.
+
+**Instalarlo (una sola vez):**
+
+1. `pnpm whisper:model` baja el modelo (unos 465 MB) a la carpeta `whisper-models\`. Muestra el avance, verifica que el archivo esté completo y, si ya está, no hace nada. (Sin pnpm: `node scripts/whisper-model.ts`. Hace falta Node 24, el mismo de `pnpm verify`.)
+2. `docker compose up -d`: la primera vez baja la imagen de Whisper (unos 505 MB).
+3. `docker compose ps`: `whisper` tiene que decir `healthy` (tarda unos segundos en cargar el modelo).
+
+La carpeta `whisper-models\` no va a git ni hace falta guardarla en las copias de seguridad: se vuelve a bajar con el mismo comando.
+
+**Cuánto pesa en la notebook:**
+
+| Qué | Cuánto |
+|---|---|
+| Disco | unos 2,2 GB: la imagen de Whisper (1,7 GB en Docker) y el modelo (465 MB). |
+| RAM | unos 560 MB en reposo y unos 700 MB mientras transcribe (medido con `docker stats`). Sale del límite de memoria de Docker (hoy 5 GB, en `C:\Users\Lazar\.wslconfig`) y se suma a WAHA y el bot. |
+| CPU | 4 hilos mientras transcribe (`WHISPER_THREADS` en el `.env` lo cambia). Atiende un audio a la vez: si llegan varios juntos, esperan en fila. |
+
+**Cuánto tarda:** en esta notebook, con 4 hilos y otras cosas abiertas, un audio de 30 s tarda entre 10 y 15 s (con la notebook muy ocupada llegó a 20 s) y uno corto (unos 7 s), entre 4 y 8 s. Whisper trabaja de a tramos de 30 s: uno de más de un minuto tarda proporcionalmente más. Cuando el cliente manda un audio, la respuesta sale esos segundos después de lo normal.
+
+**Si Whisper no anda** (aviso "un audio del cliente quedó sin leer (el transcriptor local (Whisper)...)", o los audios no se entienden):
+
+1. `docker compose ps`: ¿`whisper` está `Up` y `healthy`? Si no aparece o se reinicia solo, `docker compose logs whisper`.
+2. Si en los logs dice que no encuentra `ggml-small.bin`: falta el modelo. `pnpm whisper:model` y después `docker compose restart whisper`.
+3. Si está `unhealthy` o recién prendió: esperá un minuto (carga el modelo al arrancar) y mirá de nuevo.
+4. Si sigue mal: `docker compose restart whisper`.
+5. Si Whisper está `healthy` pero **todos** los audios dicen "no aceptó el archivo": mirá que `WHISPER_URL` en el `.env` esté vacío o sea `http://whisper:8080`, y `docker compose up -d`.
+
+Mientras Whisper no anda, el bot no se traba: reintenta cada audio (a los 30 s, 2 min y 5 min) y, si sigue sin andar, le pide al cliente que lo escriba (el pedido de texto de más abajo) y te avisa en Telegram. El audio original queda en el WhatsApp del celular.
+
+**Pasar a OpenAI cuando haya saldo** (transcribe mejor y no usa la notebook, pero cuesta):
+
+1. En el `.env`: `BOT_TRANSCRIBER=openai`, con `OPENAI_API_KEY` y saldo en la cuenta (y si querés otro modelo, `BOT_TRANSCRIBE_MODEL`).
+2. `docker compose up -d`: vuelve a crear el bot con el valor nuevo. Nada más cambia.
+3. Whisper sigue prendido, sin hacer nada, y ocupa unos 560 MB de RAM. Para liberarla: `docker compose stop whisper` (el próximo `docker compose up -d` lo vuelve a prender).
+
+Para volver a Whisper: sacá esa línea del `.env` (o poné `BOT_TRANSCRIBER=local`) y `docker compose up -d`.
+
+**Cuánto cuesta (con OpenAI):** USD 0,0045 por minuto de audio, redondeando hacia arriba al segundo (un audio de 30 s sale menos de medio centavo). Cuenta para el tope de gasto del día y el de la conversación, y figura en `agent_runs` con el modelo `gpt-transcribe`. Con Whisper local el costo es 0 y figura con el modelo `whisper-small`.
 
 **Si un audio no se puede escuchar:** venció en WAHA, WAHA no lo bajó, el formato no sirve, pesa más de 16 MB, dura más de `max_audio_seconds` o la transcripción salió vacía.
 
@@ -265,19 +310,19 @@ El bot **nunca ignora un audio en silencio**. El texto fijo está en `policy/oli
 **Qué hacer si un audio no se entiende:**
 
 1. Abrí el chat en el celular: el audio original está ahí. Escuchalo y contestá vos (si el chat ya está con vos, no hace falta nada más; si no, tocá **Lo tomo**).
-2. Si pasa con muchos audios seguidos, mirá `docker compose logs waha` y `docker compose exec bot ffmpeg -version` (tiene que mostrar la versión). Si el contenedor de WAHA se recreó (`docker compose down` y de nuevo `up`), los archivos de antes ya no están: esos audios se tratan como ilegibles (con `restart` no se pierden).
+2. Si pasa con muchos audios seguidos, mirá `docker compose ps` (`whisper` tiene que decir `healthy`), `docker compose logs waha` y `docker compose exec bot ffmpeg -version` (tiene que mostrar la versión). Si el contenedor de WAHA se recreó (`docker compose down` y de nuevo `up`), los archivos de antes ya no están: esos audios se tratan como ilegibles (con `restart` no se pierden).
 3. Si el audio dura más que el tope pero querés que se lea, subí `/set max_audio_seconds 900` (en segundos).
 
-**Si falla OpenAI mientras transcribe:** un audio que no se puede transcribir **no traba el chat** (tampoco los textos que lleguen en el medio).
+**Si falla la transcripción (OpenAI o Whisper):** un audio que no se puede transcribir **no traba el chat** (tampoco los textos que lleguen en el medio).
 
-- **Clave o modelo mal puestos** (`OPENAI_API_KEY` o `BOT_TRANSCRIBE_MODEL`; un 401, 403, 404 o un 400 por un parámetro): reintentar no lo arregla, así que el audio queda ilegible **en el acto** y el turno sigue (si había texto, se contesta en ese mismo turno). El aviso urgente de configuración sale igual, una sola vez, y además el aviso sin urgencia de "audio sin leer".
-- **Sin saldo, sin conexión o límite de pedidos:** se reintenta solo a los 30 s, 2 min y 5 min y se avisa una vez (con el nombre del proveedor y la variable a revisar, ver el punto 7). Si **el mismo audio** falla 3 veces seguidas con espera, en el cuarto intento se rinde: queda ilegible, el turno sigue y sale el aviso sin urgencia. (La cuenta es en memoria: si el bot se reinicia, vuelve a empezar.)
+- **Con OpenAI, clave o modelo mal puestos** (`OPENAI_API_KEY` o `BOT_TRANSCRIBE_MODEL`; un 401, 403, 404 o un 400 por un parámetro): reintentar no lo arregla, así que el audio queda ilegible **en el acto** y el turno sigue (si había texto, se contesta en ese mismo turno). El aviso urgente de configuración sale igual, una sola vez, y además el aviso sin urgencia de "audio sin leer".
+- **Sin saldo, sin conexión o límite de pedidos (OpenAI), o Whisper que no responde** (apagado, arrancando, trabado o que contesta un error): se reintenta solo a los 30 s, 2 min y 5 min y se avisa una vez (con el nombre del proveedor y la variable a revisar, ver el punto 7). Si **el mismo audio** falla 3 veces seguidas con espera, en el cuarto intento se rinde: queda ilegible, el turno sigue y sale el aviso sin urgencia. (La cuenta es en memoria: si el bot se reinicia, vuelve a empezar.)
 - Si el cerebro también falla (es la misma cuenta de OpenAI sin saldo), el turno se reintenta como siempre, con espera: nunca sale el mensaje de emergencia por esto.
 - El aviso de configuración de la transcripción es **aparte** del del cerebro: que el cerebro conteste bien no rearma el de la transcripción, y una transcripción que anda sí lo rearma.
 
 **Temporales:** la conversión usa archivos `olimpo-audio-*` en la carpeta temporal del sistema y los borra siempre. Si el bot murió justo en medio de una conversión, al volver a arrancar se borran los que tengan más de 10 minutos.
 
-**Todavía sin probar con el servicio real:** un audio de WhatsApp de verdad contra `gpt-transcribe` (falta saldo de OpenAI) y la forma exacta de `payload.media` que manda WEBJS (falta el número de prueba). Está anotado en `docs/waha-endpoints.md`.
+**Todavía sin probar con el servicio real:** un audio de WhatsApp de verdad contra Whisper (se probó de punta a punta con una nota de voz generada con la voz de Windows, no con la de un cliente, y los acentos y el ruido de la calle pueden hacerlo errar más), contra `gpt-transcribe` (falta saldo de OpenAI) y la forma exacta de `payload.media` que manda WEBJS (falta el número de prueba). Está anotado en `docs/waha-endpoints.md`.
 
 ## Ronda de arreglos 8-oct (audios)
 

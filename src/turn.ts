@@ -11,6 +11,7 @@ import { applyPatch, computeState, computeTemperature, missingRequired, plain } 
 import type { RejectedPatch } from './lead.ts';
 import { decideHandoffs } from './handoff.ts';
 import { greetingFor } from './time.ts';
+import { promptFamily } from './llm.ts';
 
 // Textos fijos: tienen que pasar el controlador (hay una prueba que lo verifica).
 export const OPT_OUT_TEXT = 'Listo, no te escribimos más. Si más adelante lo necesitás, escribinos por acá.';
@@ -97,6 +98,12 @@ function turnChecks(turn: ModelTurn, input: TurnInput, policy: Policy): Violatio
   return v;
 }
 
+// Haiku insiste con "te cuento la diferencia: la Full…" aunque el prompt lo prohíbe, y dos intentos así terminan en el mensaje seguro.
+// Los dos puntos son una regla de estilo, no de seguridad comercial: en Claude se cambian por una coma antes del controlador. Sol no pasa por acá.
+function withoutColons(turn: ModelTurn): ModelTurn {
+  return { ...turn, bubbles: turn.bubbles.map((b) => b.replace(/\s*:(?!\/\/)\s*/g, ', ')) };
+}
+
 export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnResult> {
   const { llm, policy, config } = deps;
   costUsd(config.model, { inputTokens: 0, cachedTokens: 0, outputTokens: 0 }); // falla ya si el modelo no tiene precio
@@ -111,7 +118,8 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
     const handoffs: HandoffDecision[] = [{ reason: 'baja', priority: 'baja', mode: 'stop' }];
     return stopped(finish(input.card, { ...structuredClone(input.card), state: 'baja' }, handoffs), [OPT_OUT_TEXT], handoffs);
   }
-  const instructions = buildInstructions(policy);
+  const family = promptFamily(config.model);
+  const instructions = buildInstructions(policy, { family });
   const attempts: AttemptLog[] = [];
   let errors: Violation[] = [];
   let accepted: ModelTurn | undefined;
@@ -120,11 +128,12 @@ export async function runTurn(input: TurnInput, deps: TurnDeps): Promise<TurnRes
     const log: AttemptLog = { model: config.model, effort: config.effort, latencyMs: 0, inputTokens: 0, cachedTokens: 0, outputTokens: 0, costUsd: 0, violations: [] };
     const t0 = Date.now();
     try {
-      const r = await llm.generateTurn({ instructions, input: buildInput(input, policy, errors), model: config.model, effort: config.effort });
+      const r = await llm.generateTurn({ instructions, input: buildInput(input, policy, errors, { family }), model: config.model, effort: config.effort });
       Object.assign(log, { latencyMs: r.latencyMs, ...r.usage, raw: r.turn });
       log.costUsd = costUsd(config.model, r.usage);
-      log.violations = turnChecks(r.turn, input, policy);
-      if (!log.violations.length) accepted = r.turn;
+      const turn = family === 'claude' ? withoutColons(r.turn) : r.turn;
+      log.violations = turnChecks(turn, input, policy);
+      if (!log.violations.length) accepted = turn;
     } catch (e) {
       // Red, timeout, 5xx, límite o sin saldo: no es falla del bot; se relanza y quien llama reintenta más tarde (sin intento ni mensaje seguro).
       if (e instanceof TransientLlmError) {

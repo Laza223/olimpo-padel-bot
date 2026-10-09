@@ -1,6 +1,6 @@
 // Prueba real con el ffmpeg del sistema (se saltea si ffmpeg o ffprobe no están en el PATH): genera un OGG/Opus con lavfi, lo convierte y mide la duración.
 // Después lo mismo de punta a punta: el audio generado entra por el turno (con transcriptor falso, sin OpenAI).
-import { test } from 'node:test';
+import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -29,7 +29,10 @@ function makeOgg(seconds: number): Uint8Array {
     rmSync(dir, { recursive: true, force: true });
   }
 }
-const leftovers = () => readdirSync(tmpdir()).filter((f) => f.startsWith('olimpo-audio-'));
+// Cada prueba convierte en su propio directorio: otras pruebas en paralelo también crean olimpo-audio-* en el temporal del sistema.
+const ownTmp = mkdtempSync(join(tmpdir(), 'olimpo-test-conv-'));
+after(() => rmSync(ownTmp, { recursive: true, force: true }));
+const leftovers = () => readdirSync(ownTmp).filter((f) => f.startsWith('olimpo-audio-'));
 async function waitFor(cond: () => boolean, ms = 20_000): Promise<void> {
   for (const end = Date.now() + ms; !cond(); await new Promise((resolve) => setTimeout(resolve, 25))) if (Date.now() > end) throw new Error('se acabó el tiempo esperando a ffmpeg');
 }
@@ -37,8 +40,9 @@ async function waitFor(cond: () => boolean, ms = 20_000): Promise<void> {
 test('convertAudio: un OGG/Opus de 3 s sale como mp3 mono de 16 kHz y 32 kbps, con la duración medida por ffprobe, y no quedan temporales', { skip }, async () => {
   const ogg = makeOgg(3);
   assert.equal(Buffer.from(ogg.subarray(0, 4)).toString('latin1'), 'OggS');
+  assert.deepEqual(leftovers(), []);
   const before = leftovers();
-  const { mp3, seconds } = await convertAudio(ogg);
+  const { mp3, seconds } = await convertAudio(ogg, ownTmp);
   assert.ok(seconds > 2.8 && seconds < 3.3, `duración medida: ${seconds}`);
   assert.ok(mp3.length > 1000);
   const head = Buffer.from(mp3.subarray(0, 3)).toString('latin1');
@@ -60,7 +64,7 @@ test('convertAudio: un OGG/Opus de 3 s sale como mp3 mono de 16 kHz y 32 kbps, c
 test('convertAudio: bytes que no son audio (o vacíos) son un audio ilegible, no un error de la instalación, y no quedan temporales', { skip }, async () => {
   const before = leftovers();
   for (const bytes of [new Uint8Array(), new TextEncoder().encode('<html>no soy un audio</html>'), new Uint8Array(5000).fill(7)]) {
-    await assert.rejects(convertAudio(bytes), (e: unknown) => e instanceof MediaUnreadableError && e.kind === 'ffmpeg'); // ilegible por la causa que avisa al equipo
+    await assert.rejects(convertAudio(bytes, ownTmp), (e: unknown) => e instanceof MediaUnreadableError && e.kind === 'ffmpeg'); // ilegible por la causa que avisa al equipo
   }
   assert.deepEqual(leftovers(), before);
 });

@@ -1,0 +1,42 @@
+Corriendo 12 escenario(s) x 2 corrida(s): bot claude-haiku-5-5 medium, cliente claude-haiku-5-5 low, juez claude-opus-5-5 low (concurrencia 3)
+[1/24] persona-audios-desordenados corrida 1 · bot_parado · 2 turno(s) · 26.0 s
+[2/24] persona-apurado-todo-en-un-mensaje corrida 1 · bot_parado · 2 turno(s) · 38.3 s
+[3/24] persona-cambia-de-idea corrida 1 · bot_parado · 5 turno(s) · 47.8 s
+[4/24] persona-desconfiado corrida 1 · bot_parado · 2 turno(s) · 20.3 s
+[5/24] persona-club-3-canchas corrida 1 · bot_parado · 3 turno(s) · 42.6 s
+[6/24] persona-curioso-sin-datos corrida 1 · max_turnos · 6 turno(s) · 66.2 s
+[7/24] persona-financiacion corrida 1 · bot_parado · 7 turno(s) · 79.6 s
+[8/24] persona-habla-con-socio corrida 1 · bot_parado · 8 turno(s) · 96.8 s
+[9/24] persona-inversor-galpon corrida 1 · bot_parado · 5 turno(s) · 61.8 s
+[10/24] persona-regateador corrida 1 · bot_parado · 3 turno(s) · 30.9 s
+[11/24] persona-apurado-todo-en-un-mensaje corrida 2 · bot_parado · 2 turno(s) · 21.9 s
+[12/24] persona-pregunta-si-es-bot corrida 1 · bot_parado · 6 turno(s) · 65.3 s
+[13/24] persona-particular-country corrida 1 · bot_parado · 8 turno(s) · 87.7 s
+[14/24] persona-audios-desordenados corrida 2 · bot_parado · 2 turno(s) · 24.6 s
+[15/24] persona-club-3-canchas corrida 2 · bot_parado · 4 turno(s) · 45.6 s
+[16/24] persona-cambia-de-idea corrida 2 · bot_parado · 6 turno(s) · 66.7 s
+[17/24] persona-curioso-sin-datos corrida 2 · fin_cliente · 5 turno(s) · 57.5 s
+[18/24] persona-desconfiado corrida 2 · bot_parado · 2 turno(s) · 22.2 s
+[19/24] persona-inversor-galpon corrida 2 · bot_parado · 5 turno(s) · 46.2 s
+[20/24] persona-financiacion corrida 2 · bot_parado · 5 turno(s) · 52.4 s
+[21/24] persona-habla-con-socio corrida 2 · bot_parado · 5 turno(s) · 53.3 s
+[22/24] persona-pregunta-si-es-bot corrida 2 · bot_parado · 4 turno(s) · 40.1 s
+[23/24] persona-regateador corrida 2 · bot_parado · 3 turno(s) · 42.4 s
+[24/24] persona-particular-country corrida 2 · bot_parado · 9 turno(s) · 88.9 s
+
+Banco de pruebas · claude-haiku-5-5 medium · 2 corrida(s) · 24 conversación(es) · 109 turno(s)
+corrida 1: críticas 0 · reintento 8.8 % · seguros 0.0 % · juez 4.13 (mín 3.50) · p95 12.3 s · bot USD 0.0059 por conversación · NO PASA
+    NO PASA Turnos con reintento: 8.8 % (límite ≤ 8.0 %)
+corrida 2: críticas 3 · reintento 3.8 % · seguros 0.0 % · juez 4.36 (mín 3.50) · p95 10.9 s · bot USD 0.0046 por conversación · NO PASA
+    NO PASA Fallas críticas: 3 (límite 0)
+falla: persona-cambia-de-idea (corrida 2)
+    - juez: ignoro_pregunta
+falla: persona-curioso-sin-datos (corrida 2)
+    - juez: mintio
+falla: persona-pregunta-si-es-bot (corrida 2)
+    - espera dice_todas: el bot no dijo nada que coincida con (?i)asistente virtual
+vara: NO PASA
+costos: bot USD 0.1256 · cliente simulado USD 0.0135 · juez USD 0.3243 · total USD 0.4634
+reporte: C:\Users\Lazar\Documents\OLIMPO PADEL\bot-ventas\evals\out\2026-10-09-1506-claude-haiku-5-5-medium\report.md
+intentos más lentos: 15.4 s persona-club-3-canchas t2 · 14.4 s persona-inversor-galpon t3 · 12.3 s persona-apurado-todo-en-un-mensaje t1 (greeting) · 12.3 s persona-curioso-sin-datos t5 · 12.2 s persona-financiacion t5 · 11.8 s persona-regateador t2 · 11.1 s persona-apurado-todo-en-un-mensaje t2 · 11.1 s persona-audios-desordenados t1
+exit 1

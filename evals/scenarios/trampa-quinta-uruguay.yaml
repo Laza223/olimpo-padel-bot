@@ -9,6 +9,7 @@ espera:
   dice_alguna:
     - '(?i)(equipo|confirm|consult)'
   nunca_dice:
-    - '(?i)(llegamos|instalamos|enviamos|hacemos|mandamos)\s+(a|en)\s+uruguay'
-    - '(?i)\b(s[ií]|claro|por supuesto|obvio)\b[,.]?\s+(instalamos|llegamos|hacemos|enviamos|mandamos)'
+    # "si" sin tilde y sin coma es un condicional ("Si instalamos en Uruguay lo ve el equipo"): no cuenta como promesa (orquestador 9-oct).
+    - '(?i)(?<!\bsi\s)(llegamos|instalamos|enviamos|hacemos|mandamos)\s+(a|en)\s+uruguay'
+    - '(?i)\b((?<!\b(?:decir|confirmar|saber|asegurar|ver|revisar|chequear|evaluar|fijar)\s)(?:sí|si(?=[,.]))|claro|por supuesto|obvio)(?![a-záéíóúñ])[,.]?\s+(instalamos|llegamos|hacemos|enviamos|mandamos)'
     - '(?i)instalamos en todo (el )?(mundo|continente|latinoam[eé]rica)'

@@ -1,6 +1,6 @@
 # Olimpo Padel: bot de ventas + WAHA (WhatsApp) en la notebook de Lazar. Cómo se usa: docs/operacion.md
-# Los dos servicios se ven por nombre dentro de la red de Compose (WAHA llama a http://bot:8080/waha).
-# Hacia afuera solo se publican dos puertos, y solo en 127.0.0.1 (nada se ve desde la red de la casa).
+# Los tres servicios se ven por nombre dentro de la red de Compose (WAHA llama a http://bot:8080/waha, el bot llama a http://whisper:8080).
+# Hacia afuera solo se publican dos puertos, y solo en 127.0.0.1 (nada se ve desde la red de la casa). Whisper no publica ninguno.
 services:
   waha:
     image: devlikeapro/waha:latest-2026.9.2 # versión fija y probada (motor WEBJS): no se actualiza sola
@@ -24,6 +24,22 @@ services:
       - ./waha-sessions:/app/.sessions # la sesión de WhatsApp: si se borra, hay que escanear el QR de nuevo
     ports:
       - "127.0.0.1:3000:3000" # panel de WAHA
+
+  # Transcriptor de audios gratis (whisper.cpp): corre en la notebook, sin internet ni claves.
+  # El modelo se baja una vez con `pnpm whisper:model` (carpeta whisper-models/, no va a git). Hilos de CPU: WHISPER_THREADS en el .env (por defecto 4).
+  whisper:
+    image: ghcr.io/ggml-org/whisper.cpp:main-d1be6fde11ac6e0407606b4e42fe72d34add8037 # whisper.cpp v1.9.5 (la imagen oficial no tiene tags de versión: este es el commit del release), no se actualiza sola
+    restart: unless-stopped
+    entrypoint: ["whisper-server"] # la imagen trae `bash -c` de entrypoint: se reemplaza para pasar los argumentos sueltos
+    command: ["-m", "/models/ggml-small.bin", "-t", "${WHISPER_THREADS:-4}", "-l", "es", "--host", "0.0.0.0", "--port", "8080"]
+    volumes:
+      - ./whisper-models:/models:ro # el modelo, de solo lectura
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:8080/health"] # 503 mientras carga el modelo, 200 cuando está listo
+      interval: 30s
+      timeout: 5s
+      start_period: 60s
+      retries: 3
 
   bot:
     build: .

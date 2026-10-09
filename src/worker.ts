@@ -1,7 +1,7 @@
 // Worker: ráfagas por chat, filtros antes de gastar, el turno (runTurn) con versión de contexto, aplicar la ficha y las derivaciones.
 // Un turno por chat a la vez; 4 llamadas a OpenAI en total. Un error pasajero de OpenAI se reintenta con espera y nunca manda el mensaje seguro.
 // Los audios del cliente se transcriben acá, dentro del turno: heredan el kill switch, el modo, los topes de gasto, el semáforo y los reintentos.
-import { UNREADABLE_AUDIO_TEXT, audioText, transcribeCostUsd } from './audio.ts';
+import { LOCAL_WHISPER_NAME, UNREADABLE_AUDIO_TEXT, audioText, transcribeCostUsd } from './audio.ts';
 import type { AudioDeps } from './audio.ts';
 import { TransientLlmError } from './brain.ts';
 import { MediaUnreadableError } from './channel/types.ts';
@@ -29,11 +29,12 @@ const HISTORY_LIMIT = 30;
 const MAX_CONCURRENT_LLM = 4;
 const MAX_AUDIO_FAILURES = 3; // fallos pasajeros seguidos al transcribir un mismo audio que se reintentan; el 4.º lo da por ilegible
 const UNREADABLE_ALERT_MS = 3_600_000; // aviso por audios ilegibles por causas del sistema: uno por hora, como mucho
-const UNREADABLE_WHY: Record<UnreadableKind, string> = {
-  ffmpeg: 'falló ffmpeg al convertirlo',
-  rechazo: 'OpenAI no aceptó el archivo',
-  config: 'la transcripción está mal configurada: clave o modelo de OpenAI',
-  no_responde: 'OpenAI falló varias veces seguidas al transcribirlo',
+// `who` es el transcriptor que falló (OpenAI o el local). `config` (clave o modelo mal puestos) solo lo da OpenAI.
+const UNREADABLE_WHY: Record<UnreadableKind, (who: string) => string> = {
+  ffmpeg: () => 'falló ffmpeg al convertirlo',
+  rechazo: (who) => `${who} no aceptó el archivo`,
+  config: () => 'la transcripción está mal configurada: clave o modelo de OpenAI',
+  no_responde: (who) => `${who} falló varias veces seguidas al transcribirlo`,
 };
 
 export interface WorkerDeps {
@@ -183,9 +184,9 @@ export function createWorker(deps: WorkerDeps): Worker {
     }, WAIT_ALERT_MS);
   }
 
-  // Quién falló, para nombrarlo en los avisos: la transcripción es siempre OpenAI; el cerebro depende del modelo (claude-… es Anthropic).
+  // Quién falló, para nombrarlo en los avisos: la transcripción es el transcriptor local (Whisper) u OpenAI; el cerebro depende del modelo (claude-… es Anthropic).
   function provider(transcribing: boolean): { name: string; keyVar: string; modelVar: string } {
-    if (transcribing) return { name: 'OpenAI', keyVar: 'OPENAI_API_KEY', modelVar: 'BOT_TRANSCRIBE_MODEL' };
+    if (transcribing) return audio.transcriber.local ? { name: LOCAL_WHISPER_NAME, keyVar: 'WHISPER_URL', modelVar: 'BOT_TRANSCRIBER' } : { name: 'OpenAI', keyVar: 'OPENAI_API_KEY', modelVar: 'BOT_TRANSCRIBE_MODEL' };
     return isClaudeModel(config.model) ? { name: 'Anthropic', keyVar: 'ANTHROPIC_API_KEY', modelVar: 'BOT_MODEL' } : { name: 'OpenAI', keyVar: 'OPENAI_API_KEY', modelVar: 'BOT_MODEL' };
   }
   // El cerebro y la transcripción avisan por separado (aunque sean el mismo proveedor): que conteste uno no rearma el aviso del otro.
@@ -209,12 +210,12 @@ export function createWorker(deps: WorkerDeps): Worker {
     }
   }
 
-  // Audios que quedan ilegibles por algo del sistema y no del audio (ffmpeg, rechazo de OpenAI, transcripción mal configurada o que no responde): aviso no urgente, uno por hora en total.
+  // Audios que quedan ilegibles por algo del sistema y no del audio (ffmpeg, rechazo del transcriptor, transcripción mal configurada o que no responde): aviso no urgente, uno por hora en total.
   async function alertUnreadable(chatId: string, kind: UnreadableKind): Promise<void> {
     const now = clock.now();
     if (now - Number(getState(db, 'audio_unreadable_alert_utc') ?? 0) < UNREADABLE_ALERT_MS) return;
     setState(db, 'audio_unreadable_alert_utc', String(now));
-    await alert(`Chat ${chatLabel(db, chatId)}: un audio del cliente quedó sin leer (${UNREADABLE_WHY[kind]}). Si se repite, hay que mirar los audios.`, { chatId });
+    await alert(`Chat ${chatLabel(db, chatId)}: un audio del cliente quedó sin leer (${UNREADABLE_WHY[kind](provider(true).name)}). Si se repite, hay que mirar los audios.`, { chatId });
   }
 
   async function onFailure(chatId: string, s: ChatState, e: unknown): Promise<void> {
