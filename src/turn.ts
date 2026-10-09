@@ -7,7 +7,7 @@ import { customerMentionsElite, fold, words } from './supervisor/normalize.ts';
 import type { Violation } from './supervisor/index.ts';
 import type { Policy } from './policy.ts';
 import { buildInput, buildInstructions, costUsd, isFirstBotMessage, LlmOutputError, TransientLlmError } from './brain.ts';
-import { applyPatch, computeState, computeTemperature, missingRequired, plain } from './lead.ts';
+import { applyPatch, computeState, computeTemperature, financingFromCustomer, missingRequired, plain } from './lead.ts';
 import type { RejectedPatch } from './lead.ts';
 import { decideHandoffs } from './handoff.ts';
 import { greetingFor } from './time.ts';
@@ -66,6 +66,8 @@ export function nextCard(input: TurnInput, turn: ModelTurn, policy: Policy): { c
       offKnowledgeCount: patched.flags.offKnowledgeCount + (!closing && s.off_knowledge ? 1 : 0),
     },
   };
+  const financing = closing ? undefined : financingFromCustomer(card, history, input.newCustomerMessageIds);
+  if (financing) card.fields.pide_financiacion = financing;
   // Techada con menos del mínimo: queda anotado para el equipo (sin derivar).
   const alt = Number(card.fields.altura_libre_m?.value);
   if (card.fields.ubicacion?.value === 'techada' && alt > 0 && alt < policy.minHeightM && !/altura libre/i.test(card.teamNote)) {

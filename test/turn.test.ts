@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import { parse } from 'yaml';
 import assert from 'node:assert/strict';
-import { runTurn, OPT_OUT_TEXT, FALLBACK_TEXT } from '../src/turn.ts';
+import { runTurn, nextCard, OPT_OUT_TEXT, FALLBACK_TEXT } from '../src/turn.ts';
 import { buildInstructions, costUsd } from '../src/brain.ts';
 import { loadPolicy } from '../src/policy.ts';
 import { emptyCard } from '../src/lead.ts';
@@ -563,6 +563,31 @@ test('Claude: los dos puntos de un globo se cambian por una coma antes del contr
   assert.equal(claude.bubbles[1], 'Te cuento la diferencia, la Full Panorámica no lleva postes en las esquinas.');
   const sol = await runTurn(first(), { llm: fakeLlm([turn, turn, turn]), policy, config: { model: 'gpt-6.1-sol', effort: 'low' } });
   assert.ok(sol.attempts[0].violations.some((v) => v.detail === 'dos puntos'));
+});
+
+// ---------- pide_financiacion la carga el código ----------
+test('pide_financiacion: un mensaje nuevo que nombra la financiación la carga el código aunque el modelo no (Haiku 1736, tono-11), citando ese mensaje', async () => {
+  const r = await runTurn(first('Tienen financiación? cuotas?'), { llm: fakeLlm([modelTurn()]), policy, config });
+  assert.deepEqual(r.card.fields.pide_financiacion, { value: 'si', evidenceMsgId: 'm1' });
+  for (const t of ['Se puede financiar?', 'puedo pagar en cuotas', 'lo podría pagar en partes', 'tienen plan de pago?', 'quiero pagarla de a poco', 'Financiamiento hay?']) {
+    const c = nextCard(second(t), modelTurn(), policy).card;
+    assert.deepEqual(c.fields.pide_financiacion, { value: 'si', evidenceMsgId: 'm3' }, t);
+  }
+});
+
+test('pide_financiacion: no se carga con "respaldo financiero", con un mensaje viejo, con baja ni pisa lo que cargó el modelo', () => {
+  for (const t of ['tengo respaldo financiero', 'pago en efectivo', 'cuántas canchas hacen por mes?']) {
+    assert.equal(nextCard(second(t), modelTurn(), policy).card.fields.pide_financiacion, undefined, t);
+  }
+  // el cliente la nombró antes: ahora habla de otra cosa
+  const old = input([msg('m1', 'customer', 'tienen financiación?'), msg('m2', 'bot', GREETING_TEXT), msg('m3', 'customer', 'soy Pedro')], ['m3']);
+  assert.equal(nextCard(old, modelTurn(), policy).card.fields.pide_financiacion, undefined);
+  // baja o no es cliente: no se toma ningún dato
+  assert.equal(nextCard(second('dejen de escribir, no quiero cuotas'), withSignals({ opt_out: true }), policy).card.fields.pide_financiacion, undefined);
+  // si el modelo ya la cargó, queda su evidencia
+  const withModel = modelTurn({ lead_patch: [{ field: 'pide_financiacion', value: 'si', evidence_msg_id: 'm1' }] });
+  const both = input([msg('m1', 'customer', 'cuotas?'), msg('m2', 'bot', GREETING_TEXT), msg('m3', 'customer', 'y en cuotas?')], ['m3']);
+  assert.equal(nextCard(both, withModel, policy).card.fields.pide_financiacion?.evidenceMsgId, 'm1');
 });
 
 // ---------- stop_question: en el turno en que el chat pasa al equipo no se pregunta nada ----------

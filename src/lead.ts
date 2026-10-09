@@ -92,6 +92,18 @@ export function applyPatch(card: LeadCard, patch: ModelTurn['lead_patch'], histo
   return { card: next, rejected };
 }
 
+// El cliente nombra la financiación ("financiación", "financiar", "cuotas", "en partes", "plan de pago", "pagar de a poco"), texto normalizado.
+// "financiero/a" no cuenta ("respaldo financiero"): es otra cosa.
+const FINANCING = /\bfinancia\w*|\bcuotas?\b|\ben partes\b|\bplan(?:es)? de pago\b|\bpagar(?:l[aeo]s?)? de a poco\b/;
+
+// La ficha sola no confía en que el modelo cargue pide_financiacion: si un mensaje NUEVO del cliente la nombra, el código la carga citando ese mensaje.
+// Con el campo ya cargado (por el modelo o antes) no se toca. Devuelve el dato a agregar, o undefined.
+export function financingFromCustomer(card: LeadCard, history: ChatMessage[], newMessageIds: string[]): LeadCard['fields']['pide_financiacion'] {
+  if (card.fields.pide_financiacion) return undefined;
+  const m = history.find((x) => x.author === 'customer' && newMessageIds.includes(x.id) && FINANCING.test(plain(x.text.slice(0, MAX_EVIDENCE_CHARS))));
+  return m && { value: 'si', evidenceMsgId: m.id };
+}
+
 // platea no_tiene no alcanza: se le ofrece y falta que diga si se la hacemos o la hace él (Lazar, F0).
 export function missingRequired(card: LeadCard): LeadField[] {
   return REQUIRED_FIELDS.filter((f) => !card.fields[f] || (f === 'platea' && card.fields.platea?.value === 'no_tiene'));
