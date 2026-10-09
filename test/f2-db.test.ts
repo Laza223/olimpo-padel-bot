@@ -4,9 +4,10 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import {
-  advanceAnswered, bumpVersion, createDraft, getDraft, listAudit, switchToHuman, claimInboundEvents, createConversation, delayInboundEvent, editMessage, findMessage, finishInboundEvent, getConversation, getConversationByNumber,
-  historyFor, insertMessage, insertOutbox, listOutbox, migrate, nextPendingOutbox, openDb, revokeMessage, saveCard, setMode, storeInboundEvent, tx, unansweredMessages,
+  MIGRATIONS, advanceAnswered, bumpVersion, createDraft, getDraft, listAudit, switchToHuman, claimInboundEvents, createConversation, delayInboundEvent, editMessage, findMessage, finishInboundEvent, getConversation, getConversationByNumber,
+  historyFor, insertAgentRun, insertMessage, insertOutbox, listOutbox, migrate, nextPendingOutbox, openDb, revokeMessage, saveCard, setMode, storeInboundEvent, tx, unansweredMessages,
 } from '../src/db.ts';
 import { emptyCard } from '../src/lead.ts';
 import { SETTING_DEFAULTS, ensureBotStart, getBotStart, getFlag, getNum, getSetting, getState, isSettingKey, setSetting, setState } from '../src/settings.ts';
@@ -22,7 +23,24 @@ test('esquema: las 8 tablas del contrato, y migrar de nuevo no rompe ni borra na
   migrate(db);
   migrate(db);
   assert.ok(getConversation(db, 'c1@c.us'));
-  assert.equal((db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version, 3);
+  assert.equal((db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version, 4);
+});
+
+test('migración V4 sobre una base V3: agrega las columnas de tokens (NULL en lo viejo), conserva los datos y es idempotente', () => {
+  const db = new DatabaseSync(':memory:');
+  for (const sql of MIGRATIONS.slice(0, 3)) db.exec(sql);
+  db.exec('PRAGMA user_version = 3');
+  db.prepare("INSERT INTO agent_runs (chat_id, ts_utc, model, effort, policy_hash, input_tokens, cached_tokens, output_tokens, cost_usd) VALUES ('c1@c.us', 5, 'gpt-6.1-sol', 'low', 'h', 3000, 2048, 200, 0.004)").run();
+  migrate(db);
+  migrate(db);
+  assert.equal((db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version, 4);
+  const cols = db.prepare('PRAGMA table_info(agent_runs)').all().map((c) => c.name);
+  assert.deepEqual(cols.slice(-3), ['cache_write_tokens', 'cache_write_1h_tokens', 'thinking_tokens']);
+  assert.deepEqual({ ...db.prepare('SELECT input_tokens, cache_write_tokens, cache_write_1h_tokens, thinking_tokens FROM agent_runs').get() }, { input_tokens: 3000, cache_write_tokens: null, cache_write_1h_tokens: null, thinking_tokens: null });
+  const run = { chatId: 'c1@c.us', tsUtc: 6, model: 'claude-sonnet-5-5', effort: 'low', policyHash: 'h', inputTokens: 4000, cachedTokens: 100, outputTokens: 300, costUsd: 0.01, latencyMs: 5, violations: [], usedFallback: false };
+  insertAgentRun(db, { ...run, cacheWriteTokens: 3900, cacheWrite1hTokens: 3900, thinkingTokens: 120 });
+  insertAgentRun(db, run); // sin dato: NULL, no 0
+  assert.deepEqual(db.prepare('SELECT cache_write_tokens AS w, cache_write_1h_tokens AS w1, thinking_tokens AS t FROM agent_runs WHERE ts_utc > 5 ORDER BY id').all().map((r) => ({ ...r })), [{ w: 3900, w1: 3900, t: 120 }, { w: null, w1: null, t: null }]);
 });
 
 test('archivo: modo WAL y busy_timeout de 5000', () => {

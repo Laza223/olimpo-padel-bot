@@ -159,6 +159,23 @@ test('resumen de consola: corridas, reglas que fallan, conversaciones con fallas
   assert.match(text, new RegExp(`reporte: ${join('evals', 'out', 'X', 'report.md').replaceAll('\\', '\\\\')}$`));
 });
 
+// ---------- tokens ----------
+test('report.md y consola: tokens del bot por intento (promedios, lectura de caché y pensamiento)', () => {
+  const tok = (inputTokens: number, cachedTokens: number, outputTokens: number, thinkingTokens: number | null, cacheWriteTokens = 0, cacheWrite1hTokens = 0) =>
+    ({ latencyMs: 1000, costUsd: 0.01, violations: [], inputTokens, cachedTokens, outputTokens, thinkingTokens, cacheWriteTokens, cacheWrite1hTokens });
+  // 4 intentos: entrada 6000, leído 3000, escrito 500 (500 de 1 h), salida 600, pensamiento 100 y 300 (uno sin dato y uno sin tokens)
+  const attempts = [tok(3000, 2000, 200, 100, 500, 500), tok(1000, 0, 100, null), tok(2000, 1000, 300, 300), { latencyMs: 1000, costUsd: 0.01, violations: [] }];
+  const o = buildEvalOutput(meta({ runs: 1 }), [result({ turns: [turnLog({ attempts })] })]);
+  const md = renderReport(o);
+  assert.match(md, /## Tokens del bot por intento\n/);
+  assert.match(md, /\| Corrida \| Entrada \| Leído del caché \| Escrito en el caché \(de 1 h\) \| Salida \| Pensamiento promedio \| Pensamiento p95 \|\n\|---\|---\|---\|---\|---\|---\|---\|\n\| 1 \| 1500 \| 50\.0 % \| 125 \(125\) \| 150 \| 200 \| 300 \|\n/);
+  assert.match(consoleSummary(o, 'X'), /\ntokens del bot por intento: entrada 1500 · leído del caché 50\.0 % · salida 150 · pensamiento 200\n/);
+  // sin tokens (resultados viejos o un cerebro que no los informa): guiones, no NaN
+  const text = consoleSummary(output(), 'X');
+  assert.match(text, /\ntokens del bot por intento: entrada 0 · leído del caché - · salida 0 · pensamiento -\n/);
+  assert.doesNotMatch(renderReport(output()), /NaN/);
+});
+
 // ---------- compare ----------
 test('compare: elige la configuración más barata entre las que pasan la vara', () => {
   const passing = (model: string, effort: string, botCost: number) =>

@@ -109,15 +109,29 @@ test('AnthropicLlm: lee el uso (entrada = input + leído + escrito del caché; c
   const usage = { input_tokens: 100, cache_read_input_tokens: 2000, cache_creation_input_tokens: 500, output_tokens: 150 };
   const { llm } = llmWith({ body: message({ usage }) });
   const r = await llm.generateTurn(req);
-  assert.deepEqual(r.usage, { inputTokens: 2600, cachedTokens: 2000, cacheWriteTokens: 500, outputTokens: 150 });
+  assert.deepEqual(r.usage, { inputTokens: 2600, cachedTokens: 2000, cacheWriteTokens: 500, cacheWrite1hTokens: 0, outputTokens: 150, thinkingTokens: null }); // sin cache_creation ni output_tokens_details: 1 h en 0 y pensamiento en null
   // los campos de caché pueden venir en null o faltar: cuentan como 0
   const { llm: llm2 } = llmWith({ body: message({ usage: { input_tokens: 70, cache_read_input_tokens: null, output_tokens: 9 } }) });
-  assert.deepEqual((await llm2.generateTurn(req)).usage, { inputTokens: 70, cachedTokens: 0, cacheWriteTokens: 0, outputTokens: 9 });
+  assert.deepEqual((await llm2.generateTurn(req)).usage, { inputTokens: 70, cachedTokens: 0, cacheWriteTokens: 0, cacheWrite1hTokens: 0, outputTokens: 9, thinkingTokens: null });
+});
+
+test('AnthropicLlm: lee lo escrito con TTL de 1 h (cache_creation) y los tokens de pensamiento (output_tokens_details)', async () => {
+  const usage = {
+    input_tokens: 100, cache_read_input_tokens: 2000, cache_creation_input_tokens: 500, output_tokens: 150,
+    cache_creation: { ephemeral_5m_input_tokens: 100, ephemeral_1h_input_tokens: 400 }, output_tokens_details: { thinking_tokens: 90 },
+  };
+  const { llm } = llmWith({ body: message({ usage }) });
+  assert.deepEqual((await llm.generateTurn(req)).usage, { inputTokens: 2600, cachedTokens: 2000, cacheWriteTokens: 500, cacheWrite1hTokens: 400, outputTokens: 150, thinkingTokens: 90 });
+  // pensamiento 0 es un dato (no pensó); null en los dos bloques es "sin dato"
+  const { llm: llm2 } = llmWith([{ body: message({ usage: { ...usage, output_tokens_details: { thinking_tokens: 0 } } }) }, { body: message({ usage: { ...usage, cache_creation: null, output_tokens_details: null } }) }]);
+  assert.equal((await llm2.generateTurn(req)).usage.thinkingTokens, 0);
+  const sinDato = (await llm2.generateTurn(req)).usage;
+  assert.deepEqual([sinDato.cacheWrite1hTokens, sinDato.thinkingTokens], [0, null]);
 });
 
 test('AnthropicLlm: negativa (refusal) y respuesta cortada (max_tokens) → LlmOutputError con el uso', async () => {
   const usage = { input_tokens: 10, cache_read_input_tokens: 0, cache_creation_input_tokens: 0, output_tokens: 5 };
-  const expected = { inputTokens: 10, cachedTokens: 0, cacheWriteTokens: 0, outputTokens: 5 };
+  const expected = { inputTokens: 10, cachedTokens: 0, cacheWriteTokens: 0, cacheWrite1hTokens: 0, outputTokens: 5, thinkingTokens: null };
   const cases: [string, unknown, RegExp][] = [
     ['negativa', message({ stop_reason: 'refusal', stop_details: { type: 'refusal', category: 'general_harms', explanation: null }, content: [{ type: 'text', text: 'no puedo' }], usage }), /se negó.*general_harms/],
     ['negativa sin categoría', message({ stop_reason: 'refusal', content: [], usage }), /se negó/],
@@ -256,10 +270,24 @@ test('costo con escrituras de caché: Haiku 5.5 y Sonnet 5.5 a la tabla oficial;
   assert.ok(Math.abs(costUsd('claude-haiku-5-5', u) - 0.0001675) < 1e-12, String(costUsd('claude-haiku-5-5', u)));
   // Sonnet: 100*2 + 2000*0.10 + 500*2.50 + 150*10 = 200 + 200 + 1250 + 1500 = 3150 → USD 0,00315
   assert.ok(Math.abs(costUsd('claude-sonnet-5-5', u) - 0.00315) < 1e-12);
-  assert.deepEqual(PRICES['claude-haiku-5-5'], { input: 0.1, cached: 0.01, cacheWrite: 0.125, output: 0.5 });
-  assert.deepEqual(PRICES['claude-sonnet-5-5'], { input: 2, cached: 0.1, cacheWrite: 2.5, output: 10 });
+  assert.deepEqual(PRICES['claude-haiku-5-5'], { input: 0.1, cached: 0.01, cacheWrite: 0.125, cacheWrite1h: 0.2, output: 0.5 });
+  assert.deepEqual(PRICES['claude-sonnet-5-5'], { input: 2, cached: 0.1, cacheWrite: 2.5, cacheWrite1h: 4, output: 10 });
+  assert.deepEqual(PRICES['claude-opus-5-5'], { input: 4, cached: 0.2, cacheWrite: 5, cacheWrite1h: 8, output: 20 });
   assert.equal(costUsd('claude-haiku-5-5', { inputTokens: 1_000_000, cachedTokens: 0, outputTokens: 0 }), 0.1);
   assert.equal(costUsd('claude-haiku-5-5', { inputTokens: 1_000_000, cachedTokens: 0, cacheWriteTokens: 1_000_000, outputTokens: 0 }), 0.125);
+});
+
+test('costo con escrituras de 1 h: las de 1 h a cacheWrite1h (2x la entrada) y el resto de las escrituras a cacheWrite', () => {
+  // 100 normales + 2000 leídos + 500 escritos (400 de 1 h, 100 de 5 min) + 150 de salida
+  const u = { inputTokens: 2600, cachedTokens: 2000, cacheWriteTokens: 500, cacheWrite1hTokens: 400, outputTokens: 150 };
+  // Sonnet: 100*2 + 2000*0.10 + 100*2.50 + 400*4 + 150*10 = 200 + 200 + 250 + 1600 + 1500 = 3750 → USD 0,00375
+  assert.ok(Math.abs(costUsd('claude-sonnet-5-5', u) - 0.00375) < 1e-12, String(costUsd('claude-sonnet-5-5', u)));
+  // Haiku: 100*0.10 + 2000*0.01 + 100*0.125 + 400*0.20 + 150*0.50 = 10 + 20 + 12.5 + 80 + 75 = 197.5 → USD 0,0001975
+  assert.ok(Math.abs(costUsd('claude-haiku-5-5', u) - 0.0001975) < 1e-12);
+  // Opus: 100*4 + 2000*0.20 + 100*5 + 400*8 + 150*20 = 400 + 400 + 500 + 3200 + 3000 = 7500 → USD 0,0075
+  assert.ok(Math.abs(costUsd('claude-opus-5-5', u) - 0.0075) < 1e-12);
+  assert.equal(costUsd('claude-sonnet-5-5', { inputTokens: 1_000_000, cachedTokens: 0, cacheWriteTokens: 1_000_000, cacheWrite1hTokens: 1_000_000, outputTokens: 0 }), 4);
+  assert.equal(costUsd('gpt-6.1-sol', { inputTokens: 1_000_000, cachedTokens: 0, cacheWriteTokens: 1_000_000, cacheWrite1hTokens: 1_000_000, outputTokens: 0 }), 2); // OpenAI: sin precio de escritura, vale la entrada
 });
 
 test('costo en OpenAI: una escritura de caché cuesta el precio normal de entrada (las filas no tienen precio de escritura)', () => {

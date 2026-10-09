@@ -495,6 +495,17 @@ test('queda registrado: una fila de agent_runs por intento con modelo, tokens, c
   assert.equal(row.policy_hash, policy.hash);
   assert.ok(Math.abs((row.cost_usd as number) - 0.0041088) < 1e-9);
   assert.ok(Math.abs(getConversation(h.db, CHAT)!.botSpentUsd - 0.0041088) < 1e-9);
+  assert.deepEqual([row.cache_write_tokens, row.cache_write_1h_tokens, row.thinking_tokens], [null, null, null]); // este cerebro no informa caché escrito ni pensamiento
+});
+
+test('queda registrado: lo escrito en el caché (total y de 1 h) y el pensamiento del intento van a agent_runs', async () => {
+  const base = new ScriptedLlm(ok);
+  const usage = { inputTokens: 4000, cachedTokens: 0, cacheWriteTokens: 3900, cacheWrite1hTokens: 3900, outputTokens: 300, thinkingTokens: 120 };
+  const h = makeHarness({ llm: { generateTurn: async (req) => ({ ...(await base.generateTurn(req)), usage }) } });
+  h.say(CHAT, 'Hola');
+  await h.clock.advance(sec(20));
+  const row = h.db.prepare('SELECT * FROM agent_runs').get() as Record<string, number | string>;
+  assert.deepEqual([row.input_tokens, row.cache_write_tokens, row.cache_write_1h_tokens, row.output_tokens, row.thinking_tokens], [4000, 3900, 3900, 300, 120]);
 });
 
 test('el cerebro falso pasa el controlador: el primer mensaje es el aprobado con el saludo de la hora; después, la pregunta fija', async () => {

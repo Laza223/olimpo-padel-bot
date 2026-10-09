@@ -34,6 +34,8 @@ test('guion de punta a punta: "son los de Elite?" cumple todas las expectativas'
   assert.equal(r.finalCard.state, 'derivado');
   assert.deepEqual(r.history.map((m) => m.author), ['customer', 'bot']);
   assert.equal(r.cost.bot, FAKE_COST);
+  const a = r.turns[0].attempts[0]; // los tokens del intento quedan guardados (fakeLlm no informa pensamiento)
+  assert.deepEqual([a.inputTokens, a.cachedTokens, a.cacheWriteTokens, a.cacheWrite1hTokens, a.outputTokens, a.thinkingTokens], [3000, 2048, 0, 0, 200, null]);
   assert.deepEqual([r.cost.customer, r.cost.judge], [0, 0]);
   assert.equal(r.judge, undefined);
   assert.match(llm.calls[0].input, /hora_argentina: 15:15/); // la hora del escenario, no la de la PC

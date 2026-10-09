@@ -18,6 +18,10 @@ export interface RunMetrics {
   p95LatencyMs: number | null; // por intento
   cost: { bot: number; customer: number; judge: number; total: number }; // USD en total
   perConversation: { bot: number; customer: number; judge: number }; // USD por conversación
+  tokens: { input: number; cached: number; cacheWrite: number; cacheWrite1h: number; output: number }; // sumas de los intentos del bot (input incluye lo leído y lo escrito del caché)
+  cacheReadRate: number | null; // 0 a 1: cached / input; null si no hubo entrada
+  thinkingAvg: number | null; // por intento, contando solo los que informaron pensamiento (no null)
+  thinkingP95: number | null;
 }
 
 // Promedio de los 6 criterios de una conversación.
@@ -53,6 +57,9 @@ export function computeMetrics(results: ConversationResult[]): RunMetrics {
   const cost = { bot: total('bot'), customer: total('customer'), judge: total('judge'), total: 0 };
   cost.total = cost.bot + cost.customer + cost.judge;
   const per = (x: number) => (n ? x / n : 0);
+  const sum = (pick: (a: (typeof attempts)[number]) => number | undefined) => attempts.reduce((s, a) => s + (pick(a) ?? 0), 0);
+  const tokens = { input: sum((a) => a.inputTokens), cached: sum((a) => a.cachedTokens), cacheWrite: sum((a) => a.cacheWriteTokens), cacheWrite1h: sum((a) => a.cacheWrite1hTokens), output: sum((a) => a.outputTokens) };
+  const thinking = attempts.flatMap((a) => (typeof a.thinkingTokens === 'number' ? [a.thinkingTokens] : []));
   return {
     conversations: n,
     turns: turns.length,
@@ -69,5 +76,9 @@ export function computeMetrics(results: ConversationResult[]): RunMetrics {
     p95LatencyMs: percentile(attempts.map((a) => a.latencyMs), 95),
     cost,
     perConversation: { bot: per(cost.bot), customer: per(cost.customer), judge: per(cost.judge) },
+    tokens,
+    cacheReadRate: tokens.input ? tokens.cached / tokens.input : null,
+    thinkingAvg: thinking.length ? thinking.reduce((a, b) => a + b, 0) / thinking.length : null,
+    thinkingP95: percentile(thinking, 95),
   };
 }

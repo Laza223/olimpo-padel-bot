@@ -88,6 +88,12 @@ export async function runScenario(sc: Scenario, run: number, deps: SimDeps): Pro
         attempts: r.attempts.map((a) => ({
           latencyMs: a.latencyMs,
           costUsd: a.costUsd,
+          inputTokens: a.inputTokens,
+          cachedTokens: a.cachedTokens,
+          cacheWriteTokens: a.cacheWriteTokens ?? 0,
+          cacheWrite1hTokens: a.cacheWrite1hTokens ?? 0,
+          outputTokens: a.outputTokens,
+          thinkingTokens: a.thinkingTokens ?? null,
           violations: a.violations,
           ...(a.violations.length && a.raw ? { proposed: a.raw.bubbles } : {}),
         })),

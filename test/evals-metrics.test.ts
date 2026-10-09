@@ -99,6 +99,23 @@ test('computeMetrics con números a mano', () => {
   assert.ok(Math.abs(m.perConversation.judge - 0.015) < 1e-12);
 });
 
+test('computeMetrics: tokens del bot, lectura de caché y pensamiento (el pensamiento solo cuenta donde se informó)', () => {
+  const tok = (inputTokens: number, cachedTokens: number, outputTokens: number, thinkingTokens: number | null, cacheWriteTokens = 0, cacheWrite1hTokens = 0) =>
+    ({ ...attempt(1000), inputTokens, cachedTokens, outputTokens, thinkingTokens, cacheWriteTokens, cacheWrite1hTokens });
+  const m = computeMetrics([result({
+    turns: [
+      turnLog({ attempts: [tok(3000, 2000, 200, 100, 500, 500), tok(1000, 0, 100, null)] }),
+      turnLog({ attempts: [tok(2000, 1000, 300, 300), attempt(1000)] }), // el último no trae tokens: cuenta como 0
+    ],
+  })]);
+  assert.deepEqual(m.tokens, { input: 6000, cached: 3000, cacheWrite: 500, cacheWrite1h: 500, output: 600 });
+  assert.equal(m.cacheReadRate, 0.5); // 3000 / 6000
+  assert.equal(m.thinkingAvg, 200); // (100 + 300) / 2: el null no entra
+  assert.equal(m.thinkingP95, 300);
+  const none = computeMetrics([result({ turns: [turnLog({ attempts: [attempt(1000)] })] })]);
+  assert.deepEqual([none.cacheReadRate, none.thinkingAvg, none.thinkingP95], [null, null, null]);
+});
+
 test('computeMetrics sin conversaciones no divide por cero', () => {
   const m = computeMetrics([]);
   assert.deepEqual([m.conversations, m.turns, m.retryRate, m.fallbackRate, m.judgeAvg, m.judgeMin, m.p95LatencyMs, m.perConversation.bot], [0, 0, 0, 0, null, null, null, 0]);
@@ -109,6 +126,7 @@ const base: RunMetrics = {
   conversations: 50, turns: 200, attempts: 210, retriedTurns: 10, fallbackTurns: 0, criticalFailures: 0, failedConversations: 0,
   retryRate: 0.05, fallbackRate: 0, judged: 50, judgeAvg: 4.5, judgeMin: 3.5, p95LatencyMs: 9000,
   cost: { bot: 5, customer: 1, judge: 2, total: 8 }, perConversation: { bot: 0.1, customer: 0.02, judge: 0.04 },
+  tokens: { input: 630_000, cached: 420_000, cacheWrite: 21_000, cacheWrite1h: 21_000, output: 42_000 }, cacheReadRate: 2 / 3, thinkingAvg: 120, thinkingP95: 400,
 };
 const gate = (o: Partial<RunMetrics>) => evaluateGate({ ...base, ...o });
 const failing = (o: Partial<RunMetrics>) => gate(o).rules.filter((r) => !r.pass).map((r) => r.id);

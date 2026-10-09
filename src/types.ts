@@ -118,8 +118,10 @@ export interface AttemptLog {
   latencyMs: number;
   inputTokens: number;
   cachedTokens: number;
-  cacheWriteTokens?: number; // solo Anthropic: lo escrito en el caché (cuesta 1,25x)
+  cacheWriteTokens?: number; // solo Anthropic: lo escrito en el caché (cuesta 1,25x con TTL de 5 min, 2x con 1 h)
+  cacheWrite1hTokens?: number; // la parte de cacheWriteTokens escrita con TTL de 1 h
   outputTokens: number;
+  thinkingTokens?: number | null; // la parte de outputTokens que fue pensamiento; null o ausente = no se informó
   costUsd: number;
   violations: { rule: string; detail: string }[];
   raw?: ModelTurn;
@@ -129,7 +131,7 @@ export interface AttemptLog {
 export interface LlmClient {
   generateTurn(req: { instructions: string; input: string; model: string; effort: string }): Promise<{
     turn: ModelTurn;
-    usage: { inputTokens: number; cachedTokens: number; outputTokens: number; cacheWriteTokens?: number };
+    usage: { inputTokens: number; cachedTokens: number; outputTokens: number; cacheWriteTokens?: number; cacheWrite1hTokens?: number; thinkingTokens?: number | null };
     latencyMs: number;
   }>;
 }

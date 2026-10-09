@@ -79,7 +79,14 @@ interface MessageResponse {
   content?: { type?: string; text?: unknown }[];
   stop_reason?: string | null;
   stop_details?: { category?: unknown } | null;
-  usage?: { input_tokens?: number; output_tokens?: number; cache_read_input_tokens?: number | null; cache_creation_input_tokens?: number | null };
+  usage?: {
+    input_tokens?: number;
+    output_tokens?: number;
+    cache_read_input_tokens?: number | null;
+    cache_creation_input_tokens?: number | null;
+    cache_creation?: { ephemeral_5m_input_tokens?: number | null; ephemeral_1h_input_tokens?: number | null } | null; // cache_creation_input_tokens partido por TTL
+    output_tokens_details?: { thinking_tokens?: number | null } | null; // la parte de output_tokens que fue pensamiento
+  };
 }
 
 const num = (x: unknown): number => (typeof x === 'number' ? x : 0);
@@ -135,7 +142,15 @@ export class AnthropicClient {
     // input_tokens solo cuenta lo posterior al último punto de caché: el total de entrada es la suma de los tres.
     const read = num(data.usage?.cache_read_input_tokens);
     const written = num(data.usage?.cache_creation_input_tokens);
-    const usage: Usage = { inputTokens: num(data.usage?.input_tokens) + read + written, cachedTokens: read, cacheWriteTokens: written, outputTokens: num(data.usage?.output_tokens) };
+    const thinking = data.usage?.output_tokens_details?.thinking_tokens;
+    const usage: Usage = {
+      inputTokens: num(data.usage?.input_tokens) + read + written,
+      cachedTokens: read,
+      cacheWriteTokens: written,
+      cacheWrite1hTokens: num(data.usage?.cache_creation?.ephemeral_1h_input_tokens), // lo escrito a 1 h; el resto de `written` es de 5 min
+      outputTokens: num(data.usage?.output_tokens),
+      thinkingTokens: typeof thinking === 'number' ? thinking : null, // null = la API no lo informó
+    };
     const fail = (msg: string) => new LlmOutputError(msg, usage, latencyMs);
 
     const stop = data.stop_reason;

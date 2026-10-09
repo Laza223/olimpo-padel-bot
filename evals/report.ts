@@ -49,6 +49,8 @@ const usd = (x: number) => `USD ${x.toFixed(4)}`;
 const pct = (x: number) => `${(x * 100).toFixed(1)} %`;
 const num = (x: number | null, d = 2) => (x === null ? '-' : x.toFixed(d));
 const secs = (ms: number | null) => (ms === null ? '-' : `${(ms / 1000).toFixed(1)} s`);
+const perAttempt = (m: RunMetrics, tokens: number) => num(m.attempts ? tokens / m.attempts : null, 0); // promedio por intento del bot
+const cacheRead = (m: RunMetrics) => (m.cacheReadRate === null ? '-' : pct(m.cacheReadRate));
 const fence = (s: string) => s.replaceAll('```', "'''");
 const cell = (s: string) => s.replaceAll('|', '/').replace(/\s*\n\s*/g, ' ');
 const ok = (b: boolean) => (b ? 'PASA' : 'NO PASA');
@@ -121,6 +123,15 @@ export function renderReport(o: EvalOutput): string {
   }
   L.push(`| Total | ${usd(o.overall.cost.total)} | ${usd(o.overall.cost.total / n)} |`, '');
 
+  L.push('## Tokens del bot por intento', '');
+  L.push('Promedios por intento. Leído del caché = leído / entrada. Pensamiento: solo cuentan los intentos que lo informaron.', '');
+  L.push('| Corrida | Entrada | Leído del caché | Escrito en el caché (de 1 h) | Salida | Pensamiento promedio | Pensamiento p95 |', '|---|---|---|---|---|---|---|');
+  const tokRow = (label: string, m: RunMetrics) =>
+    `| ${label} | ${perAttempt(m, m.tokens.input)} | ${cacheRead(m)} | ${perAttempt(m, m.tokens.cacheWrite)} (${perAttempt(m, m.tokens.cacheWrite1h)}) | ${perAttempt(m, m.tokens.output)} | ${num(m.thinkingAvg, 0)} | ${num(m.thinkingP95, 0)} |`;
+  for (const r of o.perRun) L.push(tokRow(String(r.run), r.metrics));
+  if (o.runs > 1) L.push(tokRow('Todas', o.overall));
+  L.push('');
+
   L.push('## Conversaciones', '');
   L.push('| Escenario | Corrida | Tipo | Fin | Turnos | Reintentos | Críticas | Juez | Bot |', '|---|---|---|---|---|---|---|---|---|');
   for (const c of o.results) {
@@ -185,6 +196,8 @@ export function consoleSummary(o: EvalOutput, dir: string): string {
   L.push(`vara: ${ok(o.pass)}`);
   const k = o.overall.cost;
   L.push(`costos: bot ${usd(k.bot)} · cliente simulado ${usd(k.customer)} · juez ${usd(k.judge)} · total ${usd(k.total)}`);
+  const t = o.overall;
+  L.push(`tokens del bot por intento: entrada ${perAttempt(t, t.tokens.input)} · leído del caché ${cacheRead(t)} · salida ${perAttempt(t, t.tokens.output)} · pensamiento ${num(t.thinkingAvg, 0)}`);
   L.push(`reporte: ${join(dir, 'report.md')}`);
   return L.join('\n');
 }

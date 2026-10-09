@@ -27,6 +27,14 @@ export class CallError extends Error {
 export interface AttemptSummary {
   latencyMs: number;
   costUsd: number;
+  // Tokens del bot en este intento (para medir el caché y el pensamiento). inputTokens incluye lo leído y lo escrito del caché; thinkingTokens null = el proveedor no lo informó.
+  // Opcionales: simulate.ts siempre los llena; las métricas cuentan lo que falta como 0 (y el pensamiento como "sin dato").
+  inputTokens?: number;
+  cachedTokens?: number;
+  cacheWriteTokens?: number;
+  cacheWrite1hTokens?: number;
+  outputTokens?: number;
+  thinkingTokens?: number | null;
   violations: { rule: string; detail: string }[];
   proposed?: string[]; // lo que el modelo había propuesto, solo si el intento tuvo violaciones (para entender qué pasó)
 }

@@ -498,6 +498,7 @@ export function createWorker(deps: WorkerDeps): Worker {
         insertAgentRun(db, {
           chatId, tsUtc: now, model: a.model, effort: a.effort, policyHash: policy.hash, inputTokens: a.inputTokens, cachedTokens: a.cachedTokens, outputTokens: a.outputTokens,
           costUsd: a.costUsd, latencyMs: a.latencyMs, violations: a.violations, usedFallback, errorKind,
+          cacheWriteTokens: a.cacheWriteTokens, cacheWrite1hTokens: a.cacheWrite1hTokens, thinkingTokens: a.thinkingTokens,
         });
       }
       addSpend(db, chatId, attempts.reduce((sum, a) => sum + a.costUsd, 0));

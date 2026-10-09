@@ -21,33 +21,37 @@ export function configFromEnv(env: Record<string, string | undefined> = process.
   return { model: env.BOT_MODEL || 'gpt-6.1-sol', effort: env.BOT_EFFORT || 'low' };
 }
 
-// USD por millón de tokens. `cacheWrite` solo existe donde escribir en el caché cuesta distinto que la entrada normal (Anthropic: 1,25x, caché de 5 min);
-// en las filas de OpenAI no hay, y una escritura de caché cuesta el precio normal de entrada.
-// Filas de Anthropic: precios oficiales para prompts de hasta 100.000 tokens (Haiku 5.5 sube a 0,50 / 0,05 / 0,625 / 2,50 por encima; los prompts del bot están muy por debajo).
-export const PRICES: Record<string, { input: number; cached: number; output: number; cacheWrite?: number }> = {
+// USD por millón de tokens. `cacheWrite` y `cacheWrite1h` solo existen donde escribir en el caché cuesta distinto que la entrada normal
+// (Anthropic: 1,25x con caché de 5 min y 2x con caché de 1 h); en las filas de OpenAI no hay, y una escritura de caché cuesta el precio normal de entrada.
+// Filas de Anthropic: precios oficiales para prompts de hasta 100.000 tokens (Haiku 5.5 sube a 0,50 / 0,05 / 0,625 / 2,50 por encima; los prompts del bot están muy por debajo). `cacheWrite1h` verificado el 9-oct-2026.
+export const PRICES: Record<string, { input: number; cached: number; output: number; cacheWrite?: number; cacheWrite1h?: number }> = {
   'gpt-6.1-sol': { input: 2, cached: 0.1, output: 10 },
   'gpt-6-sol': { input: 2, cached: 0.2, output: 10 },
   'gpt-6-luna': { input: 0.1, cached: 0.01, output: 0.5 },
   'gpt-6-astra': { input: 10, cached: 1, output: 50 },
-  'claude-haiku-5-5': { input: 0.1, cached: 0.01, cacheWrite: 0.125, output: 0.5 },
-  'claude-sonnet-5-5': { input: 2, cached: 0.1, cacheWrite: 2.5, output: 10 },
-  'claude-opus-5-5': { input: 4, cached: 0.2, cacheWrite: 5, output: 20 }, // jueza de la confirmación final del banco (--judge-model)
+  'claude-haiku-5-5': { input: 0.1, cached: 0.01, cacheWrite: 0.125, cacheWrite1h: 0.2, output: 0.5 },
+  'claude-sonnet-5-5': { input: 2, cached: 0.1, cacheWrite: 2.5, cacheWrite1h: 4, output: 10 },
+  'claude-opus-5-5': { input: 4, cached: 0.2, cacheWrite: 5, cacheWrite1h: 8, output: 20 }, // jueza de la confirmación final del banco (--judge-model)
 };
 
-// inputTokens es el total de entrada (incluye lo leído y lo escrito del caché); cachedTokens = leído; cacheWriteTokens = escrito (solo Anthropic).
+// inputTokens es el total de entrada (incluye lo leído y lo escrito del caché); cachedTokens = leído; cacheWriteTokens = escrito (solo Anthropic);
+// cacheWrite1hTokens = la parte de lo escrito con TTL de 1 h; thinkingTokens = la parte de outputTokens que fue pensamiento (null = la API no lo informó).
 export interface Usage {
   inputTokens: number;
   cachedTokens: number;
   outputTokens: number;
   cacheWriteTokens?: number;
+  cacheWrite1hTokens?: number;
+  thinkingTokens?: number | null;
 }
 
 export function costUsd(model: string, u: Usage): number {
   const p = PRICES[model];
   if (!p) throw new Error(`modelo sin precio en la tabla: ${model}`);
   const writes = u.cacheWriteTokens ?? 0;
+  const writes1h = u.cacheWrite1hTokens ?? 0;
   const fresh = u.inputTokens - u.cachedTokens - writes;
-  return (fresh * p.input + u.cachedTokens * p.cached + writes * (p.cacheWrite ?? p.input) + u.outputTokens * p.output) / 1_000_000;
+  return (fresh * p.input + u.cachedTokens * p.cached + (writes - writes1h) * (p.cacheWrite ?? p.input) + writes1h * (p.cacheWrite1h ?? p.input) + u.outputTokens * p.output) / 1_000_000;
 }
 
 // ---------- Esquema de salida (strict: todas las propiedades requeridas, nada de extras) ----------

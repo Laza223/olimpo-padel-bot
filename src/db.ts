@@ -127,8 +127,15 @@ ALTER TABLE messages ADD COLUMN media_mime TEXT;
 ALTER TABLE messages ADD COLUMN transcript_status TEXT CHECK (transcript_status IN ('pendiente','ok','ilegible')); -- NULL = no es un audio del cliente
 `;
 
+// Tokens por intento (medir el caché y el pensamiento): NULL = el proveedor no lo informa (OpenAI) o la corrida es anterior a la V4.
+const SCHEMA_V4 = `
+ALTER TABLE agent_runs ADD COLUMN cache_write_tokens INTEGER;
+ALTER TABLE agent_runs ADD COLUMN cache_write_1h_tokens INTEGER; -- la parte de cache_write_tokens escrita con TTL de 1 h
+ALTER TABLE agent_runs ADD COLUMN thinking_tokens INTEGER;       -- la parte de output_tokens que fue pensamiento
+`;
+
 // Una entrada por versión del esquema: se corren las que faltan (PRAGMA user_version). Idempotente.
-export const MIGRATIONS = [SCHEMA_V1, SCHEMA_V2, SCHEMA_V3];
+export const MIGRATIONS = [SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4];
 
 export function migrate(db: Db): void {
   const current = (db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version;
@@ -518,10 +525,12 @@ export function switchToHuman(db: Db, chatId: string, nowMs: number, detail: str
 export interface AgentRun {
   chatId: string; tsUtc: number; model: string; effort: string; policyHash: string; inputTokens: number; cachedTokens: number; outputTokens: number;
   costUsd: number; latencyMs: number; violations: { rule: string; detail: string }[]; usedFallback: boolean; errorKind?: string;
+  cacheWriteTokens?: number; cacheWrite1hTokens?: number; thinkingTokens?: number | null; // sin dato (OpenAI, mensajes que no pasan por el modelo) = NULL
 }
 export function insertAgentRun(db: Db, r: AgentRun): void {
-  run(db, 'INSERT INTO agent_runs (chat_id, ts_utc, model, effort, policy_hash, input_tokens, cached_tokens, output_tokens, cost_usd, latency_ms, violations_json, used_fallback, error_kind) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-    r.chatId, r.tsUtc, r.model, r.effort, r.policyHash, r.inputTokens, r.cachedTokens, r.outputTokens, r.costUsd, r.latencyMs, JSON.stringify(r.violations), r.usedFallback ? 1 : 0, r.errorKind ?? null);
+  run(db, 'INSERT INTO agent_runs (chat_id, ts_utc, model, effort, policy_hash, input_tokens, cached_tokens, output_tokens, cost_usd, latency_ms, violations_json, used_fallback, error_kind, cache_write_tokens, cache_write_1h_tokens, thinking_tokens) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    r.chatId, r.tsUtc, r.model, r.effort, r.policyHash, r.inputTokens, r.cachedTokens, r.outputTokens, r.costUsd, r.latencyMs, JSON.stringify(r.violations), r.usedFallback ? 1 : 0, r.errorKind ?? null,
+    r.cacheWriteTokens ?? null, r.cacheWrite1hTokens ?? null, r.thinkingTokens ?? null);
 }
 export const spentSince = (db: Db, sinceMs: number): number => one<{ s: number | null }>(db, 'SELECT SUM(cost_usd) AS s FROM agent_runs WHERE ts_utc >= ?', sinceMs)?.s ?? 0;
 export const listAgentRuns = (db: Db, chatId?: string): { errorKind: string | null; costUsd: number; usedFallback: boolean }[] =>
