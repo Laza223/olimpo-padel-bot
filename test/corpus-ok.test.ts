@@ -21,12 +21,12 @@ const corpus: Entry[] = JSON.parse(readFileSync(new URL('./fixtures/good-bubbles
 test('el corpus de globos buenos no está vacío', () => assert.ok(corpus.length >= 100, `solo ${corpus.length} turnos`));
 
 // Los textos aprobados de la política (cada "texto" y "especificaciones" del YAML) no pueden disparar las reglas que bloquean lo interno, lo no confirmado y lo inventado.
-const GUARDED_RULES = ['jerga', 'incluido', 'height', 'platea', 'modelo_inventado'];
+const GUARDED_RULES = ['jerga', 'incluido', 'height', 'platea', 'modelo_inventado', 'precio_comparacion'];
 const approvedTexts = (node: unknown, key = ''): string[] =>
   typeof node === 'string' ? (key === 'texto' || key === 'especificaciones' ? [node] : [])
   : node && typeof node === 'object' ? Object.entries(node).flatMap(([k, v]) => approvedTexts(v, k)) : [];
 
-test('los textos aprobados de olimpo.yaml no disparan las reglas de jerga, incluido, altura, platea ni modelo inventado', () => {
+test('los textos aprobados de olimpo.yaml no disparan las reglas de jerga, incluido, altura, platea, modelo inventado ni comparación de precios', () => {
   const texts = approvedTexts(parse(loadPolicy().yamlText));
   assert.ok(texts.length >= 15, `solo ${texts.length} textos aprobados`);
   const failures = texts.flatMap((t) => supervise({ bubbles: [t], askedIfAi: false }, [], policy).filter((x) => GUARDED_RULES.includes(x.rule)).map((x) => `${x.rule}: ${x.detail} | ${t}`));

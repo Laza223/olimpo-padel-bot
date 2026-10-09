@@ -188,6 +188,7 @@ const FIX: Partial<Record<string, string>> = {
   jerga: 'decilo sin nombrar la ficha, lo aprobado ni tus reglas; si falta un dato, pedilo directo ("Cómo te llamás?")',
   style: 'texto corrido, sin ¿ ni ¡, sin dos puntos y sin markdown; usá comas y puntos ("Contame, de dónde sos?")',
   number: 'sacá el número y mandá ese dato al presupuesto ("Eso va detallado en el presupuesto.")',
+  precio_comparacion: 'si comparás, decí que sale menos el modelo con el monto más bajo (el detalle trae los montos), o dejá los montos tal cual, sin comparar',
   claim: 'sacá esa frase y contestá solo con lo aprobado, o decí que lo ve el equipo ("Eso lo ve el equipo en el presupuesto.")',
   incluido: 'de lo que incluye el precio decí solo lo aprobado, y que la instalación y el flete se cotizan aparte según la ubicación',
   height: 'no digas que entra ni que sirve: decí que la altura la revisa el equipo en el presupuesto',

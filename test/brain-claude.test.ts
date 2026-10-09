@@ -189,7 +189,7 @@ test('Claude, reintento: arreglo en positivo para cada regla pedida; las demás 
   assert.doesNotMatch(llm, /borrador_rechazado/);
   // los ids de la tabla son los reales del controlador (supervisor/index.ts y turn.ts), no nombres de la especificación
   const sources = ['../src/supervisor/index.ts', '../src/turn.ts'].map((f) => readFileSync(new URL(f, import.meta.url), 'utf8')).join('\n');
-  for (const rule of ['length', 'discount', 'stop_question', 'closing', 'jerga', 'style', 'number', 'claim', 'incluido', 'height', 'platea', 'modelo_inventado', 'voseo', 'greeting', 'questions']) {
+  for (const rule of ['length', 'discount', 'stop_question', 'closing', 'jerga', 'style', 'number', 'claim', 'incluido', 'height', 'platea', 'modelo_inventado', 'voseo', 'greeting', 'questions', 'precio_comparacion']) {
     assert.ok(sources.includes(`rule: '${rule}'`), `${rule}: no existe ese id en el controlador`);
     assert.match(retry([{ rule, detail: 'x' }]), new RegExp(`- ${rule}: x\\. Arreglo: `), rule);
   }

@@ -56,13 +56,19 @@ export function loadPolicy(dir: URL = DEFAULT_DIR): Policy {
   const primerMensaje: unknown = y?.presentacion?.primer_mensaje;
 
   const approvedPricesUsd: number[] = y.precios.filter((p: { estado?: string }) => p.estado === 'aprobado').map((p: { usd: number }) => p.usd);
+  // Los dos montos que el controlador compara ("la Panorámica sale menos"): el precio aprobado de cada modelo, por id.
+  const priceOf = (id: string): number => {
+    const p = y.precios.find((x: { id?: string; estado?: string }) => x.id === id && x.estado === 'aprobado');
+    if (typeof p?.usd !== 'number') throw new Error(`olimpo.yaml: falta el precio aprobado ${id}`);
+    return p.usd;
+  };
   const hash = createHash('sha256').update(yamlText).update('\0').update(toneText).update('\0').update(assetsText).digest('hex');
 
   return {
     yamlText,
     toneText,
     assets,
-    supervisorPolicy: { approvedPricesUsd, allowedNumbers: y.numeros_permitidos, allowedPhrases: y.frases_con_numeros_permitidas, modelNames },
+    supervisorPolicy: { approvedPricesUsd, allowedNumbers: y.numeros_permitidos, allowedPhrases: y.frases_con_numeros_permitidas, modelNames, fullPromoUsd: priceOf('full_panoramica_promo'), panoramicaUsd: priceOf('panoramica') },
     required: REQUIRED_FIELDS,
     closingText,
     eliteAnswerText,
