@@ -117,7 +117,7 @@ test('claude: conserva cada regla que el controlador o el flujo exigen (las mism
 test('claude: las conductas que más fallaban están como reglas (contestar todo, no repreguntar, no presionar, no inventar, comparar bien los precios)', () => {
   assert.match(section('como_contestar'), /contestá cada cosa que pide, en su orden, antes de preguntar nada vos/);
   assert.match(section('preguntar'), /terminá sin ninguna pregunta ni pedido de datos/);
-  assert.match(section('preguntar'), /Cada dato se pide una sola vez/);
+  assert.match(section('preguntar'), /No repreguntes[\s\S]*no_volver_a_preguntar no se pide de ninguna forma[\s\S]*volver_a_preguntar_una_vez lo podés pedir una sola vez más/);
   assert.match(section('preguntar'), /Si vuelve a postergar o ya dijo que no, cerrá amable y sin pregunta/);
   assert.match(section('lo_que_sabes'), /Lo que sepas de pádel[\s\S]*no vale acá/);
   assert.match(section('temas'), /exactamente Full Panorámica y Panorámica, sin ciudad/);
@@ -217,7 +217,7 @@ test('Claude, persona-particular-country: el modelo preguntado 3 veces sin respu
     ['customer', 'Pensándolo mejor, vamos con la Panorámica, así no pagamos mil dólares más.'],
   ]);
   const { input, lines } = contextOf(h, ['m10', 'm11'], ['modelo']);
-  assert.deepEqual(lines, ['datos_que_faltan: modelo', 'ya_preguntaste: modelo (3 veces)', 'no_volver_a_preguntar: modelo (preguntado 3 veces sin respuesta)']);
+  assert.deepEqual(lines, ['datos_que_faltan: modelo', 'ya_preguntaste: modelo (3 veces)', 'no_volver_a_preguntar: modelo (ya lo pediste las veces que se podía)']);
   assert.match(input, /<mensajes_nuevos>\n\[m10\]\[cliente 14:00\] Uh, entonces[^\n]*\n\[m11\]\[cliente 14:00\] Pensándolo mejor[^\n]*\n<\/mensajes_nuevos>$/);
   assert.doesNotMatch(input.split('<contexto>')[0], /Pensándolo mejor|Uh, entonces/, 'el historial no repite los mensajes nuevos');
 });
@@ -239,7 +239,7 @@ test('Claude, persona-inversor-galpon: la platea preguntada 4 veces, y "no sé s
     ['bot', 'Cuando tengas la altura, pasámela. Querés que la platea la hagamos nosotros o usamos el piso de hormigón que ya tenés?'],
     ['customer', 'Ok, entonces no me sirve.'],
   ]);
-  assert.deepEqual(contextOf(h, ['m14'], ['platea']).lines, ['datos_que_faltan: platea', 'ya_preguntaste: platea (4 veces)', 'no_volver_a_preguntar: platea (dijo que no sabe o que lo ve después)']);
+  assert.deepEqual(contextOf(h, ['m14'], ['platea']).lines, ['datos_que_faltan: platea', 'ya_preguntaste: platea (4 veces)', 'no_volver_a_preguntar: platea (ya lo pediste las veces que se podía)']);
   // sin postergación, a la segunda vez sin respuesta el aviso es por las veces
   const twice = talk([['bot', 'Ya tenés platea?'], ['customer', 'Hola'], ['bot', 'Contame, tenés la platea de hormigón?'], ['customer', 'Cuánto tarda?']]);
   assert.deepEqual(contextOf(twice, ['m4'], ['platea']).lines.slice(1), ['ya_preguntaste: platea (2 veces)', 'no_volver_a_preguntar: platea (preguntado 2 veces sin respuesta)']);
@@ -319,4 +319,17 @@ test('Claude: "el nombre te lo paso después" (la frase del ejemplo 3 del prompt
   ]);
   const { lines } = contextOf(h, ['m2'], ['nombre', 'platea']);
   assert.ok(lines.includes('no_volver_a_preguntar: nombre (dijo que no sabe o que lo ve después)'), lines.join(' | '));
+});
+
+// Lazar, 9-oct: un dato en pausa se puede volver a pedir UNA vez más después de la respuesta + 2 mensajes del cliente; si dijo que no lo quiere dar, nunca.
+test('Claude: el dato postergado queda en pausa, vuelve a poder pedirse una vez y después no más; si no lo quiere dar, nunca', () => {
+  const lines = (h: ChatMessage[], id: string, missing: LeadField[] = ['modelo', 'platea']) => buildInput(turnInput(h, [id], cardWith(missing)), policy, [], { family: 'claude' }).split('\n').filter((l) => /^(no_volver_a_preguntar|volver_a_preguntar_una_vez):/.test(l));
+  const base: [ChatMessage['author'], string][] = [['bot', 'Qué modelo te interesa, Full Panorámica o Panorámica?'], ['customer', 'no sé todavía']];
+  assert.deepEqual(lines(talk(base), 'm2'), ['no_volver_a_preguntar: modelo (dijo que no sabe o que lo ve después)']);
+  const later = talk([...base, ['bot', 'Dale, sin apuro.'], ['customer', 'son dos canchas'], ['bot', 'Buenísimo.'], ['customer', 'en Tigre']]);
+  assert.deepEqual(lines(later, 'm6'), ['volver_a_preguntar_una_vez: modelo (si lo pedís, una sola vez más, con otras palabras y sin apuro)']);
+  const again = talk([...base, ['bot', 'Dale.'], ['customer', 'son dos'], ['bot', 'Bien.'], ['customer', 'en Tigre'], ['bot', 'Ya pensaste qué modelo preferís, la Full o la Panorámica?'], ['customer', 'no sé, después veo']]);
+  assert.deepEqual(lines(again, 'm8'), ['no_volver_a_preguntar: modelo (ya lo pediste las veces que se podía)']);
+  const refused = talk([['bot', 'Cómo te llamás?'], ['customer', 'prefiero no decirlo'], ['bot', 'Dale.'], ['customer', 'ok'], ['bot', 'Bien.'], ['customer', 'son dos canchas']]);
+  assert.deepEqual(lines(refused, 'm6', ['nombre']), ['no_volver_a_preguntar: nombre (no lo quiere dar)']);
 });

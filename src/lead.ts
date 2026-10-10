@@ -168,12 +168,16 @@ export function questionFields(bubble: string): LeadField[] {
 }
 
 // El cliente deja un dato para después o dice que no lo sabe (texto normalizado). "no se" cuenta solo si cierra la frase o sigue "si, cual, cuanto…": "no se puede" no posterga nada.
-const DEFER = /\bdespues te (?:lo )?paso\b|\b(?:te )?lo paso despues\b|\bmas adelante\b|\bno (?:lo )?se(?= *(?:$|[,.;!?]|todavia|aun|si\b|cual|cuant|cuando|como|donde|que\b|bien|muy))|\btodavia no (?:se|lo se|lo tengo|decidi)\b|\blo veo despues\b|\bprefiero no\b|\bya veremos\b|\bpor ahora no\b|\btendria que (?:ver|medir|averiguar)\b/;
+const DEFER = /\bdespues te (?:lo )?paso\b|\b(?:te )?lo paso despues\b|\bmas adelante\b|\bno (?:lo )?se(?= *(?:$|[,.;!?]|todavia|aun|si\b|cual|cuant|cuando|como|donde|que\b|bien|muy))|\btodavia no (?:se|lo se|lo tengo|decidi)\b|\blo veo despues\b|\bya veremos\b|\bpor ahora no\b|\btendria que (?:ver|medir|averiguar)\b/;
+// Dice que no lo quiere dar: no se le vuelve a pedir nunca ("si ya dijo que no, no insiste", tono #17 de Lazar).
+const REFUSE = /\bprefiero no\b|\bno (?:te )?(?:lo )?quiero (?:dar|pasar|decir)\b|\bno (?:te )?lo voy a (?:dar|pasar|decir)\b/;
 
 export interface AskedField {
   field: LeadField;
   times: number; // cuántas veces lo preguntó el bot
-  deferred: boolean; // el cliente contestó una pregunta de este dato con una postergación
+  deferred: boolean; // el cliente contestó una pregunta de este dato con una postergación ("no sé", "después te paso")
+  refused: boolean; // el cliente dijo que no lo quiere dar
+  since: number; // mensajes del cliente desde la última vez que el bot lo preguntó
 }
 
 // De los datos que faltan (en ese orden), los que el bot ya preguntó. Recorre todo el historial: los mensajes nuevos del cliente pueden ser la respuesta a la última pregunta.
@@ -183,10 +187,28 @@ export function askedFields(history: ChatMessage[], missing: LeadField[]): Asked
   for (const m of history) {
     if (m.author === 'bot') {
       current = questionFields(m.text);
-      for (const field of current) stats.set(field, { field, times: (stats.get(field)?.times ?? 0) + 1, deferred: stats.get(field)?.deferred ?? false });
-    } else if (m.author === 'customer' && DEFER.test(plain(m.text.slice(0, MAX_EVIDENCE_CHARS)))) {
-      for (const field of current) stats.get(field)!.deferred = true;
+      for (const field of current) {
+        const prev = stats.get(field);
+        stats.set(field, { field, times: (prev?.times ?? 0) + 1, deferred: prev?.deferred ?? false, refused: prev?.refused ?? false, since: 0 });
+      }
+    } else if (m.author === 'customer') {
+      const text = plain(m.text.slice(0, MAX_EVIDENCE_CHARS));
+      for (const a of stats.values()) a.since++;
+      for (const field of current) {
+        if (REFUSE.test(text)) stats.get(field)!.refused = true;
+        else if (DEFER.test(text)) stats.get(field)!.deferred = true;
+      }
     }
   }
   return missing.flatMap((f) => stats.get(f) ?? []);
+}
+
+// Cuándo se puede volver a pedir un dato que falta (Lazar, 9-oct): si el cliente lo postergó o no contestó 2 preguntas, queda en pausa; después de 2 mensajes
+// más del cliente se puede pedir UNA vez más, con otras palabras; si tampoco, no se pide más. Si dijo que no lo quiere dar, nunca más.
+export const RETRY_AFTER_CUSTOMER_MSGS = 3; // la respuesta a la pregunta + 2 mensajes más
+export type AskStatus = 'ok' | 'paused' | 'retry_once' | 'never';
+export function askStatus(a: AskedField): AskStatus {
+  if (a.refused || (a.deferred && a.times >= 2) || a.times >= 3) return 'never';
+  if (!a.deferred && a.times < 2) return 'ok';
+  return a.since >= RETRY_AFTER_CUSTOMER_MSGS ? 'retry_once' : 'paused';
 }

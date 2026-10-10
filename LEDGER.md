@@ -425,3 +425,9 @@ Imagen `ghcr.io/ggml-org/whisper.cpp:main-d1be6fde…` (v1.9.5, sin tags de vers
 - Juez 4,68 / 4,71 / 4,63, con mínimos de 4,17, 4,17 y 3,33.
 - p95 de 8,4 a 8,7 s, bot de USD 0,015 a 0,018 por conversación, pensamiento de 268 tokens.
 - Se queda v2. Gasto acumulado: **USD 7,8**.
+
+**Decisión de Lazar (9-oct), dato trabado:**
+- Un dato que el cliente posterga, o que no contesta en 2 preguntas, queda en pausa.
+- Después de la respuesta y 2 mensajes más del cliente, se puede pedir **una vez más**, con otras palabras. Si tampoco sale, no se pide más.
+- Si dice que no lo quiere dar ("prefiero no"), nunca más.
+- Implementado: `askStatus` en `lead.ts`, línea `volver_a_preguntar_una_vez` en el contexto de Claude y prompt. 816/816.

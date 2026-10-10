@@ -9,7 +9,7 @@ import type { AttemptLog, BrainConfig, ChatMessage, LlmClient, ModelTurn, TurnIn
 import { MAX_CHARS } from './supervisor/index.ts';
 import type { Violation } from './supervisor/index.ts';
 import type { Policy } from './policy.ts';
-import { askedFields, missingRequired } from './lead.ts';
+import { askedFields, askStatus, missingRequired } from './lead.ts';
 import { buildClaudeInstructions } from './instructions-claude.ts';
 import { argentinaClock, greetingFor } from './time.ts';
 
@@ -218,7 +218,8 @@ export function buildInput(input: TurnInput, policy: Policy, errors: Violation[]
   const claude = opts.family === 'claude';
   // Solo Claude: lo que ya se preguntó de cada dato que falta y lo que el cliente dejó para después, calculado por código del historial completo.
   const asked = claude ? askedFields(history, missing) : [];
-  const skip = asked.filter((a) => a.deferred || a.times >= 2);
+  const skip = asked.filter((a) => ['paused', 'never'].includes(askStatus(a)));
+  const retry = asked.filter((a) => askStatus(a) === 'retry_once');
 
   const ctx = [
     '<contexto>',
@@ -229,7 +230,10 @@ export function buildInput(input: TurnInput, policy: Policy, errors: Violation[]
     `datos_que_faltan: ${missing.length ? missing.join(', ') : 'ninguno'}`,
   ];
   if (asked.length) ctx.push(`ya_preguntaste: ${asked.map((a) => `${a.field} (${a.times} ${a.times === 1 ? 'vez' : 'veces'})`).join(', ')}`);
-  if (skip.length) ctx.push(`no_volver_a_preguntar: ${skip.map((a) => `${a.field} (${a.deferred ? 'dijo que no sabe o que lo ve después' : `preguntado ${a.times} veces sin respuesta`})`).join(', ')}`);
+  const why = (a: (typeof asked)[number]) =>
+    a.refused ? 'no lo quiere dar' : askStatus(a) === 'never' ? 'ya lo pediste las veces que se podía' : a.deferred ? 'dijo que no sabe o que lo ve después' : `preguntado ${a.times} veces sin respuesta`;
+  if (skip.length) ctx.push(`no_volver_a_preguntar: ${skip.map((a) => `${a.field} (${why(a)})`).join(', ')}`);
+  if (retry.length) ctx.push(`volver_a_preguntar_una_vez: ${retry.map((a) => a.field).join(', ')} (si lo pedís, una sola vez más, con otras palabras y sin apuro)`);
   if (missing.length) {
     ctx.push(`cierre: si con los mensajes nuevos del cliente quedan completos todos los datos que faltan, uno de tus dos globos tiene que decir "${policy.closingText}" y el otro avisa que le pasás los datos al equipo. Si todavía falta alguno, no cierres.`);
   }
