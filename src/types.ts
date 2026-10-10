@@ -33,7 +33,7 @@ export const LEAD_FIELDS = [
 export type LeadField = (typeof LEAD_FIELDS)[number];
 
 // Los que tienen que estar para pasar al equipo (policy/olimpo.yaml → presupuesto.datos_obligatorios).
-export const REQUIRED_FIELDS: LeadField[] = ['nombre', 'localidad', 'provincia', 'cantidad_canchas', 'modelo', 'platea', 'ubicacion'];
+export const REQUIRED_FIELDS: LeadField[] = ['nombre', 'localidad', 'provincia', 'cantidad_canchas', 'modelo', 'platea'];
 
 export type LeadState = 'nuevo' | 'calificando' | 'listo_para_presupuesto' | 'derivado' | 'descartado' | 'baja' | 'no_es_cliente';
 export type Temperature = 'caliente' | 'tibio' | 'frio';

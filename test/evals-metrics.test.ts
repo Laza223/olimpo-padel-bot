@@ -118,13 +118,13 @@ test('computeMetrics: tokens del bot, lectura de caché y pensamiento (el pensam
 
 test('computeMetrics sin conversaciones no divide por cero', () => {
   const m = computeMetrics([]);
-  assert.deepEqual([m.conversations, m.turns, m.retryRate, m.fallbackRate, m.judgeAvg, m.judgeMin, m.p95LatencyMs, m.perConversation.bot], [0, 0, 0, 0, null, null, null, 0]);
+  assert.deepEqual([m.conversations, m.turns, m.retryRate, m.fallbackRate, m.singleBubbleRate, m.judgeAvg, m.judgeMin, m.p95LatencyMs, m.perConversation.bot], [0, 0, 0, 0, null, null, null, null, 0]);
 });
 
 // ---------- La vara ----------
 const base: RunMetrics = {
   conversations: 50, turns: 200, attempts: 210, retriedTurns: 10, fallbackTurns: 0, criticalFailures: 0, failedConversations: 0,
-  retryRate: 0.05, fallbackRate: 0, judged: 50, judgeAvg: 4.5, judgeMin: 3.5, p95LatencyMs: 9000,
+  retryRate: 0.05, fallbackRate: 0, singleBubbleRate: 0.5, judged: 50, judgeAvg: 4.5, judgeMin: 3.5, p95LatencyMs: 9000,
   cost: { bot: 5, customer: 1, judge: 2, total: 8 }, perConversation: { bot: 0.1, customer: 0.02, judge: 0.04 },
   tokens: { input: 630_000, cached: 420_000, cacheWrite: 21_000, cacheWrite1h: 21_000, output: 42_000 }, cacheReadRate: 2 / 3, thinkingAvg: 120, thinkingP95: 400,
 };
@@ -181,4 +181,14 @@ test('la vara completa exige pasar en cada una de las N corridas', () => {
   assert.equal(one.pass, false);
   assert.deepEqual(one.perRun.map((g) => g.pass), [true, false, true]);
   assert.equal(evaluateGateRuns([]).pass, false);
+});
+
+test('singleBubbleRate: turnos con un globo sobre los que mandaron texto (los mudos no cuentan)', () => {
+  const m = computeMetrics([result({ turns: [
+    turnLog({ turn: 1, bubbles: ['uno'] }),
+    turnLog({ turn: 2, bubbles: ['uno', 'dos'] }),
+    turnLog({ turn: 3, bubbles: ['uno'] }),
+    turnLog({ turn: 4, bubbles: [] }),
+  ] })]);
+  assert.equal(m.singleBubbleRate, 2 / 3);
 });

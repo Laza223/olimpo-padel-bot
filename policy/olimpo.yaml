@@ -97,7 +97,7 @@ marca_nueva:
 
 presupuesto:
   plazo_que_se_promete: { texto: "Te mandamos el presupuesto por acá en el día, o a más tardar el día hábil siguiente.", estado: aprobado, fuente: "Lazar 7-oct (F0 #6; redacción de tono #20, que se entiende sola)" }
-  datos_obligatorios: [nombre, localidad_y_provincia, cantidad_de_canchas, modelo, platea, techada_o_aire_libre]
+  datos_obligatorios: [nombre, localidad_y_provincia, cantidad_de_canchas, modelo, platea]
   datos_que_se_preguntan_pero_no_frenan: [plazo_deseado, forma_de_pago, quien_decide, uso]
 
 clientes:

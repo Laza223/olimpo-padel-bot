@@ -207,11 +207,11 @@ test('cierre prometido sin la ficha completa → violación closing_early (sin d
 });
 
 test('el cierre no se exige mientras faltan datos', async () => {
-  const card = cardWith(['platea', 'ubicacion']);
+  const card = cardWith(['platea', 'modelo']);
   const history = [msg('m1', 'customer', 'tengo platea'), msg('m2', 'bot', GREETING_TEXT), msg('m3', 'customer', 'tengo platea')];
   const r = await runTurn(
     input(history, ['m3'], card),
-    { llm: fakeLlm([modelTurn({ bubbles: ['Perfecto. Va a ser techada o al aire libre?'], lead_patch: [{ field: 'platea', value: 'tiene', evidence_msg_id: 'm3' }] })]), policy, config },
+    { llm: fakeLlm([modelTurn({ bubbles: ['Perfecto. Qué modelo te interesa?'], lead_patch: [{ field: 'platea', value: 'tiene', evidence_msg_id: 'm3' }] })]), policy, config },
   );
   assert.equal(r.attempts.length, 1);
   assert.equal(r.card.state, 'calificando');
@@ -740,4 +740,20 @@ test('pide_financiacion por código: dicha para negarla no se carga (revisión d
   for (const text of ['Tienen financiación? cuotas?', 'se puede pagar en partes?', 'no tengo todo junto, financian?']) {
     assert.deepEqual(financingFromCustomer(emptyCard(), [msg('m1', 'customer', text)], ['m1']), { value: 'si', evidenceMsgId: 'm1' }, text);
   }
+});
+
+test('una ficha completa que sigue en calificando (cambió la lista de obligatorios) cierra en el próximo turno', async () => {
+  const card = { ...cardWith(), state: 'calificando' as const };
+  const history = [msg('m1', 'customer', 'hola'), msg('m2', 'bot', GREETING_TEXT), msg('m3', 'customer', 'y entonces?')];
+  const r = await runTurn(
+    input(history, ['m3'], card),
+    { llm: fakeLlm([
+      modelTurn({ bubbles: ['Te cuento, qué modelo preferís?'] }),
+      modelTurn({ bubbles: ['Ya le paso tus datos al equipo para armar el presupuesto.', policy.closingText] }),
+    ]), policy, config },
+  );
+  assert.equal(r.attempts[0].violations.some((v) => v.rule === 'closing'), true);
+  assert.equal(r.card.state, 'derivado');
+  assert.deepEqual(r.handoffs.map((h) => h.reason), ['listo_para_presupuesto']);
+  assert.equal(r.stopBot, true);
 });

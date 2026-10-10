@@ -1,6 +1,6 @@
 // Derivaciones: las decide el código a partir de la ficha y las señales; el modelo solo suma avisos.
 import type { HandoffDecision, HandoffReason, LeadCard, ModelTurn, Priority } from './types.ts';
-import { computeTemperature, missingRequired } from './lead.ts';
+import { computeTemperature, missingRequired, stillQualifying } from './lead.ts';
 import { customerMentionsElite, fold } from './supervisor/normalize.ts';
 
 export interface HandoffContext {
@@ -42,7 +42,7 @@ export function decideHandoffs({ before, after, turn, customerText }: HandoffCon
     return out;
   }
 
-  if (missingRequired(before).length > 0 && missingRequired(after).length === 0) {
+  if (stillQualifying(before) && missingRequired(after).length === 0) {
     add('listo_para_presupuesto', computeTemperature(after) === 'caliente' ? 'alta' : 'normal', 'stop');
   }
   if (Number(after.fields.cantidad_canchas?.value) >= 3 || after.fields.uso?.value === 'club') add('cliente_grande', 'alta', 'flag');

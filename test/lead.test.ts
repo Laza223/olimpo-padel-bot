@@ -97,23 +97,23 @@ test('un dato nuevo pisa al anterior (el cliente cambia de idea)', () => {
 test('missingRequired y estado', () => {
   assert.deepEqual(missingRequired(emptyCard()), REQUIRED_FIELDS);
   assert.equal(computeState(emptyCard()), 'nuevo');
-  const partial = cardWith(['platea', 'ubicacion']);
-  assert.deepEqual(missingRequired(partial), ['platea', 'ubicacion']);
+  const partial = cardWith(['modelo', 'platea']);
+  assert.deepEqual(missingRequired(partial), ['modelo', 'platea']);
   assert.equal(computeState(partial), 'calificando');
-  assert.equal(computeState(cardWith(['nombre', 'localidad', 'provincia', 'cantidad_canchas', 'modelo', 'platea', 'ubicacion'], { uso: field('club', 'm1') })), 'calificando');
+  assert.equal(computeState(cardWith(['nombre', 'localidad', 'provincia', 'cantidad_canchas', 'modelo', 'platea'], { uso: field('club', 'm1') })), 'calificando');
   assert.equal(computeState(cardWith()), 'listo_para_presupuesto');
 });
 
 test('temperatura: caliente, tibio y frío', () => {
   assert.equal(computeTemperature(emptyCard()), 'frio');
-  assert.equal(computeTemperature(cardWith(['modelo', 'platea', 'ubicacion', 'cantidad_canchas'])), 'frio'); // 3 de 7
-  assert.equal(computeTemperature(cardWith(['platea', 'ubicacion', 'cantidad_canchas'])), 'tibio'); // 4 de 7
+  assert.equal(computeTemperature(cardWith(['modelo', 'platea', 'cantidad_canchas'])), 'frio'); // 3 de 6
+  assert.equal(computeTemperature(cardWith(['platea', 'cantidad_canchas'])), 'tibio'); // 4 de 6
   assert.equal(computeTemperature(cardWith()), 'tibio'); // listo, pero sin plazo ni quién decide
   assert.equal(computeTemperature(cardWith([], { plazo_deseado: field('2 meses', 'm1') })), 'tibio');
   assert.equal(computeTemperature(cardWith([], { quien_decide: field('él', 'm1') })), 'tibio');
   assert.equal(computeTemperature(cardWith([], { plazo_deseado: field('2 meses', 'm1'), quien_decide: field('él', 'm1') })), 'caliente');
   // plazo y decisor sin estar listo no alcanza
-  assert.equal(computeTemperature(cardWith(['nombre', 'platea', 'ubicacion', 'cantidad_canchas'], { plazo_deseado: field('2 meses', 'm1'), quien_decide: field('él', 'm1') })), 'frio');
+  assert.equal(computeTemperature(cardWith(['nombre', 'platea', 'cantidad_canchas'], { plazo_deseado: field('2 meses', 'm1'), quien_decide: field('él', 'm1') })), 'frio');
 });
 
 // ---------- Ronda de fixes: el dato tiene que estar en el mensaje citado ----------

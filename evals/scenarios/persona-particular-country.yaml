@@ -23,7 +23,6 @@ espera:
   estado: derivado
   ficha:
     cantidad_canchas: "1"
-    ubicacion: aire_libre
   dice_alguna:
     - '(?i)platea'
   nunca_dice:

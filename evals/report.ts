@@ -185,7 +185,7 @@ export function consoleSummary(o: EvalOutput, dir: string): string {
   const L = [`Banco de pruebas · ${o.model} ${o.effort} · ${o.runs} corrida(s) · ${o.overall.conversations} conversación(es) · ${o.overall.turns} turno(s)`];
   for (const r of o.perRun) {
     const m = r.metrics;
-    L.push(`corrida ${r.run}: críticas ${m.criticalFailures} · reintento ${pct(m.retryRate)} · seguros ${pct(m.fallbackRate)} · juez ${num(m.judgeAvg)} (mín ${num(m.judgeMin)}) · p95 ${secs(m.p95LatencyMs)} · bot ${usd(m.perConversation.bot)} por conversación · ${ok(r.gate.pass)}`);
+    L.push(`corrida ${r.run}: críticas ${m.criticalFailures} · reintento ${pct(m.retryRate)} · seguros ${pct(m.fallbackRate)} · un globo ${m.singleBubbleRate === null ? '—' : pct(m.singleBubbleRate)} · juez ${num(m.judgeAvg)} (mín ${num(m.judgeMin)}) · p95 ${secs(m.p95LatencyMs)} · bot ${usd(m.perConversation.bot)} por conversación · ${ok(r.gate.pass)}`);
     for (const rule of r.gate.rules.filter((x) => !x.pass)) L.push(`    NO PASA ${rule.label}: ${rule.value} (límite ${rule.limit})`);
   }
   const bad = o.results.filter((c) => criticalFailures(c).length);

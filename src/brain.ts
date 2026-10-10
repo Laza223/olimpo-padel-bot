@@ -236,6 +236,8 @@ export function buildInput(input: TurnInput, policy: Policy, errors: Violation[]
   if (retry.length) ctx.push(`volver_a_preguntar_una_vez: ${retry.map((a) => a.field).join(', ')} (si lo pedís, una sola vez más, con otras palabras y sin apuro)`);
   if (missing.length) {
     ctx.push(`cierre: si con los mensajes nuevos del cliente quedan completos todos los datos que faltan, uno de tus dos globos tiene que decir "${policy.closingText}" y el otro avisa que le pasás los datos al equipo. Si todavía falta alguno, no cierres.`);
+  } else if (card.state === 'calificando') { // se completó sola porque cambió la lista de obligatorios (ver stillQualifying)
+    ctx.push(`cierre: la ficha ya está completa. En este turno contestá lo que pregunte y uno de tus dos globos tiene que decir "${policy.closingText}"; el otro avisa que le pasás los datos al equipo.`);
   }
   if (card.flags.negotiatingCount > 0) ctx.push(`veces_que_regateo: ${card.flags.negotiatingCount}`);
   if (card.objections.includes('confianza')) ctx.push('ya_dudo_antes: sí');

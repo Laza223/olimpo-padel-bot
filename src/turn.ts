@@ -7,7 +7,7 @@ import { customerMentionsElite, fold, words } from './supervisor/normalize.ts';
 import type { Violation } from './supervisor/index.ts';
 import type { Policy } from './policy.ts';
 import { buildInput, buildInstructions, costUsd, isFirstBotMessage, LlmOutputError, TransientLlmError } from './brain.ts';
-import { applyPatch, computeState, computeTemperature, financingFromCustomer, missingRequired, plain, withDeducedProvince } from './lead.ts';
+import { applyPatch, computeState, computeTemperature, financingFromCustomer, missingRequired, plain, stillQualifying, withDeducedProvince } from './lead.ts';
 import type { RejectedPatch } from './lead.ts';
 import { decideHandoffs } from './handoff.ts';
 import { greetingFor } from './time.ts';
@@ -107,7 +107,7 @@ function turnChecks(turn: ModelTurn, input: TurnInput, policy: Policy): Violatio
   // (sin importar mayúsculas, tildes ni puntuación): una frase parecida o inventada no alcanza.
   const approved = words(policy.closingText);
   const saysClosing = turn.bubbles.some((b) => words(b).includes(approved));
-  const completes = missingRequired(card).length > 0 && missingRequired(after).length === 0;
+  const completes = stillQualifying(card) && missingRequired(after).length === 0;
   if (completes && !saysClosing) {
     v.push({ rule: 'closing', detail: `la ficha quedó completa: un globo tiene que decir "${policy.closingText}" tal cual` });
   }

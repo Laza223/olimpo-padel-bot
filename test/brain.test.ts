@@ -95,7 +95,7 @@ test('input: contexto con hora, saludo, primer mensaje, ficha, faltantes, cierre
   assert.match(inp, /primer_mensaje_del_bot: sí/);
   assert.match(inp, /nombre = Pedro/);
   assert.match(inp, /localidad = Pilar/);
-  assert.match(inp, /datos_que_faltan: provincia, cantidad_canchas, modelo, platea, ubicacion/);
+  assert.match(inp, /datos_que_faltan: provincia, cantidad_canchas, modelo, platea$/m);
   assert.ok(inp.includes(policy.closingText));
   assert.match(inp, /mensajes_nuevos_del_cliente: m1/);
   const later = buildInput(turnInput(hist, ['m4']), policy);

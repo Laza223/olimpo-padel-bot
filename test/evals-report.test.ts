@@ -152,7 +152,7 @@ test('evals/out no se sube a git', () => {
 test('resumen de consola: corridas, reglas que fallan, conversaciones con fallas, costos y ruta del reporte', () => {
   const text = consoleSummary(output(), join('evals', 'out', 'X'));
   assert.match(text, /^Banco de pruebas · gpt-6-luna low · 2 corrida\(s\) · 4 conversación\(es\) · 4 turno\(s\)/);
-  assert.match(text, /corrida 1: críticas 0 · reintento 0\.0 % · seguros 0\.0 % · juez 5\.00 \(mín 5\.00\) · p95 1\.0 s · bot USD 0\.0100 por conversación · PASA/);
+  assert.match(text, /corrida 1: críticas 0 · reintento 0\.0 % · seguros 0\.0 % · un globo 100\.0 % · juez 5\.00 \(mín 5\.00\) · p95 1\.0 s · bot USD 0\.0100 por conversación · PASA/);
   assert.match(text, /corrida 2: críticas 2 .* · NO PASA\n {4}NO PASA Fallas críticas: 2 \(límite 0\)\n {4}NO PASA Turnos con reintento: 50\.0 %/);
   assert.match(text, /falla: b-escenario \(corrida 2\)\n {4}- juez: invento_dato\n {4}- espera derivacion/);
   assert.match(text, /vara: NO PASA\ncostos: bot USD .* · cliente simulado USD 0\.0010 · juez USD .* · total USD /);

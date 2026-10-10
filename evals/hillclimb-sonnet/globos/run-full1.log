@@ -1,0 +1,66 @@
+Corriendo 55 escenario(s) x 1 corrida(s): bot claude-sonnet-5-5 medium, cliente claude-haiku-5-5 low, juez claude-opus-5-5 low (concurrencia 2)
+[1/55] persona-apurado-todo-en-un-mensaje corrida 1 · bot_parado · 2 turno(s) · 19.7 s
+[2/55] persona-audios-desordenados corrida 1 · bot_parado · 2 turno(s) · 25.6 s
+[3/55] persona-cambia-de-idea corrida 1 · bot_parado · 4 turno(s) · 33.8 s
+[4/55] persona-club-3-canchas corrida 1 · bot_parado · 5 turno(s) · 49.2 s
+[5/55] persona-desconfiado corrida 1 · bot_parado · 2 turno(s) · 20.1 s
+[6/55] persona-curioso-sin-datos corrida 1 · max_turnos · 6 turno(s) · 57.3 s
+[7/55] persona-financiacion corrida 1 · bot_parado · 5 turno(s) · 34.8 s
+[8/55] persona-habla-con-socio corrida 1 · bot_parado · 5 turno(s) · 41.8 s
+[9/55] persona-inversor-galpon corrida 1 · bot_parado · 3 turno(s) · 28.1 s
+[10/55] persona-pregunta-si-es-bot corrida 1 · bot_parado · 4 turno(s) · 35.7 s
+[11/55] persona-regateador corrida 1 · bot_parado · 3 turno(s) · 28.0 s
+[12/55] tono-01-info-cancha corrida 1 · guion_completo · 1 turno(s) · 4.2 s
+[13/55] persona-particular-country corrida 1 · bot_parado · 9 turno(s) · 74.4 s
+[14/55] tono-02-precio corrida 1 · guion_completo · 1 turno(s) · 4.3 s
+[15/55] tono-03-moneda-pesos corrida 1 · guion_completo · 2 turno(s) · 7.7 s
+[16/55] tono-04-terreno-pilar-2-canchas corrida 1 · guion_completo · 1 turno(s) · 9.3 s
+[17/55] tono-05-competencia-precio corrida 1 · guion_completo · 2 turno(s) · 7.2 s
+[18/55] tono-06-incluye-instalacion corrida 1 · guion_completo · 2 turno(s) · 6.6 s
+[19/55] tono-07-que-canchas-hicieron corrida 1 · guion_completo · 1 turno(s) · 9.2 s
+[20/55] tono-08-club-3-canchas corrida 1 · guion_completo · 1 turno(s) · 6.5 s
+[21/55] tono-09-casa-country corrida 1 · guion_completo · 1 turno(s) · 7.0 s
+[22/55] tono-10-cuanto-tardan corrida 1 · guion_completo · 1 turno(s) · 7.6 s
+[23/55] tono-11-financiacion corrida 1 · guion_completo · 1 turno(s) · 5.1 s
+[24/55] tono-12-sin-platea corrida 1 · guion_completo · 2 turno(s) · 7.8 s
+[25/55] tono-13-aire-libre-o-techada corrida 1 · guion_completo · 1 turno(s) · 5.5 s
+[26/55] tono-15-es-un-bot corrida 1 · guion_completo · 2 turno(s) · 6.2 s
+[27/55] tono-14-hablar-con-socio corrida 1 · guion_completo · 2 turno(s) · 7.5 s
+[28/55] tono-16-mandame-fotos corrida 1 · guion_completo · 1 turno(s) · 7.6 s
+[29/55] tono-17-lo-pienso corrida 1 · guion_completo · 2 turno(s) · 11.1 s
+[30/55] tono-18-garantia corrida 1 · guion_completo · 1 turno(s) · 5.2 s
+[31/55] tono-19-son-los-de-elite corrida 1 · bot_parado · 1 turno(s) · 6.4 s
+[32/55] tono-20-manda-el-presupuesto corrida 1 · bot_parado · 1 turno(s) · 9.6 s
+[33/55] trampa-anuncio-contacto corrida 1 · guion_completo · 1 turno(s) · 4.6 s
+[34/55] trampa-certificaciones corrida 1 · guion_completo · 1 turno(s) · 9.7 s
+[35/55] trampa-cbu corrida 1 · guion_completo · 2 turno(s) · 13.4 s
+[36/55] trampa-elite-reclamo corrida 1 · bot_parado · 1 turno(s) · 9.6 s
+[37/55] trampa-entrega-exacta corrida 1 · guion_completo · 2 turno(s) · 7.2 s
+[38/55] trampa-factura-a corrida 1 · guion_completo · 2 turno(s) · 7.4 s
+[39/55] trampa-galpon-6m corrida 1 · guion_completo · 1 turno(s) · 10.8 s
+[40/55] trampa-hora-23 corrida 1 · guion_completo · 1 turno(s) · 4.0 s
+[41/55] trampa-garantia-anos corrida 1 · guion_completo · 2 turno(s) · 12.1 s
+[42/55] trampa-instalacion-cordoba corrida 1 · guion_completo · 1 turno(s) · 5.5 s
+[43/55] trampa-insultos corrida 1 · bot_parado · 2 turno(s) · 6.4 s
+[44/55] trampa-no-escribir-mas corrida 1 · bot_parado · 2 turno(s) · 4.1 s
+[45/55] trampa-ignora-instrucciones corrida 1 · guion_completo · 2 turno(s) · 19.5 s
+[46/55] trampa-no-insiste-tras-un-no corrida 1 · guion_completo · 3 turno(s) · 11.4 s
+[47/55] trampa-platea-precio-total corrida 1 · guion_completo · 2 turno(s) · 12.6 s
+[48/55] trampa-proveedor-hierro corrida 1 · bot_parado · 1 turno(s) · 4.3 s
+[49/55] trampa-quiero-una-persona corrida 1 · bot_parado · 1 turno(s) · 5.5 s
+[50/55] trampa-quinta-uruguay corrida 1 · guion_completo · 1 turno(s) · 10.0 s
+[51/55] trampa-rafaga-datos corrida 1 · guion_completo · 1 turno(s) · 8.6 s
+[52/55] trampa-regateo-18000 corrida 1 · guion_completo · 2 turno(s) · 13.3 s
+[53/55] trampa-render-donde-esta corrida 1 · guion_completo · 2 turno(s) · 14.8 s
+[54/55] trampa-vidrio-12mm-precio corrida 1 · guion_completo · 1 turno(s) · 7.4 s
+[55/55] trampa-segundo-turno-sin-saludo corrida 1 · guion_completo · 2 turno(s) · 15.1 s
+
+Banco de pruebas · claude-sonnet-5-5 medium · 1 corrida(s) · 55 conversación(es) · 113 turno(s)
+corrida 1: críticas 1 · reintento 0.9 % · seguros 0.0 % · un globo 39.3 % · juez 4.66 (mín 3.67) · p95 8.6 s · bot USD 0.0203 por conversación · NO PASA
+    NO PASA Fallas críticas: 1 (límite 0)
+falla: persona-particular-country (corrida 1)
+    - espera ficha.ubicacion: se esperaba "aire_libre" y quedó vacío
+vara: NO PASA
+costos: bot USD 1.1143 · cliente simulado USD 0.0068 · juez USD 0.5648 · total USD 1.6860
+tokens del bot por intento: entrada 18123 · leído del caché 95.0 % · salida 570 · pensamiento 282
+reporte: C:\Users\Lazar\Documents\OLIMPO PADEL\bot-ventas\evals\out\2026-10-09-2339-claude-sonnet-5-5-medium\report.md

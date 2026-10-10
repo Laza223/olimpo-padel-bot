@@ -12,6 +12,7 @@ export interface RunMetrics {
   failedConversations: number; // conversaciones con al menos una falla crítica
   retryRate: number; // 0 a 1
   fallbackRate: number; // 0 a 1
+  singleBubbleRate: number | null; // 0 a 1: turnos con un solo globo, sobre los que mandaron texto (informativo, no entra en la vara)
   judged: number; // conversaciones con veredicto
   judgeAvg: number | null; // promedio de los promedios por conversación
   judgeMin: number | null; // la peor conversación (promedio de sus 6 criterios)
@@ -51,6 +52,7 @@ export function computeMetrics(results: ConversationResult[]): RunMetrics {
   const attempts = turns.flatMap((t) => t.attempts);
   const retriedTurns = turns.filter((t) => t.attempts.length > 1).length;
   const fallbackTurns = turns.filter((t) => t.usedFallback).length;
+  const spoke = turns.filter((t) => t.bubbles.length > 0);
   const failures = results.map((r) => criticalFailures(r).length);
   const averages = results.flatMap((r) => (r.judge ? [judgeAverage(r.judge)] : []));
   const total = (k: 'bot' | 'customer' | 'judge') => results.reduce((sum, r) => sum + r.cost[k], 0);
@@ -70,6 +72,7 @@ export function computeMetrics(results: ConversationResult[]): RunMetrics {
     failedConversations: failures.filter((f) => f > 0).length,
     retryRate: turns.length ? retriedTurns / turns.length : 0,
     fallbackRate: turns.length ? fallbackTurns / turns.length : 0,
+    singleBubbleRate: spoke.length ? spoke.filter((t) => t.bubbles.length === 1).length / spoke.length : null,
     judged: averages.length,
     judgeAvg: averages.length ? averages.reduce((a, b) => a + b, 0) / averages.length : null,
     judgeMin: averages.length ? Math.min(...averages) : null,

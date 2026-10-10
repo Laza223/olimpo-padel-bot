@@ -457,3 +457,15 @@ Imagen `ghcr.io/ggml-org/whisper.cpp:main-d1be6fde…` (v1.9.5, sin tags de vers
 - **Gasto total del esfuerzo Sonnet: USD 14,0** de los 30 de tope (sin contar los ~3,9 de las pruebas de la mañana).
 
 | 34 | sonnet-release-verifier, gate de cierre | **GO.** `pnpm verify` dio 817/0/2 skipped (Whisper real); golden de Sol OK; sin secretos trackeados; el banco final corrió sobre el código integrado (a3cecb2) con jueza Opus. Advertencias: (1) entre la final roja y la verde se tocaron 5 regex de escenarios, por falsos positivos probados, y eso hay que avisarlo; (2) `.env.example` y `docs/operacion.md` no documentaban Sonnet + medium (resuelto); (3) faltaba commitear y pushear | 50k |
+
+## Ajustes de la prueba en vivo (9-oct, noche): ubicación y cantidad de globos
+
+Pedido de Lazar al ver el borrador #8: que no pregunte "techada o aire libre" (lo habla él en la visita técnica; no le conviene empujar techados) y que no mande siempre 2 mensajes.
+- `ubicacion` sale de los obligatorios (types.ts, olimpo.yaml) y del orden de preguntas; se sigue anotando si el cliente la dice. Prompt de Claude: "por defecto un globo" y ejemplos con un globo. Métrica nueva informativa: % de turnos con un globo.
+- Fichas que se completan solas por el cambio (todo menos la ubicación): `stillQualifying` hace que el próximo turno las cierre y avise al equipo, en vez de quedar en listo sin aviso.
+
+| # | Delegación | Resultado |
+|---|---|---|
+| 35 | sonnet-adversarial-reviewer, diff de ubicación y globos | APROBADO CON RESERVAS: 🟡 fichas completas de golpe quedaban sin aviso al equipo (arreglado con `stillQualifying` + test); 🟡 "lo ve el equipo en la visita" en el prompt no está en la política (sacado). |
+
+- Banco ×1, Sonnet medium, jueza Opus (`evals/out/2026-10-09-2339-…`): 1 crítica, que era la expectativa vieja de `persona-particular-country` (esperaba la ubicación en la ficha; quitada). Reintentos 0,9 %, seguros 0 %, **un globo 39,3 %** (antes casi 0), juez 4,66 (mín 3,67), p95 8,6 s, bot USD 0,020 por conversación. Ningún globo pregunta por techado. Gasto: USD 1,69 (esfuerzo Sonnet: USD 15,7 de 30).

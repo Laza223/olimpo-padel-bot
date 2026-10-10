@@ -136,6 +136,12 @@ export function missingRequired(card: LeadCard): LeadField[] {
   return REQUIRED_FIELDS.filter((f) => !card.fields[f] || (f === 'platea' && card.fields.platea?.value === 'no_tiene'));
 }
 
+// Todavía no pasó al equipo. Una ficha completa que sigue en calificando es la que se completó sola porque cambió la lista de
+// obligatorios (9-oct: la ubicación dejó de serlo): el próximo turno la cierra como si el cliente acabara de dar el último dato.
+export function stillQualifying(card: LeadCard): boolean {
+  return missingRequired(card).length > 0 || card.state === 'calificando';
+}
+
 // derivado, descartado, baja y no_es_cliente los pone runTurn.
 export function computeState(card: LeadCard): LeadState {
   if (Object.keys(card.fields).length === 0) return 'nuevo';
