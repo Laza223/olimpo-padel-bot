@@ -174,6 +174,30 @@ Es una página que sirve el mismo bot: **http://127.0.0.1:8080/crm** (solo desde
 
 **Arriba:** prender/apagar el bot y el modo sombra (estos dos sí avisan al grupo de Telegram), el estado de WhatsApp y el gasto de hoy. **Salir** cierra la sesión; reiniciar el bot también.
 
+### El presupuesto (el creador, adentro del CRM)
+
+Es el mismo creador de presupuestos de siempre, con la misma pantalla y el mismo PDF, pero sin abrir otro programa.
+
+- **Desde un chat:** en la ficha aparece **Armar presupuesto**, o **Ver presupuesto** si ya armaste uno para ese chat. Se abre precargado con lo que juntó el bot:
+  - Cliente, teléfono y localidad.
+  - El título ("PROYECTO 2 CANCHAS FULL PANORÁMICAS").
+  - Las canchas con su precio. La Full Panorámica va **en oferta**: el PDF muestra la franja "OFERTA" y el precio de lista tachado.
+  - La platea, si quiere que la hagamos.
+  - **Instalación y Logística sin precio.** Al lado tenés la referencia interna; el número lo ponés vos.
+  - Si pidió vidrio de 12 mm o un color especial, también aparecen sin precio.
+  - Mientras haya un renglón sin precio, no deja exportar ni mandar. Completalo, o sacalo si no va.
+- **Desde "Presupuestos"** (arriba): el creador sin chat, para armar uno a mano como antes. El historial está a la izquierda.
+- **Ver PDF** muestra la hoja tal cual va a salir. **Exportar PDF** la baja a la compu.
+- **Enviar por WhatsApp** (solo si el presupuesto es de un chat):
+  - Pregunta antes de mandar.
+  - Arma el PDF y lo manda por el mismo chat, con el texto "Te paso el presupuesto.".
+  - El chat pasa a **Presupuestados**, igual que [Presupuesto mandado].
+  - En el chat se ve como *Equipo · Documento*, y en la ficha dice si está **en la cola**, **salió** (con la hora) o **no salió**.
+  - Con el bot apagado queda en la cola y sale cuando lo prendas. Si en 24 h no salió, se vence y te avisa: mandalo de nuevo.
+  - Tocarlo dos veces no lo manda dos veces.
+- Mandarlo de nuevo (por ejemplo, corregido) es otro envío. El chat no se mueve de la etapa en la que esté.
+- Los PDF que se mandaron quedan en `data/presupuestos/`. Los que no salieron se borran solos a la semana.
+
 ## 4. Qué pasa si la notebook se duerme o se cierra
 
 - **Mientras está dormida o apagada, el bot no contesta.** Los mensajes que llegan al número quedan en WhatsApp y se ven en el celular de siempre.

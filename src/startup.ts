@@ -11,7 +11,7 @@ import {
 import type { Db } from './db.ts';
 import { sendAlert } from './notify/alert.ts';
 import type { Notifier } from './notify/types.ts';
-import { outboxText } from './outbox.ts';
+import { echoMatches, outboxMedia } from './outbox.ts';
 import { ensureBotStart, getBotStart, getNum, getState, setState } from './settings.ts';
 
 const SKEW_MS = 5 * 60_000; // margen entre el reloj de WhatsApp y el nuestro, y entre el último chequeo y el apagado real
@@ -91,11 +91,11 @@ export function createRecovery(deps: RecoveryDeps): Recovery {
     tx(db, () => {
       for (const m of fresh) {
         if (m.fromMe) {
-          // Un mensaje propio puede ser el del bot que quedó incierto al apagarse (se acepta) o uno que escribió el equipo.
-          const row = outboxByProviderId(db, m.providerMsgId) ?? outboxEchoCandidates(db, chatId, since).find((r) => outboxText(r) === m.text);
+          // Un mensaje propio puede ser uno de la cola que quedó incierto al apagarse (se acepta, con su autor) o uno que escribió el equipo.
+          const row = outboxByProviderId(db, m.providerMsgId) ?? outboxEchoCandidates(db, chatId, since).find((r) => echoMatches(r, m));
           if (row) {
             markOutbox(db, row.id, 'aceptado', { providerMsgId: m.providerMsgId });
-            insertMessage(db, { session: sessionOf, providerMsgId: m.providerMsgId, chatId, author: 'bot', text: m.text, tsUtcMs: m.tsUtcMs, media: row.kind === 'image' ? 'image' : undefined });
+            insertMessage(db, { session: sessionOf, providerMsgId: m.providerMsgId, chatId, author: row.author, text: m.text, tsUtcMs: m.tsUtcMs, media: outboxMedia(row) });
             advanceAnswered(db, chatId, row.answersUpto);
           } else {
             insertMessage(db, { session: sessionOf, providerMsgId: m.providerMsgId, chatId, author: 'team', text: m.text, tsUtcMs: m.tsUtcMs });

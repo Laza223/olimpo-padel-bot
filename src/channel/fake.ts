@@ -5,16 +5,17 @@ import { ChannelError, MediaUnreadableError } from './types.ts';
 
 export interface SentMessage {
   chatId: string;
-  kind: 'text' | 'image';
-  text: string; // el texto, o la leyenda de la imagen ('' si no tiene)
+  kind: 'text' | 'image' | 'file';
+  text: string; // el texto, o la leyenda de la imagen o el archivo ('' si no tiene)
   filePath?: string;
+  filename?: string; // el nombre con el que llega el archivo
   providerMsgId: string;
   tsUtcMs: number;
 }
 
 export class FakeChannel implements Channel {
   sent: SentMessage[] = []; // lo que WAHA efectivamente mandó
-  sendCalls = 0; // llamadas a sendText/sendImage (incluidas las que fallaron)
+  sendCalls = 0; // llamadas a sendText/sendImage/sendFile (incluidas las que fallaron)
   seen: { chatId: string; ids: string[] }[] = [];
   typingLog: { chatId: string; on: boolean }[] = [];
   status = 'WORKING';
@@ -46,7 +47,8 @@ export class FakeChannel implements Channel {
   }
   // El evento que WAHA mandaría como eco de un envío propio.
   echoOf(m: SentMessage, source: 'api' | 'app' | 'unknown' = 'api'): InboundEvent {
-    return { kind: 'own_message', session: 'default', chatId: m.chatId, providerMsgId: m.providerMsgId, tsUtcMs: m.tsUtcMs, text: m.text, source };
+    const media = m.kind === 'image' ? 'image' : m.kind === 'file' ? 'document' : undefined;
+    return { kind: 'own_message', session: 'default', chatId: m.chatId, providerMsgId: m.providerMsgId, tsUtcMs: m.tsUtcMs, text: m.text, source, ...(media ? { media } : {}) };
   }
 
   parseEvent(raw: unknown): InboundEvent {
@@ -54,14 +56,14 @@ export class FakeChannel implements Channel {
     return typeof inbound === 'object' && inbound !== null && typeof (inbound as { kind?: unknown }).kind === 'string' ? (inbound as InboundEvent) : { kind: 'ignored', reason: 'fake_unknown' };
   }
 
-  async #send(chatId: string, kind: 'text' | 'image', text: string, filePath?: string): Promise<{ providerMsgId: string }> {
+  async #send(chatId: string, kind: 'text' | 'image' | 'file', text: string, filePath?: string, filename?: string): Promise<{ providerMsgId: string }> {
     await Promise.resolve();
     this.sendCalls++;
     const failure = this.#failures.shift();
     if (failure && !failure.delivered) throw failure.error;
-    const m: SentMessage = { chatId, kind, text, filePath, providerMsgId: `true_${chatId}_FAKE${++this.#n}`, tsUtcMs: this.#now() };
+    const m: SentMessage = { chatId, kind, text, filePath, ...(filename ? { filename } : {}), providerMsgId: `true_${chatId}_FAKE${++this.#n}`, tsUtcMs: this.#now() };
     this.sent.push(m);
-    this.addHistory(chatId, { providerMsgId: m.providerMsgId, fromMe: true, tsUtcMs: m.tsUtcMs, text });
+    this.addHistory(chatId, { providerMsgId: m.providerMsgId, fromMe: true, tsUtcMs: m.tsUtcMs, text, ...(kind === 'file' ? { media: 'document' as const } : {}) });
     this.#echoHook?.(m);
     if (failure) throw failure.error;
     return { providerMsgId: m.providerMsgId };
@@ -72,6 +74,9 @@ export class FakeChannel implements Channel {
   }
   sendImage(chatId: string, filePath: string, caption?: string) {
     return this.#send(chatId, 'image', caption ?? '', filePath);
+  }
+  sendFile(chatId: string, filePath: string, opts: { filename: string; caption?: string }) {
+    return this.#send(chatId, 'file', opts.caption ?? '', filePath, opts.filename);
   }
   async markSeen(chatId: string, providerMsgIds: string[]): Promise<void> {
     this.seen.push({ chatId, ids: providerMsgIds });

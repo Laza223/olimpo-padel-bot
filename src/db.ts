@@ -157,8 +157,54 @@ UPDATE conversations SET
   WHERE conversations.chat_id = l.chat_id AND conversations.stage IS NULL AND conversations.mode IN ('humano','cerrado');
 `;
 
+// La cola de salida también lleva lo que manda el equipo desde el CRM (el PDF del presupuesto): tipo `file` y autor. El CHECK de `kind` no se cambia con
+// ALTER en SQLite: se rearma la tabla conservando ids y datos, y se recrean sus índices. Todo lo anterior es del bot.
+const SCHEMA_V7 = `
+CREATE TABLE outbox_v7 (
+  id INTEGER PRIMARY KEY,
+  logical_key TEXT NOT NULL UNIQUE,         -- chat:versión:índice (bot) o team:presupuesto:<id>:<n> (equipo)
+  chat_id TEXT NOT NULL,
+  kind TEXT NOT NULL CHECK (kind IN ('text','image','file')),
+  body TEXT NOT NULL,                       -- texto; JSON {file, caption} si es imagen; JSON {file, filename, caption} si es archivo
+  status TEXT NOT NULL DEFAULT 'pendiente' CHECK (status IN ('pendiente','en_proceso','aceptado','incierto','fallido','cancelado','vencido')),
+  attempt INTEGER NOT NULL DEFAULT 0,
+  expires_utc INTEGER NOT NULL,
+  provider_msg_id TEXT,
+  cause TEXT,
+  context_version INTEGER NOT NULL,
+  created_utc INTEGER NOT NULL,
+  attempted_utc INTEGER,
+  next_try_utc INTEGER,
+  ack TEXT,
+  answers_upto INTEGER NOT NULL DEFAULT 0,  -- último mensaje del cliente que contesta esta respuesta
+  typing_until_utc INTEGER,
+  author TEXT NOT NULL DEFAULT 'bot' CHECK (author IN ('bot','team')) -- 'team': lo mandó el equipo; ni la toma humana ni un mensaje nuevo lo cancelan
+);
+INSERT INTO outbox_v7 (id, logical_key, chat_id, kind, body, status, attempt, expires_utc, provider_msg_id, cause, context_version, created_utc, attempted_utc, next_try_utc, ack, answers_upto, typing_until_utc)
+  SELECT id, logical_key, chat_id, kind, body, status, attempt, expires_utc, provider_msg_id, cause, context_version, created_utc, attempted_utc, next_try_utc, ack, answers_upto, typing_until_utc FROM outbox;
+DROP TABLE outbox;
+ALTER TABLE outbox_v7 RENAME TO outbox;
+CREATE INDEX outbox_chat ON outbox (chat_id, id);
+CREATE INDEX outbox_provider ON outbox (provider_msg_id);
+`;
+
+// Presupuestos del CRM (el creador de presupuestos, sin Electron). `data_json` es el presupuesto tal cual lo arma el creador (ya normalizado por el servidor).
+// Sin REFERENCES: un presupuesto puede no tener chat (se armó desde "Presupuestos"). Aceptado/rechazado son del creador y no tocan la etapa del CRM.
+const SCHEMA_V8 = `
+CREATE TABLE quotes (
+  id TEXT PRIMARY KEY,                      -- uuid que pone el servidor
+  chat_id TEXT,
+  data_json TEXT NOT NULL,
+  estado TEXT NOT NULL DEFAULT 'borrador' CHECK (estado IN ('borrador','enviado','aceptado','rechazado')),
+  created_utc INTEGER NOT NULL,
+  updated_utc INTEGER NOT NULL,
+  sent_utc INTEGER                          -- última vez que se mandó por WhatsApp o se bajó el PDF
+);
+CREATE INDEX quotes_chat ON quotes (chat_id, updated_utc);
+`;
+
 // Una entrada por versión del esquema: se corren las que faltan (PRAGMA user_version). Idempotente.
-export const MIGRATIONS = [SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6];
+export const MIGRATIONS = [SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6, SCHEMA_V7, SCHEMA_V8];
 
 export function migrate(db: Db): void {
   const current = (db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version;
@@ -398,11 +444,14 @@ export const pendingInboundCount = (db: Db): number => one<{ n: number }>(db, "S
 
 // ---------- Salida (outbox) ----------
 export type OutboxStatus = 'pendiente' | 'en_proceso' | 'aceptado' | 'incierto' | 'fallido' | 'cancelado' | 'vencido';
+export type OutboxKind = 'text' | 'image' | 'file';
+export type OutboxAuthor = 'bot' | 'team';
 export interface OutboxRow {
   id: number;
   logicalKey: string;
   chatId: string;
-  kind: 'text' | 'image';
+  kind: OutboxKind;
+  author: OutboxAuthor;
   body: string;
   status: OutboxStatus;
   attempt: number;
@@ -418,20 +467,20 @@ export interface OutboxRow {
   typingUntilUtc: number | null;
 }
 interface OutboxDbRow {
-  id: number; logical_key: string; chat_id: string; kind: 'text' | 'image'; body: string; status: OutboxStatus; attempt: number; expires_utc: number;
+  id: number; logical_key: string; chat_id: string; kind: OutboxKind; author: OutboxAuthor; body: string; status: OutboxStatus; attempt: number; expires_utc: number;
   provider_msg_id: string | null; cause: string | null; context_version: number; created_utc: number; attempted_utc: number | null; next_try_utc: number | null;
   ack: string | null; answers_upto: number; typing_until_utc: number | null;
 }
 const toOutbox = (r: OutboxDbRow): OutboxRow => ({
-  id: r.id, logicalKey: r.logical_key, chatId: r.chat_id, kind: r.kind, body: r.body, status: r.status, attempt: r.attempt, expiresUtc: r.expires_utc,
+  id: r.id, logicalKey: r.logical_key, chatId: r.chat_id, kind: r.kind, author: r.author, body: r.body, status: r.status, attempt: r.attempt, expiresUtc: r.expires_utc,
   providerMsgId: r.provider_msg_id, cause: r.cause, contextVersion: r.context_version, createdUtc: r.created_utc, attemptedUtc: r.attempted_utc,
   nextTryUtc: r.next_try_utc, ack: r.ack, answersUpto: r.answers_upto, typingUntilUtc: r.typing_until_utc,
 });
 
 // La clave lógica es única: encolar dos veces la misma respuesta no duplica nada (devuelve false). `nextTryUtc`: no sale antes de esa hora.
-export function insertOutbox(db: Db, o: { logicalKey: string; chatId: string; kind: 'text' | 'image'; body: string; expiresUtc: number; contextVersion: number; createdUtc: number; answersUpto: number; nextTryUtc?: number }): boolean {
-  return run(db, 'INSERT INTO outbox (logical_key, chat_id, kind, body, expires_utc, context_version, created_utc, answers_upto, next_try_utc) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (logical_key) DO NOTHING',
-    o.logicalKey, o.chatId, o.kind, o.body, o.expiresUtc, o.contextVersion, o.createdUtc, o.answersUpto, o.nextTryUtc ?? null).changes > 0;
+export function insertOutbox(db: Db, o: { logicalKey: string; chatId: string; kind: OutboxKind; author?: OutboxAuthor; body: string; expiresUtc: number; contextVersion: number; createdUtc: number; answersUpto: number; nextTryUtc?: number }): boolean {
+  return run(db, 'INSERT INTO outbox (logical_key, chat_id, kind, author, body, expires_utc, context_version, created_utc, answers_upto, next_try_utc) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (logical_key) DO NOTHING',
+    o.logicalKey, o.chatId, o.kind, o.author ?? 'bot', o.body, o.expiresUtc, o.contextVersion, o.createdUtc, o.answersUpto, o.nextTryUtc ?? null).changes > 0;
 }
 export const getOutbox = (db: Db, id: number): OutboxRow | undefined => {
   const r = one<OutboxDbRow>(db, 'SELECT * FROM outbox WHERE id = ?', id);
@@ -443,9 +492,10 @@ export const outboxByProviderId = (db: Db, providerMsgId: string): OutboxRow | u
   const r = one<OutboxDbRow>(db, 'SELECT * FROM outbox WHERE provider_msg_id = ?', providerMsgId);
   return r && toOutbox(r);
 };
-// ¿Ya hay una respuesta para esta versión del contexto? Evita volver a gastar en lo mismo. Lo cancelado o vencido no cuenta: ese contexto sigue sin respuesta.
+// ¿Ya hay una respuesta del bot para esta versión del contexto? Evita volver a gastar en lo mismo. Lo cancelado o vencido no cuenta: ese contexto sigue sin respuesta.
+// Lo que mandó el equipo (el presupuesto) no es una respuesta del bot: tras "Devolver al bot", el bot igual contesta.
 export const outboxHasVersion = (db: Db, chatId: string, version: number): boolean =>
-  !!one(db, "SELECT 1 AS x FROM outbox WHERE chat_id = ? AND context_version = ? AND status NOT IN ('cancelado','vencido') LIMIT 1", chatId, version);
+  !!one(db, "SELECT 1 AS x FROM outbox WHERE chat_id = ? AND context_version = ? AND author = 'bot' AND status NOT IN ('cancelado','vencido') LIMIT 1", chatId, version);
 
 // El próximo a mandar: el más viejo pendiente de cada chat, siempre que antes no haya otro en proceso o incierto (el orden de los globos se respeta).
 export function nextPendingOutbox(db: Db, nowMs: number): OutboxRow | undefined {
@@ -458,11 +508,13 @@ export function nextPendingOutbox(db: Db, nowMs: number): OutboxRow | undefined 
 }
 // Por qué una fila de salida ya no vale: el cliente escribió de nuevo (versión vieja), el chat dejó de ser del bot o alguien la marcó al cancelar mientras iba en vuelo.
 // Un chat en humano con la versión al día NO es viejo: es el mensaje que cierra el chat (baja, mensaje seguro), que se manda igual.
+// Lo del equipo no envejece: lo decidió una persona mirando el chat, y el chat ya es del equipo.
 function outboxStaleCause(db: Db, id: number): string | undefined {
-  const r = one<{ cause: string | null; ov: number; mode: ConversationMode | null; cv: number | null }>(db,
-    'SELECT o.cause, o.context_version AS ov, c.mode, c.context_version AS cv FROM outbox o LEFT JOIN conversations c ON c.chat_id = o.chat_id WHERE o.id = ?', id);
+  const r = one<{ cause: string | null; author: OutboxAuthor; ov: number; mode: ConversationMode | null; cv: number | null }>(db,
+    'SELECT o.cause, o.author, o.context_version AS ov, c.mode, c.context_version AS cv FROM outbox o LEFT JOIN conversations c ON c.chat_id = o.chat_id WHERE o.id = ?', id);
   if (!r) return undefined;
   if (r.cause?.startsWith(CANCEL_MARK)) return r.cause.slice(CANCEL_MARK.length);
+  if (r.author === 'team') return undefined;
   if (r.mode === 'pausado' || r.mode === 'cerrado') return 'humano';
   if (r.cv !== null && r.cv !== r.ov) return r.mode === 'humano' ? 'humano' : 'contexto_nuevo';
   return undefined;
@@ -492,18 +544,20 @@ export function markOutbox(db: Db, id: number, status: OutboxStatus, patch: { pr
 export const setOutboxTyping = (db: Db, id: number, untilMs: number): void =>
   void run(db, "UPDATE outbox SET typing_until_utc = ?, next_try_utc = ? WHERE id = ? AND status = 'pendiente'", untilMs, untilMs, id);
 export const setOutboxAck =(db: Db, id: number, ack: string): void => void run(db, 'UPDATE outbox SET ack = ? WHERE id = ?', ack, id);
-// Vence lo pendiente que pasó su hora y devuelve los chats afectados (para avisar y regenerar).
-export function expireOutbox(db: Db, nowMs: number): string[] {
-  const chats = all<{ chat_id: string }>(db, "SELECT DISTINCT chat_id FROM outbox WHERE status = 'pendiente' AND expires_utc <= ?", nowMs).map((r) => r.chat_id);
+// Vence lo pendiente que pasó su hora y devuelve los chats afectados por autor: lo del bot se avisa y se regenera; lo del equipo, solo se avisa.
+export function expireOutbox(db: Db, nowMs: number): { chatId: string; author: OutboxAuthor }[] {
+  const chats = all<{ chat_id: string; author: OutboxAuthor }>(db, "SELECT DISTINCT chat_id, author FROM outbox WHERE status = 'pendiente' AND expires_utc <= ? ORDER BY chat_id, author", nowMs)
+    .map((r) => ({ chatId: r.chat_id, author: r.author }));
   if (chats.length) run(db, "UPDATE outbox SET status = 'vencido', cause = 'vencido' WHERE status = 'pendiente' AND expires_utc <= ?", nowMs);
   return chats;
 }
 // Lo pendiente del chat se cancela (toma humana, mensaje nuevo del cliente, falla de un globo anterior). `olderThanVersion`: solo lo de versiones anteriores.
 // Lo que ya va en vuelo (en_proceso) no se puede frenar: queda marcado y, si el envío falla pasajero, no vuelve a la cola.
-export function cancelChatOutbox(db: Db, chatId: string, cause: string, olderThanVersion?: number): number {
+// Solo toca lo de `author` (por defecto, lo del bot): ni la toma humana ni un mensaje nuevo cancelan lo que mandó el equipo.
+export function cancelChatOutbox(db: Db, chatId: string, cause: string, olderThanVersion?: number, author: OutboxAuthor = 'bot'): number {
   const below = olderThanVersion ?? Number.MAX_SAFE_INTEGER;
-  run(db, "UPDATE outbox SET cause = ? WHERE chat_id = ? AND status = 'en_proceso' AND context_version < ?", CANCEL_MARK + cause, chatId, below);
-  return run(db, "UPDATE outbox SET status = 'cancelado', cause = ?, next_try_utc = NULL WHERE chat_id = ? AND status = 'pendiente' AND context_version < ?", cause, chatId, below).changes as number;
+  run(db, "UPDATE outbox SET cause = ? WHERE chat_id = ? AND author = ? AND status = 'en_proceso' AND context_version < ?", CANCEL_MARK + cause, chatId, author, below);
+  return run(db, "UPDATE outbox SET status = 'cancelado', cause = ?, next_try_utc = NULL WHERE chat_id = ? AND author = ? AND status = 'pendiente' AND context_version < ?", cause, chatId, author, below).changes as number;
 }
 // Al prender: lo que estaba en_proceso cuando murió el proceso pudo haber salido o no. Pasa a incierto y se concilia con el historial: nunca se reenvía a ciegas.
 export const recoverOutbox = (db: Db, nowMs: number): number =>
@@ -520,6 +574,48 @@ export const nextOutboxWake = (db: Db): number | undefined =>
   one<{ t: number | null }>(db, "SELECT MIN(next_try_utc) AS t FROM outbox WHERE status IN ('pendiente','incierto') AND next_try_utc IS NOT NULL")?.t ?? undefined;
 export const outboxCounts = (db: Db): Record<string, number> =>
   Object.fromEntries(all<{ status: string; n: number }>(db, 'SELECT status, COUNT(*) AS n FROM outbox GROUP BY status').map((r) => [r.status, r.n]));
+
+// ---------- Presupuestos (CRM) ----------
+export type QuoteState = 'borrador' | 'enviado' | 'aceptado' | 'rechazado';
+export const QUOTE_STATES: readonly QuoteState[] = ['borrador', 'enviado', 'aceptado', 'rechazado'];
+export interface QuoteRow {
+  id: string;
+  chatId: string | null;
+  dataJson: string;
+  estado: QuoteState;
+  createdUtc: number;
+  updatedUtc: number;
+  sentUtc: number | null;
+}
+interface QuoteDbRow { id: string; chat_id: string | null; data_json: string; estado: QuoteState; created_utc: number; updated_utc: number; sent_utc: number | null }
+const toQuote = (r: QuoteDbRow): QuoteRow => ({ id: r.id, chatId: r.chat_id, dataJson: r.data_json, estado: r.estado, createdUtc: r.created_utc, updatedUtc: r.updated_utc, sentUtc: r.sent_utc });
+export const insertQuote = (db: Db, q: { id: string; chatId: string | null; dataJson: string; nowMs: number; estado?: QuoteState }): void =>
+  void run(db, 'INSERT INTO quotes (id, chat_id, data_json, estado, created_utc, updated_utc) VALUES (?, ?, ?, ?, ?, ?)', q.id, q.chatId, q.dataJson, q.estado ?? 'borrador', q.nowMs, q.nowMs);
+export const updateQuoteData = (db: Db, id: string, dataJson: string, nowMs: number): boolean =>
+  run(db, 'UPDATE quotes SET data_json = ?, updated_utc = ? WHERE id = ?', dataJson, nowMs, id).changes > 0;
+export const setQuoteState = (db: Db, id: string, estado: QuoteState, nowMs: number): boolean =>
+  run(db, 'UPDATE quotes SET estado = ?, updated_utc = ? WHERE id = ?', estado, nowMs, id).changes > 0;
+export const markQuoteSent = (db: Db, id: string, nowMs: number): void =>
+  void run(db, "UPDATE quotes SET estado = CASE WHEN estado = 'borrador' THEN 'enviado' ELSE estado END, sent_utc = ?, updated_utc = ? WHERE id = ?", nowMs, nowMs, id);
+export const deleteQuote = (db: Db, id: string): boolean => run(db, 'DELETE FROM quotes WHERE id = ?', id).changes > 0;
+export const getQuote = (db: Db, id: string): QuoteRow | undefined => {
+  const r = one<QuoteDbRow>(db, 'SELECT * FROM quotes WHERE id = ?', id);
+  return r && toQuote(r);
+};
+export const listQuotes = (db: Db): QuoteRow[] => all<QuoteDbRow>(db, 'SELECT * FROM quotes ORDER BY created_utc DESC, rowid DESC').map(toQuote);
+// El presupuesto más reciente del chat (el que abre "Ver presupuesto").
+export const latestQuoteOfChat = (db: Db, chatId: string): QuoteRow | undefined => {
+  const r = one<QuoteDbRow>(db, 'SELECT * FROM quotes WHERE chat_id = ? ORDER BY updated_utc DESC, rowid DESC LIMIT 1', chatId);
+  return r && toQuote(r);
+};
+// Cómo va el último envío por WhatsApp de un presupuesto (las filas de la cola son `team:presupuesto:<id>:<n>`).
+export function quoteSendRows(db: Db, quoteId: string): OutboxRow[] {
+  return all<OutboxDbRow>(db, "SELECT * FROM outbox WHERE author = 'team' AND substr(logical_key, 1, ?) = ? ORDER BY id", `team:presupuesto:${quoteId}:`.length, `team:presupuesto:${quoteId}:`).map(toOutbox);
+}
+
+// ¿Hay un presupuesto (de cualquier presupuesto) en camino a este chat? Dos presupuestos a la vez al mismo cliente no salen.
+export const teamQuoteInFlight = (db: Db, chatId: string): boolean =>
+  !!one(db, "SELECT 1 AS x FROM outbox WHERE chat_id = ? AND author = 'team' AND substr(logical_key, 1, 17) = 'team:presupuesto:' AND status IN ('pendiente','en_proceso','incierto') LIMIT 1", chatId);
 
 // ---------- Borradores (modo sombra) ----------
 export type DraftStatus = 'pendiente' | 'mandado' | 'descartado' | 'vencido';

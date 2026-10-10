@@ -2,7 +2,7 @@
 // Regla de oro: un envío incierto (timeout o 5xx después de enviar) NUNCA se reintenta a ciegas: se concilia con el historial de WAHA.
 import { fileURLToPath } from 'node:url';
 import type { Asset } from './policy.ts';
-import type { Channel, HistoryMessage } from './channel/types.ts';
+import type { Channel, HistoryMessage, MediaKind } from './channel/types.ts';
 import { ChannelError } from './channel/types.ts';
 import type { Clock } from './clock.ts';
 import {
@@ -84,8 +84,29 @@ export interface Outbox {
 }
 
 const imageOf = (row: OutboxRow): { file: string; caption?: string } => JSON.parse(row.body) as { file: string; caption?: string };
-// El texto con el que se reconoce el mensaje en el historial de WAHA.
-export const outboxText = (row: OutboxRow): string => (row.kind === 'text' ? row.body : (imageOf(row).caption ?? ''));
+const fileOf = (row: OutboxRow): { file: string; filename: string; caption?: string } => JSON.parse(row.body) as { file: string; filename: string; caption?: string };
+// El texto con el que se reconoce el mensaje en el historial de WAHA (y el que queda en el chat).
+export const outboxText = (row: OutboxRow): string => (row.kind === 'text' ? row.body : row.kind === 'image' ? (imageOf(row).caption ?? '') : (fileOf(row).caption ?? ''));
+// Cómo queda guardado en el chat: imagen o documento.
+export const outboxMedia = (row: OutboxRow): MediaKind | undefined => (row.kind === 'image' ? 'image' : row.kind === 'file' ? 'document' : undefined);
+// Cómo se nombra en los avisos.
+const whatOf = (row: OutboxRow): string => (row.author === 'team' ? (row.kind === 'file' ? 'el presupuesto' : 'un mensaje del equipo') : 'un mensaje del bot');
+
+// ¿Este mensaje propio (eco o historial) puede ser esta fila? Cuando todavía no tenemos el id de WAHA, se compara el contenido.
+// Lo que alguien escribió desde el celular (`source: 'app'`) nunca es de la cola; un texto vacío no reconoce nada; un archivo se reconoce por la leyenda o por su nombre.
+export function echoMatches(row: OutboxRow, m: { text: string; media?: MediaKind; source?: 'api' | 'app' | 'unknown' }): boolean {
+  if (m.source === 'app') return false;
+  switch (row.kind) {
+    case 'text':
+      return row.body !== '' && m.text === row.body;
+    case 'image':
+      return (m.media === undefined || m.media === 'image') && m.text === (imageOf(row).caption ?? '');
+    case 'file': {
+      const f = fileOf(row);
+      return (m.media === undefined || m.media === 'document') && ((!!f.caption && m.text === f.caption) || m.text === f.filename);
+    }
+  }
+}
 
 export function createOutbox(deps: OutboxDeps): Outbox {
   const { db, channel, notifier, clock } = deps;
@@ -101,10 +122,14 @@ export function createOutbox(deps: OutboxDeps): Outbox {
   const safe = async (p: Promise<unknown>): Promise<void> => void (await p.catch(() => undefined));
 
   // Lo que venció sin mandar no se pierde en silencio: queda en la auditoría y avisa una vez por chat. Si el chat sigue siendo del bot, sube la versión
-  // (la clave de salida es única por versión) y se regenera; si no, lo ve el equipo.
+  // (la clave de salida es única por versión) y se regenera; si no, lo ve el equipo. Lo que mandó el equipo solo avisa: nunca regenera un turno del bot.
   async function expire(): Promise<void> {
-    for (const chatId of expireOutbox(db, clock.now())) {
+    for (const { chatId, author } of expireOutbox(db, clock.now())) {
       const label = chatLabel(db, chatId);
+      if (author === 'team') {
+        await sendAlert(db, notifier, clock, `No salió el presupuesto de ${label}: se venció en la cola sin mandarse. Revisalo y mandalo de nuevo desde el CRM.`, { chatId });
+        continue;
+      }
       if (getConversation(db, chatId)?.mode !== 'auto') {
         await sendAlert(db, notifier, clock, `Se venció una respuesta sin mandar en ${label} (el chat no está con el bot): revisalo vos.`, { chatId });
         continue;
@@ -117,7 +142,7 @@ export function createOutbox(deps: OutboxDeps): Outbox {
 
   function fail(row: OutboxRow, cause: string): void {
     markOutbox(db, row.id, 'fallido', { cause });
-    cancelChatOutbox(db, row.chatId, 'anterior_fallo'); // si un globo no salió, el resto de esa respuesta tampoco
+    cancelChatOutbox(db, row.chatId, 'anterior_fallo', undefined, row.author); // si un globo no salió, el resto de esa respuesta tampoco (lo del otro autor sigue)
     audit(db, clock.now(), row.chatId, 'error', `salida ${row.logicalKey} fallida: ${cause}`);
   }
 
@@ -126,7 +151,7 @@ export function createOutbox(deps: OutboxDeps): Outbox {
     tx(db, () => {
       markOutbox(db, row.id, 'aceptado', { providerMsgId });
       const conv = getConversation(db, row.chatId);
-      insertMessage(db, { session: conv?.session ?? 'default', providerMsgId, chatId: row.chatId, author: 'bot', text: outboxText(row), tsUtcMs: nowMs, media: row.kind === 'image' ? 'image' : undefined });
+      insertMessage(db, { session: conv?.session ?? 'default', providerMsgId, chatId: row.chatId, author: row.author, text: outboxText(row), tsUtcMs: nowMs, media: outboxMedia(row) });
       advanceAnswered(db, row.chatId, row.answersUpto); // recién cuando sale queda contestado lo que contesta
     });
   }
@@ -140,13 +165,13 @@ export function createOutbox(deps: OutboxDeps): Outbox {
     let found: HistoryMessage | undefined;
     try {
       const msgs = await channel.messagesSince(row.chatId, attemptedAt - RECONCILE_SKEW_MS, 50);
-      found = msgs.find((m) => m.fromMe && m.text === outboxText(row) && !attributed(row, m));
+      found = msgs.find((m) => m.fromMe && echoMatches(row, m) && !attributed(row, m));
       if (getOutbox(db, row.id)?.status !== 'incierto') return; // mientras se miraba el historial llegó el eco: ya está resuelto
     } catch {
       if (getOutbox(db, row.id)?.status !== 'incierto') return;
       if (clock.now() - attemptedAt >= RECONCILE_GIVE_UP_MS) {
         fail(row, 'no_confirmado');
-        await alert(`Chat ${chatLabel(db, row.chatId)}: no pude confirmar si salió un mensaje del bot (WAHA no deja ver el historial). Revisalo a mano en el celular antes de reenviar nada.`, true);
+        await alert(`Chat ${chatLabel(db, row.chatId)}: no pude confirmar si salió ${whatOf(row)} (WAHA no deja ver el historial). Revisalo a mano en el celular antes de reenviar nada.`, true);
       } else {
         markOutbox(db, row.id, 'incierto', { nextTryUtc: clock.now() + RECONCILE_RETRY_MS });
       }
@@ -154,7 +179,7 @@ export function createOutbox(deps: OutboxDeps): Outbox {
     }
     if (found) return accept(row, found.providerMsgId);
     fail(row, 'no_confirmado');
-    await alert(`Chat ${chatLabel(db, row.chatId)}: un mensaje del bot quedó con resultado incierto y no aparece en el historial. Revisalo a mano en el celular: el bot no lo reintenta.`, true);
+    await alert(`Chat ${chatLabel(db, row.chatId)}: ${whatOf(row)} quedó con resultado incierto y no aparece en el historial. Revisalo a mano en el celular: el bot no lo reintenta.`, true);
   }
 
   async function handleFailure(sent: OutboxRow, err: ChannelError): Promise<void> {
@@ -212,7 +237,20 @@ export function createOutbox(deps: OutboxDeps): Outbox {
       if (!claimOutbox(db, row.id, clock.now())) return; // se canceló o venció mientras "escribía"
       const claimed = getOutbox(db, row.id)!;
       try {
-        const r = isText ? await channel.sendText(row.chatId, row.body) : await channel.sendImage(row.chatId, imageOf(row).file, imageOf(row).caption);
+        let r: { providerMsgId: string };
+        switch (claimed.kind) {
+          case 'text':
+            r = await channel.sendText(row.chatId, row.body);
+            break;
+          case 'image':
+            r = await channel.sendImage(row.chatId, imageOf(row).file, imageOf(row).caption);
+            break;
+          case 'file': {
+            const f = fileOf(row);
+            r = await channel.sendFile(row.chatId, f.file, { filename: f.filename, caption: f.caption });
+            break;
+          }
+        }
         accept(claimed, r.providerMsgId);
       } catch (e) {
         await handleFailure(claimed, e instanceof ChannelError ? e : new ChannelError('uncertain', undefined, e instanceof Error ? e.message : String(e)));

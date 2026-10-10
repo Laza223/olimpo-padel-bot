@@ -10,7 +10,7 @@ export interface MediaFile {
 
 export type InboundEvent =
   | { kind: 'message'; session: string; chatId: string; providerMsgId: string; tsUtcMs: number; text: string; media?: MediaKind; mediaFile?: MediaFile; profileName?: string }
-  | { kind: 'own_message'; session: string; chatId: string; providerMsgId: string; tsUtcMs: number; text: string; source: 'api' | 'app' | 'unknown' } // fromMe
+  | { kind: 'own_message'; session: string; chatId: string; providerMsgId: string; tsUtcMs: number; text: string; source: 'api' | 'app' | 'unknown'; media?: MediaKind } // fromMe
   | { kind: 'edit'; session: string; chatId: string; providerMsgId: string; text: string }
   | { kind: 'revoke'; session: string; chatId: string; providerMsgId: string }
   | { kind: 'ack'; providerMsgId: string; status: 'pending' | 'sent' | 'delivered' | 'read' | 'failed' }
@@ -60,6 +60,7 @@ export interface Channel {
   parseEvent(raw: unknown): InboundEvent; // nunca tira: lo que no entiende es 'ignored'
   sendText(chatId: string, text: string): Promise<{ providerMsgId: string }>;
   sendImage(chatId: string, filePath: string, caption?: string): Promise<{ providerMsgId: string }>;
+  sendFile(chatId: string, filePath: string, opts: { filename: string; caption?: string }): Promise<{ providerMsgId: string }>; // un PDF que manda el equipo (el presupuesto)
   markSeen(chatId: string, providerMsgIds: string[]): Promise<void>; // si falla, no afecta la respuesta
   typing(chatId: string, on: boolean): Promise<void>; // ídem; siempre se apaga en un finally
   sessionStatus(): Promise<string>; // WORKING | SCAN_QR_CODE | STARTING | FAILED | STOPPED

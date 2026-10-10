@@ -73,7 +73,11 @@ function parseMessage(session: string, m: unknown): InboundEvent {
   const text = bodyOf(m);
   const media = mediaKind(type, m.hasMedia === true);
   if (!text.trim() && !media) return ignored('empty');
-  if (fromMe) return { kind: 'own_message', session, chatId, providerMsgId: id, tsUtcMs, text, source: m.source === 'api' ? 'api' : m.source === 'app' ? 'app' : 'unknown' };
+  if (fromMe) {
+    const own: Extract<InboundEvent, { kind: 'own_message' }> = { kind: 'own_message', session, chatId, providerMsgId: id, tsUtcMs, text, source: m.source === 'api' ? 'api' : m.source === 'app' ? 'app' : 'unknown' };
+    if (media) own.media = media; // para reconocer el eco de una imagen o un documento propio
+    return own;
+  }
   const ev: Extract<InboundEvent, { kind: 'message' }> = { kind: 'message', session, chatId, providerMsgId: id, tsUtcMs, text };
   if (media) ev.media = media;
   if (media === 'audio') ev.mediaFile = mediaFileOf(m);
@@ -170,6 +174,8 @@ function httpError(status: number, body: string): ChannelError {
 
 const MAX_MEDIA_BYTES = 16 * 1024 * 1024; // un audio de WhatsApp pesa unos KB: más que esto no es un audio de cliente
 const MIME: Record<string, string> = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp', '.gif': 'image/gif' };
+const MAX_FILE_BYTES = 10 * 1024 * 1024; // un presupuesto pesa ~0,5 MB; más que esto es un error nuestro, no se manda
+const SEND_FILE_TIMEOUT_MS = 60_000; // subir un archivo tarda más que un texto
 
 export interface WahaOptions {
   baseUrl: string;
@@ -246,6 +252,20 @@ export class WahaChannel implements Channel {
     }
     const file = { mimetype, filename: basename(filePath), data: data.toString('base64') };
     return this.#idOf(await this.#request('POST', '/api/sendImage', { session: this.#session, chatId, file, ...(caption ? { caption } : {}) }));
+  }
+
+  // Solo PDF (el presupuesto). Un archivo que no se puede leer o es demasiado grande no salió: se puede reintentar (y, al tercero, avisa).
+  async sendFile(chatId: string, filePath: string, opts: { filename: string; caption?: string }) {
+    if (extname(filePath).toLowerCase() !== '.pdf') throw new ChannelError('transient', undefined, `tipo de archivo no soportado: ${basename(filePath)}`);
+    let data: Buffer;
+    try {
+      data = await readFile(filePath);
+    } catch {
+      throw new ChannelError('transient', undefined, `no pude leer el archivo ${basename(filePath)}`);
+    }
+    if (data.length > MAX_FILE_BYTES) throw new ChannelError('transient', undefined, `el archivo ${basename(filePath)} pasa de 10 MB`);
+    const file = { mimetype: 'application/pdf', filename: opts.filename, data: data.toString('base64') };
+    return this.#idOf(await this.#request('POST', '/api/sendFile', { session: this.#session, chatId, file, ...(opts.caption ? { caption: opts.caption } : {}) }, SEND_FILE_TIMEOUT_MS));
   }
 
   async markSeen(chatId: string, providerMsgIds: string[]): Promise<void> {

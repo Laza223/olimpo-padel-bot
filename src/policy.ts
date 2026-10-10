@@ -5,6 +5,7 @@ import { parse } from 'yaml';
 import { REQUIRED_FIELDS } from './types.ts';
 import type { LeadField } from './types.ts';
 import type { SupervisorPolicy } from './supervisor/index.ts';
+import type { QuoteHints, QuotePrices } from './crm/quote.ts';
 import { GREETINGS, greetingFor } from './time.ts';
 
 export interface Asset {
@@ -26,6 +27,8 @@ export interface Policy {
   audioIlegibleText: string; // lo que se manda (sin llamar al modelo) la primera vez que un audio del cliente no se puede escuchar (audio_ilegible.texto)
   minHeightM: number; // altura libre mínima bajo techo (producto.altura_libre_minima_m.valor)
   greetingRules: { greetings: readonly string[]; primerMensaje: string };
+  quotePrices: QuotePrices; // los precios aprobados que precarga el presupuesto del CRM
+  quoteHints: QuoteHints; // referencias internas (instalación, flete): solo ayuda al lado del campo, nunca precio precargado
   hash: string; // sha256 de los 3 archivos: cambia si cambia cualquiera
 }
 
@@ -62,6 +65,14 @@ export function loadPolicy(dir: URL = DEFAULT_DIR): Policy {
     if (typeof p?.usd !== 'number') throw new Error(`olimpo.yaml: falta el precio aprobado ${id}`);
     return p.usd;
   };
+  const interno = y?.interno ?? {};
+  const usd = (n: number) => `USD ${new Intl.NumberFormat('es-AR').format(n)}`;
+  const range = (x: unknown) => (typeof x === 'string' && /^\d+-\d+$/.test(x) ? x.split('-').map((n) => usd(Number(n))).join('–') : undefined);
+  const flete = [range(interno.flete_bsas_usd) && `BsAs ${range(interno.flete_bsas_usd)}`, range(interno.flete_interior_usd) && `interior ${range(interno.flete_interior_usd)}`].filter(Boolean).join(' · ');
+  const quoteHints: QuoteHints = {
+    ...(typeof interno.instalacion_usd_por_cancha === 'number' ? { instalacion: `Referencia interna: ${usd(interno.instalacion_usd_por_cancha)} por cancha` } : {}),
+    ...(flete ? { logistica: `Referencia interna: ${flete}` } : {}),
+  };
   const hash = createHash('sha256').update(yamlText).update('\0').update(toneText).update('\0').update(assetsText).digest('hex');
 
   return {
@@ -75,6 +86,8 @@ export function loadPolicy(dir: URL = DEFAULT_DIR): Policy {
     audioIlegibleText,
     minHeightM,
     greetingRules: { greetings: GREETINGS, primerMensaje: typeof primerMensaje === 'string' ? primerMensaje : '' },
+    quotePrices: { fullPromo: priceOf('full_panoramica_promo'), fullLista: priceOf('full_panoramica_lista'), panoramica: priceOf('panoramica'), platea: priceOf('platea_hormigon') },
+    quoteHints,
     hash,
   };
 }

@@ -1,7 +1,7 @@
 // Lo que el equipo le hace al bot: lo usan Telegram y el CRM, así los dos hacen exactamente lo mismo (cola de salida, versiones de contexto, auditoría).
 // Cada acción devuelve un resultado; el texto lo arma cada pantalla (Telegram habla de comandos, el CRM de botones).
 import type { Clock } from './clock.ts';
-import { audit, getConversation, getDraft, setDraftStatus, setMode, setStage, switchToHuman, tx } from './db.ts';
+import { audit, getConversation, getDraft, getQuote, insertOutbox, markQuoteSent, quoteSendRows, setDraftStatus, setMode, setStage, switchToHuman, teamQuoteInFlight, tx } from './db.ts';
 import type { Conversation, Db, DraftStatus, Stage } from './db.ts';
 import { approveDraft } from './outbox.ts';
 import type { Asset } from './policy.ts';
@@ -46,17 +46,52 @@ export function giveBack(ctx: ActionContext, conv: Conversation, who: string, vi
 // si estaba sin etapa o en A presupuestar (no lo hace retroceder desde Seguimiento, Cliente…), y queda en manos del equipo.
 // Un segundo toque no pisa la hora; salvo que el chat haya vuelto a A presupuestar o al bot: ahí es un presupuesto nuevo.
 export function quoteSent(ctx: ActionContext, conv: Conversation, who: string): { status: 'anotado' | 'ya_estaba'; atUtc: number } {
+  return tx(ctx.db, () => quoteSentCore(ctx, conv, who, ctx.clock.now()));
+}
+// El cuerpo de quoteSent sin transacción propia (las de SQLite no se anidan): lo usa también sendQuote dentro de la suya.
+function quoteSentCore(ctx: ActionContext, conv: Conversation, who: string, now: number): { status: 'anotado' | 'ya_estaba'; atUtc: number } {
   const key = `quote_sent_utc.${conv.chatId}`;
   const before = getState(ctx.db, key);
   if (before && conv.stage !== null && conv.stage !== 'a_presupuestar') return { status: 'ya_estaba', atUtc: Number(before) };
-  const now = ctx.clock.now();
-  tx(ctx.db, () => {
-    setState(ctx.db, key, String(now));
-    if (conv.mode !== 'humano') switchToHuman(ctx.db, conv.chatId, now, `presupuesto mandado (${who})`);
-    if (conv.stage === null || conv.stage === 'a_presupuestar') setStage(ctx.db, conv.chatId, 'presupuestado', now);
-    audit(ctx.db, now, conv.chatId, 'command', `presupuesto_mandado (${who})`);
-  });
+  setState(ctx.db, key, String(now));
+  if (conv.mode !== 'humano') switchToHuman(ctx.db, conv.chatId, now, `presupuesto mandado (${who})`);
+  if (conv.stage === null || conv.stage === 'a_presupuestar') setStage(ctx.db, conv.chatId, 'presupuestado', now);
+  audit(ctx.db, now, conv.chatId, 'command', `presupuesto_mandado (${who})`);
   return { status: 'anotado', atUtc: now };
+}
+
+// Lo que dice el mensaje que lleva el PDF (decisión de Lazar, 10-oct). También es lo que reconoce el eco.
+export const QUOTE_CAPTION = 'Te paso el presupuesto.';
+const QUOTE_SEND_EXPIRY_MS = 24 * 3_600_000; // si en 24 h no salió (bot apagado, WhatsApp caído), vence y avisa: no sale un presupuesto viejo sin que nadie lo mire
+
+// "Enviar por WhatsApp" del CRM: el PDF (ya armado en `pdf.path`) entra a la cola como mensaje del equipo y el chat queda como con [Presupuesto mandado]
+// (pasa a Presupuestados si no estaba más adelante). El chat queda SIEMPRE con el equipo: el bot no sigue conversando después de un presupuesto mandado a mano.
+// Todo en una transacción: o queda todo anotado, o nada. Mientras haya un presupuesto en camino a ese chat, otro no entra: 'ya_en_camino'.
+export function sendQuote(ctx: ActionContext, quoteId: string, pdf: { path: string; filename: string }, who: string):
+  { status: 'en_cola'; quote: 'anotado' | 'ya_estaba' } | { status: 'ya_en_camino' | 'sin_chat' | 'no_existe' } {
+  const r = tx(ctx.db, () => {
+    const q = getQuote(ctx.db, quoteId);
+    if (!q) return { status: 'no_existe' as const };
+    const conv = q.chatId ? getConversation(ctx.db, q.chatId) : undefined;
+    if (!conv) return { status: 'sin_chat' as const };
+    if (teamQuoteInFlight(ctx.db, conv.chatId)) return { status: 'ya_en_camino' as const };
+    const rows = quoteSendRows(ctx.db, quoteId);
+    const now = ctx.clock.now();
+    const quote = quoteSentCore(ctx, conv, who, now).status;
+    if (quote === 'ya_estaba') {
+      if (conv.mode !== 'humano') switchToHuman(ctx.db, conv.chatId, now, `presupuesto mandado desde el CRM (${who})`);
+      audit(ctx.db, now, conv.chatId, 'command', `presupuesto_mandado de nuevo (${who})`);
+    }
+    insertOutbox(ctx.db, {
+      logicalKey: `team:presupuesto:${quoteId}:${rows.length + 1}`, chatId: conv.chatId, kind: 'file', author: 'team',
+      body: JSON.stringify({ file: pdf.path, filename: pdf.filename, caption: QUOTE_CAPTION }),
+      expiresUtc: now + QUOTE_SEND_EXPIRY_MS, contextVersion: getConversation(ctx.db, conv.chatId)!.contextVersion, createdUtc: now, answersUpto: 0,
+    });
+    markQuoteSent(ctx.db, quoteId, now);
+    return { status: 'en_cola' as const, quote };
+  });
+  if (r.status === 'en_cola') ctx.controls().kickOutbox();
+  return r;
 }
 
 // Mover de etapa a mano. Poner una etapa pasa el chat al equipo si no estaba en humano (también si estaba pausado: así la vuelta de las 00:00 no lo devuelve al bot).

@@ -205,6 +205,10 @@ test('historial en criollo: las acciones con quién las hizo; los errores intern
   assert.equal(historyText('alert', 'chat pausado: tope de gasto del día'), 'Pausado: tope de gasto del día');
   assert.equal(historyText('error', 'turno: 429 You exceeded your current quota, please check your plan and billing details.'), 'El bot tuvo un error y no contestó');
   assert.equal(historyText('error', 'salida 5491155550001@c.us:3:0 fallida: wa_error 500'), 'No salió un mensaje del bot');
+  assert.equal(historyText('error', 'salida team:presupuesto:3f2a:1 fallida: restricted'), 'No salió el presupuesto');
+  assert.equal(historyText('error', 'salida team:presupuesto:3f2a:1 fallida: no_confirmado'), 'El presupuesto quedó sin confirmar: revisalo en el celular antes de reenviar');
+  assert.equal(historyText('alert', 'Chat #3: WhatsApp informó que el presupuesto no se pudo entregar. Revisalo en el celular.'), 'WhatsApp no pudo entregar el presupuesto: revisalo en el celular');
+  assert.equal(historyText('alert', 'No salió el presupuesto de #3 (Pedro): se venció en la cola sin mandarse. Revisalo y mandalo de nuevo desde el CRM.'), 'No salió el presupuesto: se venció en la cola. Mandalo de nuevo');
   assert.equal(historyText('error', 'salida 5491155550001@c.us:3:0 fallida: no_confirmado'), 'Un mensaje del bot quedó sin confirmar: revisalo en el celular antes de reenviar');
   assert.equal(historyText('alert', 'Chat #3 (Pedro): el cliente mandó una foto y el bot no lo lee (solo lee audios y texto). Mirá el chat.'), 'Mandó una foto: el bot no lo lee, miralo vos');
   assert.equal(historyText('alert', 'Chat #3: WhatsApp informó que un mensaje del bot no se pudo entregar. Revisalo en el celular.'), 'WhatsApp no pudo entregar un mensaje del bot: revisalo en el celular');

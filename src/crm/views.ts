@@ -119,6 +119,7 @@ export function statusFragment(v: AppView): Html {
   return html`<a class="logo" href="/crm/"><img src="/crm/static/logo.png" alt="Olimpo Padel" width="84" height="24"></a>
 ${toggle(v, 'Bot', s.botOn, s.botOn ? 'apagar' : 'prender', s.botOn ? 'Prendido: atiende a los clientes. Tocá para apagarlo.' : 'Apagado: no contesta ni manda nada. Tocá para prenderlo.')}
 ${toggle(v, 'Modo sombra', s.shadow, s.shadow ? 'sombra_off' : 'sombra_on', s.shadow ? 'Prendido: el bot arma borradores y no le escribe a nadie hasta que los mandes vos. Tocá para apagarlo.' : 'Apagado: el bot le escribe directo a los clientes. Tocá para prenderlo.')}
+<a class="btn btn-barra" href="/crm/presupuestos">Presupuestos</a>
 <p class="wa ${s.whatsappOk ? 'ok' : 'mal'}"><span class="punto" aria-hidden="true"></span>WhatsApp: ${s.whatsapp}</p>
 <p class="gasto">Gasto de hoy <b>USD ${usd(s.spentTodayUsd)}</b> de ${usd(s.budgetUsd)}</p>
 <form class="salir" method="post" action="/crm/salir"><button type="submit" class="btn btn-barra">Salir</button></form>`;
@@ -245,6 +246,15 @@ function actionBlock(v: AppView, c: ChatDetail): Html | '' {
 
 const block = (title: string, body: Html): Html => html`<section class="bloque"><h3>${title}</h3>${body}</section>`;
 
+// El presupuesto del chat: ver el último o armar uno. Navegación normal (crm.js no intercepta estos enlaces).
+function quoteBlock(c: ChatDetail): Html {
+  const href = `/crm/presupuestos?chat=${c.item.n}`;
+  const q = c.quote;
+  return block('Presupuesto', q
+    ? html`<p>Estado: ${q.estado}</p>${q.envio ? html`<p class="suave">${q.envio.texto}</p>` : ''}<a class="btn btn-secondary btn-presu" href="${href}">Ver presupuesto</a>`
+    : html`<a class="btn btn-secondary btn-presu" href="${href}">Armar presupuesto</a>`);
+}
+
 function panel(v: AppView, c: ChatDetail, where: 'd' | 'm'): Html {
   const it = c.item;
   const fields: [string, Html | string][] = c.fields.map((f) => [f.label, html`${f.value}${f.deduced ? html` <small class="deducida">deducida</small>` : ''}`]);
@@ -256,6 +266,7 @@ function panel(v: AppView, c: ChatDetail, where: 'd' | 'm'): Html {
 <label class="motivo">Motivo, si se perdió o se descarta<select name="reason"><option value="">Sin motivo</option>${LOST_REASONS.map((r) => html`<option value="${r}">${r}</option>`)}</select></label>
 <button type="submit" name="a" value="etapa" class="btn btn-secondary">Mover</button>
 </form></section>
+${quoteBlock(c)}
 ${c.handoffLabel ? block('Por qué pasó al equipo', html`<p>${c.handoffLabel}</p>`) : ''}
 ${c.quoteSentLabel ? html`<section class="bloque"><p>${c.quoteSentLabel}</p></section>` : ''}
 ${c.lostReason ? block(it.stage === 'descartado' ? 'Por qué se descartó' : 'Por qué se perdió', html`<p>${c.lostReason}</p>`) : ''}

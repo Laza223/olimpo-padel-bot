@@ -11,7 +11,7 @@ import {
 import type { Db, OutboxRow } from './db.ts';
 import { safeNotify, sendAlert } from './notify/alert.ts';
 import type { Notifier } from './notify/types.ts';
-import { outboxText } from './outbox.ts';
+import { echoMatches, outboxMedia } from './outbox.ts';
 import { ensureBotStart, getBotStart, getNum, setState } from './settings.ts';
 
 const LOCK_MS = 120_000; // si el proceso muere con un evento tomado, a los 2 min se recupera
@@ -117,7 +117,7 @@ export function createIngest(deps: IngestDeps): Ingest {
     const wasFailed = row.status === 'fallido';
     tx(db, () => {
       markOutbox(db, row.id, 'aceptado', { providerMsgId: e.providerMsgId });
-      insertMessage(db, { session: e.session, providerMsgId: e.providerMsgId, chatId: e.chatId, author: 'bot', text: e.text, tsUtcMs: e.tsUtcMs, media: row.kind === 'image' ? 'image' : undefined });
+      insertMessage(db, { session: e.session, providerMsgId: e.providerMsgId, chatId: e.chatId, author: row.author, text: e.text, tsUtcMs: e.tsUtcMs, media: outboxMedia(row) });
       advanceAnswered(db, row.chatId, row.answersUpto);
     });
     return wasFailed;
@@ -125,8 +125,8 @@ export function createIngest(deps: IngestDeps): Ingest {
 
   async function onOwn(e: Extract<InboundEvent, { kind: 'own_message' }>): Promise<void> {
     const now = clock.now();
-    // 1) Eco del bot por id; 2) por texto, si el id todavía no volvió (el eco llegó antes que la respuesta) o se perdió la respuesta.
-    const row = outboxByProviderId(db, e.providerMsgId) ?? outboxEchoCandidates(db, e.chatId, now - LATE_ECHO_MS).find((r) => outboxText(r) === e.text);
+    // 1) Eco de la cola (bot o presupuesto del equipo) por id; 2) por contenido, si el id todavía no volvió (el eco llegó antes que la respuesta) o se perdió la respuesta.
+    const row = outboxByProviderId(db, e.providerMsgId) ?? outboxEchoCandidates(db, e.chatId, now - LATE_ECHO_MS).find((r) => echoMatches(r, e));
     if (row) {
       if (echo(row, e)) await alert(`Chat ${chatLabel(db, e.chatId)}: el mensaje que figuraba como no confirmado sí salió (llegó el eco). No hace falta reenviarlo.`, { chatId: e.chatId });
       deps.onOutboxChange?.();
@@ -179,8 +179,8 @@ export function createIngest(deps: IngestDeps): Ingest {
     if (e.status !== 'failed') return setOutboxAck(db, row.id, e.status);
     if (row.status !== 'aceptado' && row.status !== 'en_proceso' && row.status !== 'incierto') return;
     markOutbox(db, row.id, 'fallido', { cause: 'ack_failed' });
-    cancelChatOutbox(db, row.chatId, 'anterior_fallo');
-    await alert(`Chat ${chatLabel(db, row.chatId)}: WhatsApp informó que un mensaje del bot no se pudo entregar. Revisalo en el celular.`, { chatId: row.chatId });
+    cancelChatOutbox(db, row.chatId, 'anterior_fallo', undefined, row.author);
+    await alert(`Chat ${chatLabel(db, row.chatId)}: WhatsApp informó que ${row.author === 'team' ? 'el presupuesto' : 'un mensaje del bot'} no se pudo entregar. Revisalo en el celular.`, { chatId: row.chatId });
   }
 
   async function handle(raw: string, lastTry: boolean): Promise<void> {

@@ -1,9 +1,10 @@
 // CRM de demostración: levanta SOLO el CRM en 127.0.0.1:8090 con una base temporal y clientes INVENTADOS (nombres y lugares de ejemplo, nada real).
 // Uso: pnpm crm:demo   (Ctrl+C para cortar: la base temporal se borra)
-import { mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { FakeChannel } from '../src/channel/fake.ts';
 import { systemClock } from '../src/clock.ts';
 import { chatList, dueLabel, promiseDueUtc } from '../src/crm/data.ts';
 import { createCrm } from '../src/crm/server.ts';
@@ -14,6 +15,7 @@ import {
 import type { Db, Stage } from '../src/db.ts';
 import { DEDUCED, emptyCard } from '../src/lead.ts';
 import { createConsoleNotifier } from '../src/notify/telegram.ts';
+import { createOutbox } from '../src/outbox.ts';
 import { loadPolicy } from '../src/policy.ts';
 import { setSetting, setState } from '../src/settings.ts';
 import type { HandoffReason, LeadField, LeadState, Objection, Temperature } from '../src/types.ts';
@@ -375,12 +377,21 @@ for (let j = 0; j < 14; j++) {
 }
 
 // ---------- servidor: solo el CRM ----------
+// La cola de salida es la de verdad, con un WhatsApp de mentira: lo que se "manda" (un presupuesto, un borrador) aparece en el chat y no sale a ningún lado.
+const notifier = createConsoleNotifier(db);
+const outbox = createOutbox({ db, channel: new FakeChannel(), notifier, clock: systemClock });
 const controls = () => ({
   worker: { onCustomerMessage: () => {}, rescan: () => {} },
-  kickOutbox: () => {},
+  kickOutbox: () => outbox.kick(),
   session: { current: () => 'WORKING', qr: async () => ({ data: new Uint8Array(), mimetype: 'image/png' }) },
 });
-const crm = createCrm({ db, clock: systemClock, controls, notifier: createConsoleNotifier(db), assets: policy.assets, closingText: policy.closingText, password: PASSWORD });
+// El PDF lo arma el Chrome de la notebook (o el de CHROMIUM_PATH).
+const WINDOWS_CHROME = 'C:/Program Files/Google/Chrome/Application/chrome.exe';
+const chromiumPath = process.env.CHROMIUM_PATH?.trim() || (existsSync(WINDOWS_CHROME) ? WINDOWS_CHROME : undefined);
+const crm = createCrm({
+  db, clock: systemClock, controls, notifier, assets: policy.assets, closingText: policy.closingText, password: PASSWORD,
+  quotePrices: policy.quotePrices, quoteHints: policy.quoteHints, quoteDir: join(dir, 'presupuestos'), chromiumPath,
+});
 if (crm.disabledReason) throw new Error(crm.disabledReason);
 
 const server = createServer((req, res) => {
@@ -392,5 +403,6 @@ server.listen(PORT, '127.0.0.1', () => {
   console.log('CRM de demostración (clientes inventados, base temporal)');
   console.log(`  Dirección: http://127.0.0.1:${PORT}/crm/`);
   console.log(`  Clave:     ${PASSWORD}`);
+  console.log(`  PDF:       ${chromiumPath ?? 'sin Chrome (CHROMIUM_PATH): "Ver PDF" anda, bajar o mandar el PDF no'}`);
   console.log(`  ${CHATS.length} chats de ejemplo, ${l.counts.ahora} para "Hacer ahora". Ctrl+C para cortar (la base temporal se borra).`);
 });

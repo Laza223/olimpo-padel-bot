@@ -18,6 +18,10 @@ import { botStatus, chatDetail, chatList, isListFilter, loadFacts } from './data
 import type { AppView, ListFilter } from './data.ts';
 import type { Html } from './html.ts';
 import * as views from './views.ts';
+import { createQuoteRoutes } from './quote-routes.ts';
+import type { QuoteHints, QuotePrices } from './quote.ts';
+import { createPdfRenderer } from './quote-render.ts';
+import type { RenderPdf } from './quote-render.ts';
 
 const SESSION_MS = 30 * 86_400_000;
 const COOKIE = 'olimpo_crm';
@@ -36,6 +40,9 @@ const STATIC: Record<string, { file: string; type: string }> = {
   'archivo.woff2': { file: 'archivo-var.woff2', type: 'font/woff2' },
   'logo.png': { file: 'logo-white.png', type: 'image/png' },
   'icono.png': { file: 'favicon-32.png', type: 'image/png' },
+  'presupuesto.css': { file: 'presupuesto.css', type: 'text/css; charset=utf-8' },
+  'presupuesto.js': { file: 'presupuesto.js', type: 'text/javascript; charset=utf-8' },
+  'logo-creador.png': { file: 'logo-creador.png', type: 'image/png' },
 };
 
 const SECURITY_HEADERS = {
@@ -57,6 +64,12 @@ export interface CrmDeps {
   password: string | undefined; // CRM_PASSWORD
   wahaSecrets?: Record<string, string | undefined>; // claves que conoce el contenedor de WAHA (WAHA_API_KEY, WAHA_WEBHOOK_HMAC_SECRET): CRM_PASSWORD no puede ser ninguna
   random?: (bytes: number) => Buffer; // pruebas
+  // Creador de presupuestos (opcionales: sin esto el creador anda, pero sin precios precargados y sin poder armar el PDF).
+  quotePrices?: QuotePrices;
+  quoteHints?: QuoteHints;
+  quoteDir?: string; // donde quedan los PDF que se mandan por WhatsApp (data/presupuestos)
+  chromiumPath?: string; // CHROMIUM_PATH
+  renderPdf?: RenderPdf; // pruebas: un Chromium falso
 }
 
 export interface Crm {
@@ -97,6 +110,9 @@ export function createCrm(d: CrmDeps): Crm {
   let lastFailure = 0;
   let lockedUntil = 0;
   const ctx: ActionContext = { db: d.db, clock: d.clock, controls: d.controls, assets: d.assets, assetsDir: d.assetsDir };
+  const quotes = createQuoteRoutes({
+    ctx, render: d.renderPdf ?? createPdfRenderer({ chromiumPath: d.chromiumPath }), prices: d.quotePrices, hints: d.quoteHints, dir: d.quoteDir ?? 'data/presupuestos',
+  });
 
   const send = (res: ServerResponse, status: number, body: string | Buffer, type = 'text/html; charset=utf-8', extra: Record<string, string> = {}) =>
     void res.writeHead(status, { ...SECURITY_HEADERS, 'Content-Type': type, ...extra }).end(body);
@@ -270,6 +286,7 @@ export function createCrm(d: CrmDeps): Crm {
       return send(res, 401, 'Tenés que entrar con la clave.', 'text/plain; charset=utf-8');
     }
 
+    if (await quotes.handle(req, res, url, send, page)) return;
     if (method === 'GET' && path === '/crm/') return page(res, 200, views.appPage(view(url)));
     if (method === 'GET' && path === '/crm/parcial') {
       const v = view(url);

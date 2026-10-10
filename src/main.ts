@@ -3,6 +3,7 @@
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 import { cleanupTempAudio, createAudio } from './audio.ts';
 import type { AudioDeps } from './audio.ts';
 import { configFromEnv, loadEnv } from './brain.ts';
@@ -132,7 +133,10 @@ export function createApp(o: AppOptions = {}): App {
     onObserve: (status, previous) => recovery.onObserve(status, previous),
   });
   const heartbeat = createHeartbeat({ db, clock, url: cfg.hcUrl, isWorking: () => session.current() === 'WORKING', fetch: o.fetch });
-  const crm = createCrm({ db, clock, controls, notifier, assets: policy.assets, closingText: policy.closingText, password: env.CRM_PASSWORD?.trim(), wahaSecrets: { WAHA_API_KEY: cfg.wahaKey, WAHA_WEBHOOK_HMAC_SECRET: cfg.hmacSecret } });
+  const crm = createCrm({
+    db, clock, controls, notifier, assets: policy.assets, closingText: policy.closingText, password: env.CRM_PASSWORD?.trim(), wahaSecrets: { WAHA_API_KEY: cfg.wahaKey, WAHA_WEBHOOK_HMAC_SECRET: cfg.hmacSecret },
+    quotePrices: policy.quotePrices, quoteHints: policy.quoteHints, quoteDir: join(dirname(o.dbPath ?? DEFAULT_DB), 'presupuestos'), chromiumPath: env.CHROMIUM_PATH?.trim() || undefined,
+  });
   if (crm.disabledReason) log(`[crm] apagado: ${crm.disabledReason}`);
   const server = createHttpServer({
     db, secret: cfg.hmacSecret, clock, crm,

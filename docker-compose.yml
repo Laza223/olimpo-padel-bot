@@ -52,3 +52,4 @@ services:
     depends_on:
       - waha
     stop_grace_period: 20s # al apagar, el bot avisa "me apago" y termina lo que está mandando
+    shm_size: "256mb" # memoria compartida para el Chromium que arma el PDF del presupuesto

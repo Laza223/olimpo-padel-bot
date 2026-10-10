@@ -15,10 +15,10 @@ import { SETTING_DEFAULTS, ensureBotStart, getBotStart, getFlag, getNum, getSett
 const NOW = Date.UTC(2026, 9, 7, 17, 0);
 const msg = (providerMsgId: string, author: 'customer' | 'bot' | 'team', text: string, chatId = 'c1@c.us') => ({ session: 'default', providerMsgId, chatId, author, text, tsUtcMs: NOW });
 
-test('esquema: las 8 tablas del contrato, y migrar de nuevo no rompe ni borra nada', () => {
+test('esquema: las 9 tablas del contrato (V8: presupuestos del CRM), y migrar de nuevo no rompe ni borra nada', () => {
   const db = openDb(':memory:');
   const tables = (db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name").all() as { name: string }[]).map((t) => t.name);
-  assert.deepEqual(tables, ['agent_runs', 'audit', 'conversations', 'drafts', 'inbound_events', 'messages', 'outbox', 'settings']);
+  assert.deepEqual(tables, ['agent_runs', 'audit', 'conversations', 'drafts', 'inbound_events', 'messages', 'outbox', 'quotes', 'settings']);
   createConversation(db, { chatId: 'c1@c.us', session: 'default', mode: 'auto', nowMs: NOW });
   migrate(db);
   migrate(db);

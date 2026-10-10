@@ -42,6 +42,7 @@ Con la sesión fuera de `WORKING`, todos devuelven **422** `{"error":"Session st
 |---|---|---|---|
 | Texto | `POST /api/sendText` | `{ session, chatId, text, linkPreview? }` (`reply_to`, `mentions`, `id` opcionales) | 201 `WAMessage`: `id` es el id del mensaje (`false_<chatId>_<ID>`) |
 | Imagen | `POST /api/sendImage` | `{ session, chatId, caption?, file }`. `file` es **una de dos formas**: `{ mimetype, filename?, url }` o `{ mimetype, filename?, data }` con `data` en base64 | 201, objeto `WAMessage` **SIN VERIFICAR** (el Swagger la declara como `object`) |
+| Archivo (PDF del presupuesto) | `POST /api/sendFile` | `{ session, chatId, caption?, file }`, `file` = `{ mimetype: "application/pdf", filename, data }` (base64) | 201, objeto `WAMessage` **SIN VERIFICAR**. Probado el 10-oct con WEBJS / CORE: no está bloqueado por el plan (contra un número inexistente da el mismo error que `sendText`). Falta la prueba real con un PDF |
 | Visto | `POST /api/sendSeen` | `{ session, chatId, messageIds?: string[] }` | 201 |
 | Escribiendo | `POST /api/startTyping` / `POST /api/stopTyping` | `{ session, chatId }` | 201 |
 

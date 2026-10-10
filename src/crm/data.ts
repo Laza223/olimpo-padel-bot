@@ -1,7 +1,7 @@
 // Lo que muestra el CRM, ya en criollo: la lista de chats (con "Hacer ahora": qué hay que hacer y quién espera más), el chat abierto y la franja del bot.
 // Solo lee. Las consultas van agregadas (una por tipo de dato, no una por chat): la lista se arma en milisegundos aunque haya cientos de chats.
 import type { DatabaseSync } from 'node:sqlite';
-import { getConversationByNumber, listConversations, spentSince } from '../db.ts';
+import { getConversationByNumber, latestQuoteOfChat, listConversations, quoteSendRows, spentSince } from '../db.ts';
 import type { Conversation, Db, Stage } from '../db.ts';
 import { LABELS, REASONS } from '../ficha.ts';
 import { DEDUCED, missingRequired } from '../lead.ts';
@@ -147,7 +147,7 @@ export function loadFacts(db: Db, closingText: string): ChatFacts {
   const discardedDraft = new Set(all<{ chat_id: string }>(db, `
     SELECT d.chat_id FROM drafts d JOIN (SELECT chat_id, MAX(id) AS id FROM drafts GROUP BY chat_id) x ON x.id = d.id
     WHERE d.status = 'descartado' AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.chat_id = d.chat_id AND m.author = 'customer' AND m.id > d.answers_upto)`).map((r) => r.chat_id));
-  const outboxBusy = new Set(all<{ chat_id: string }>(db, "SELECT DISTINCT chat_id FROM outbox WHERE status IN ('pendiente','en_proceso','incierto')").map((r) => r.chat_id));
+  const outboxBusy = new Set(all<{ chat_id: string }>(db, "SELECT DISTINCT chat_id FROM outbox WHERE author = 'bot' AND status IN ('pendiente','en_proceso','incierto')").map((r) => r.chat_id));
   const oldContacts = new Set(all<{ chat_id: string }>(db, "SELECT DISTINCT chat_id FROM audit WHERE kind = 'takeover' AND chat_id IS NOT NULL AND substr(detail, 1, ?) = ?", OLD_CONTACT.length, OLD_CONTACT).map((r) => r.chat_id));
   const promised = new Set(all<{ chat_id: string }>(db, "SELECT DISTINCT chat_id FROM messages WHERE author = 'bot' AND instr(text, ?) > 0", closingText).map((r) => r.chat_id));
   return { firstUnanswered, lastMessage, pendingDraft, discardedDraft, outboxBusy, oldContacts, promised };
@@ -287,6 +287,7 @@ export interface ChatDetail {
   teamNote: string;
   handoffLabel: string | null; // por qué el bot lo pasó al equipo (la última derivación)
   quoteSentLabel: string | null; // "Presupuesto mandado el 6/10 a las 14:03"
+  quote: { id: string; estado: string; envio: QuoteSendStatus | null } | null; // el último presupuesto armado en el CRM para este chat
   lostReason: string | null;
   messages: ChatMessageView[];
   olderHidden: number; // mensajes más viejos que no se muestran
@@ -294,6 +295,22 @@ export interface ChatDetail {
   history: { timeLabel: string; text: string }[]; // acciones y avisos de este chat, lo último primero
   spentUsd: number;
 }
+
+// Cómo va el último envío por WhatsApp de un presupuesto (las filas `team:presupuesto:<id>:<n>` de la cola). null: nunca se mandó por WhatsApp.
+export interface QuoteSendStatus {
+  estado: 'en_cola' | 'salio' | 'no_salio';
+  texto: string; // en criollo, listo para mostrar
+}
+export function quoteSendStatus(db: Db, quoteId: string): QuoteSendStatus | null {
+  const last = quoteSendRows(db, quoteId).at(-1);
+  if (!last) return null;
+  if (last.status === 'aceptado') return { estado: 'salio', texto: `Salió por WhatsApp a las ${argentinaClock(last.attemptedUtc ?? last.createdUtc)}.` };
+  if (last.status === 'pendiente' || last.status === 'en_proceso' || last.status === 'incierto') {
+    return { estado: 'en_cola', texto: getFlag(db, 'kill_switch') ? 'En la cola: sale cuando prendas el bot.' : 'En la cola: sale en unos segundos (si WhatsApp está conectado).' };
+  }
+  return { estado: 'no_salio', texto: last.status === 'vencido' ? 'No salió: se venció en la cola. Mandalo de nuevo.' : 'No salió. Revisá el chat en el celular antes de mandarlo de nuevo.' };
+}
+const QUOTE_STATE_LABEL: Record<string, string> = { borrador: 'Borrador', enviado: 'Enviado', aceptado: 'Aceptado', rechazado: 'Rechazado' };
 
 const AUTHOR_LABEL: Record<Author, string> = { customer: 'Cliente', bot: 'Olimpo (bot)', team: 'Equipo', system: 'Aviso' };
 const HANDOFF_RE = /^([a-z_]+) \((stop|flag), prioridad/;
@@ -342,6 +359,8 @@ export function historyText(kind: string, detail: string): string | null {
       const media = /el cliente mandó (.+?) y el bot no lo lee/.exec(detail);
       if (media) return `Mandó ${media[1]}: el bot no lo lee, miralo vos`;
       if (detail.includes('WhatsApp informó que un mensaje del bot no se pudo entregar')) return 'WhatsApp no pudo entregar un mensaje del bot: revisalo en el celular';
+      if (detail.includes('WhatsApp informó que el presupuesto no se pudo entregar')) return 'WhatsApp no pudo entregar el presupuesto: revisalo en el celular';
+      if (detail.startsWith('No salió el presupuesto de ')) return 'No salió el presupuesto: se venció en la cola. Mandalo de nuevo';
       if (detail.includes('figuraba como no confirmado sí salió')) return 'El mensaje del bot que estaba sin confirmar sí salió';
       if (detail.includes('un audio del cliente quedó sin leer')) return 'Un audio del cliente quedó sin leer';
       if (detail.includes('salió un mensaje por la API que no está en la cola')) return 'Salió un mensaje que no armó el bot: revisalo en el celular';
@@ -352,6 +371,7 @@ export function historyText(kind: string, detail: string): string | null {
     case 'error':
       if (detail.startsWith('audio ilegible')) return 'Mandó un audio que no se pudo escuchar';
       if (detail.startsWith('consulta_vencida')) return 'El bot no contestó: el mensaje era muy viejo';
+      if (detail.startsWith('salida team:')) return detail.endsWith(': no_confirmado') ? 'El presupuesto quedó sin confirmar: revisalo en el celular antes de reenviar' : 'No salió el presupuesto';
       if (detail.startsWith('salida ')) return detail.endsWith(': no_confirmado') ? 'Un mensaje del bot quedó sin confirmar: revisalo en el celular antes de reenviar' : 'No salió un mensaje del bot';
       if (detail.startsWith('turno: ')) return 'El bot tuvo un error y no contestó';
       return null;
@@ -386,6 +406,7 @@ export function chatDetail(db: Db, n: number, nowUtc: number, closingText: strin
   const lastStop = db.prepare("SELECT detail FROM audit WHERE chat_id = ? AND kind = 'handoff' AND detail LIKE '% (stop, %' ORDER BY id DESC LIMIT 1").get(c.chatId) as { detail: string } | undefined;
   const reason = lastStop && (HANDOFF_RE.exec(lastStop.detail)?.[1] as HandoffReason | undefined);
   const quoteSent = getState(db, `quote_sent_utc.${c.chatId}`);
+  const lastQuote = latestQuoteOfChat(db, c.chatId);
   const botAnswers = c.mode === 'auto' && !TERMINAL.includes(c.card.state);
   const botOff = getFlag(db, 'kill_switch');
 
@@ -399,6 +420,7 @@ export function chatDetail(db: Db, n: number, nowUtc: number, closingText: strin
     missing: item.missing, objections: c.card.objections.map((o) => OBJECTION_LABEL[o]), teamNote: c.card.teamNote,
     handoffLabel: reason ? REASONS[reason] ?? reason : null,
     quoteSentLabel: quoteSent ? `Presupuesto mandado ${dayPhrase(Number(quoteSent), nowUtc)} a las ${argentinaClock(Number(quoteSent))}` : null,
+    quote: lastQuote ? { id: lastQuote.id, estado: QUOTE_STATE_LABEL[lastQuote.estado] ?? lastQuote.estado, envio: quoteSendStatus(db, lastQuote.id) } : null,
     lostReason: c.lostReason,
     messages, olderHidden: Math.max(0, total - rows.length),
     draft: draftRow ? { id: d!.id, bubbles: JSON.parse(draftRow.bubbles_json) as string[], material: JSON.parse(draftRow.material_json) as string[], createdLabel: argentinaClock(draftRow.created_utc) } : null,

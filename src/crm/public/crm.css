@@ -340,6 +340,11 @@ time, .n, .reloj, .meta, .gasto, .venc, .hora { font-variant-numeric: tabular-nu
 .fichas { display: flex; flex-wrap: wrap; gap: 6px; }
 .fichas li { padding: 3px 10px; border-radius: 999px; background: var(--fondo); font-size: var(--t-sm); }
 
+/* Bloque "Presupuesto" de la ficha: el botón es un enlace (navegación normal). */
+.btn-presu { margin-top: 10px; }
+.bloque p + .btn-presu { margin-top: 10px; }
+.barra a.btn-barra { margin-left: 8px; }
+
 .mover { display: grid; gap: 10px; }
 .mover label { display: grid; gap: 4px; font-size: var(--t-sm); color: var(--tinta-2); }
 .mover .btn { justify-self: start; }

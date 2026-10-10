@@ -31,3 +31,7 @@ export function html(strings: TemplateStringsArray, ...values: Value[]): Html {
 
 // Solo para HTML que no viene de nadie de afuera (un literal del código). Marcarlo a mano obliga a pensarlo.
 export const trusted = (s: string): Html => new Html(s);
+
+// Datos para un <script type="application/json">: JSON sin "<" (no puede cerrar el script) ni separadores de línea de JS.
+export const jsonForScript = (data: unknown): Html =>
+  new Html(JSON.stringify(data).replace(/[<\u2028\u2029]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`));
