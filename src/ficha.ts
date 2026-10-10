@@ -4,14 +4,14 @@ import type { ChatMessage, HandoffDecision, HandoffReason, LeadCard, LeadField }
 import { DEDUCED, missingRequired } from './lead.ts';
 import { argentinaClock } from './time.ts';
 
-const LABELS: Record<LeadField, string> = {
+export const LABELS: Record<LeadField, string> = {
   nombre: 'Nombre', localidad: 'Localidad', provincia: 'Provincia', cantidad_canchas: 'Canchas', modelo: 'Modelo',
   platea: 'Platea', ubicacion: 'Ubicación', altura_libre_m: 'Altura libre (m)', plazo_deseado: 'Plazo deseado', forma_pago: 'Forma de pago',
   quien_decide: 'Quién decide', uso: 'Uso', pide_financiacion: 'Pide financiación', vidrio_12mm: 'Vidrio 12 mm',
   color_especial: 'Color especial',
 };
 
-const REASONS: Record<HandoffReason, string> = {
+export const REASONS: Record<HandoffReason, string> = {
   listo_para_presupuesto: 'Listo para presupuesto',
   cliente_grande: 'Cliente grande (3 o más canchas, o club)',
   pide_persona: 'Pide hablar con una persona',

@@ -42,12 +42,13 @@ export function giveBack(ctx: ActionContext, conv: Conversation, who: string, vi
   return TERMINAL.includes(conv.card.state) ? 'ficha_cerrada' : 'devuelto';
 }
 
-// [Presupuesto mandado]: la hora se guarda una sola vez (los recordatorios futuros parten de ahí). El chat pasa a Presupuestados
+// [Presupuesto mandado]: guarda la hora (los recordatorios futuros parten de ahí). El chat pasa a Presupuestados
 // si estaba sin etapa o en A presupuestar (no lo hace retroceder desde Seguimiento, Cliente…), y queda en manos del equipo.
+// Un segundo toque no pisa la hora; salvo que el chat haya vuelto a A presupuestar o al bot: ahí es un presupuesto nuevo.
 export function quoteSent(ctx: ActionContext, conv: Conversation, who: string): { status: 'anotado' | 'ya_estaba'; atUtc: number } {
   const key = `quote_sent_utc.${conv.chatId}`;
   const before = getState(ctx.db, key);
-  if (before) return { status: 'ya_estaba', atUtc: Number(before) };
+  if (before && conv.stage !== null && conv.stage !== 'a_presupuestar') return { status: 'ya_estaba', atUtc: Number(before) };
   const now = ctx.clock.now();
   tx(ctx.db, () => {
     setState(ctx.db, key, String(now));
@@ -62,7 +63,7 @@ export function quoteSent(ctx: ActionContext, conv: Conversation, who: string): 
 // En humano no se llama a switchToHuman: cancelaría lo pendiente, y ahí puede haber un mensaje de cierre que sí tiene que salir.
 export function moveStage(ctx: ActionContext, conv: Conversation, stage: Stage, who: string, lostReason?: string): 'movido' | 'igual' {
   const reason = stage === 'perdido' || stage === 'descartado' ? (lostReason?.trim() || undefined) : undefined;
-  if (conv.stage === stage && (conv.lostReason ?? undefined) === reason) return 'igual';
+  if (conv.stage === stage && (!reason || reason === conv.lostReason)) return 'igual'; // misma etapa sin motivo nuevo: no se borra el que tenía
   const now = ctx.clock.now();
   tx(ctx.db, () => {
     if (conv.mode !== 'humano') switchToHuman(ctx.db, conv.chatId, now, `pasó a una etapa del equipo (${who})`);

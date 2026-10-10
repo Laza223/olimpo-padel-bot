@@ -1,4 +1,4 @@
-// Servidor HTTP del bot: /waha (webhook de WAHA, con HMAC) y /health. Guarda el evento y responde 200 enseguida; el procesamiento va aparte (ingest).
+// Servidor HTTP del bot: /waha (webhook de WAHA, con HMAC), /health y el CRM (/crm, con su propia clave). Guarda el evento y responde 200 enseguida; el procesamiento va aparte (ingest).
 // Idea reutilizada de AXXEN (hmac.ts): WAHA firma el CUERPO CRUDO con HMAC-SHA512 en hex, header X-Webhook-Hmac (comprobado, docs/waha-endpoints.md).
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { createServer } from 'node:http';
@@ -79,6 +79,7 @@ function readBody(req: IncomingMessage, res: ServerResponse): Promise<Buffer | u
 
 export interface HttpDeps extends WebhookDeps {
   health: () => Record<string, unknown>;
+  crm?: { handle(req: IncomingMessage, res: ServerResponse): boolean }; // el CRM (src/crm/server.ts): contesta /crm y /crm/…
 }
 
 // Quien lo usa hace el listen (en Docker, 0.0.0.0:8080 adentro y 127.0.0.1 afuera).
@@ -95,6 +96,7 @@ export function createHttpServer(deps: HttpDeps): Server {
       }
       return;
     }
+    if (deps.crm?.handle(req, res)) return;
     if (path !== '/waha') return send(res, reply(404, { error: 'not_found' }));
     if (req.method !== 'POST') return send(res, reply(405, { error: 'method_not_allowed' }));
     void readBody(req, res).then((raw) => {

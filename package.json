@@ -10,6 +10,7 @@
     "whisper:model": "node scripts/whisper-model.ts",
     "eval": "node evals/run.ts",
     "eval:compare": "node evals/compare.ts",
+    "crm:demo": "node scripts/crm-demo.ts",
     "typecheck": "tsc --noEmit",
     "test": "node --test \"test/**/*.test.ts\"",
     "verify": "pnpm typecheck && pnpm test"

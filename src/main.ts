@@ -14,6 +14,8 @@ import { audit, listUnnotifiedDrafts, openDb, recoverOutbox } from './db.ts';
 import type { Db } from './db.ts';
 import { FakeLlm } from './fakeLlm.ts';
 import { createHeartbeat } from './heartbeat.ts';
+import type { Controls } from './actions.ts';
+import { createCrm } from './crm/server.ts';
 import { createHttpServer } from './http.ts';
 import { createIngest } from './ingest.ts';
 import { createLlm } from './llm.ts';
@@ -113,8 +115,10 @@ export function createApp(o: AppOptions = {}): App {
     if (outboxOpen) outbox.kick();
   };
 
+  // Lo que necesitan Telegram y el CRM del resto de la tubería. Es una función: Telegram se crea antes que el worker.
+  const controls = (): Controls => ({ worker, kickOutbox, session: { current: () => session.current(), qr: () => session.qr() } });
   const telegram = cfg.tgToken
-    ? createTelegram({ db, clock, token: cfg.tgToken, groupId: cfg.tgGroup, assets: policy.assets, fetch: o.fetch, controls: () => ({ worker, kickOutbox, session: { current: () => session.current(), qr: () => session.qr() } }) })
+    ? createTelegram({ db, clock, token: cfg.tgToken, groupId: cfg.tgGroup, assets: policy.assets, fetch: o.fetch, controls })
     : undefined;
   const notifier: Notifier = telegram ?? createConsoleNotifier(db, log);
   const alert = (text: string, urgent = false) => sendAlert(db, notifier, clock, text, { urgent });
@@ -128,8 +132,10 @@ export function createApp(o: AppOptions = {}): App {
     onObserve: (status, previous) => recovery.onObserve(status, previous),
   });
   const heartbeat = createHeartbeat({ db, clock, url: cfg.hcUrl, isWorking: () => session.current() === 'WORKING', fetch: o.fetch });
+  const crm = createCrm({ db, clock, controls, notifier, assets: policy.assets, closingText: policy.closingText, password: env.CRM_PASSWORD?.trim(), wahaSecrets: { WAHA_API_KEY: cfg.wahaKey, WAHA_WEBHOOK_HMAC_SECRET: cfg.hmacSecret } });
+  if (crm.disabledReason) log(`[crm] apagado: ${crm.disabledReason}`);
   const server = createHttpServer({
-    db, secret: cfg.hmacSecret, clock,
+    db, secret: cfg.hmacSecret, clock, crm,
     // Un evento nuevo: se procesa y, si era un session.status, la sesión lo toma enseguida (sin esperar al chequeo de los 60 s).
     onStored: () => void ingest.processPending().then(() => session.syncFromEvents()),
     health: () => ({

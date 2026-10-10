@@ -146,8 +146,9 @@ ALTER TABLE conversations ADD COLUMN stage TEXT CHECK (stage IN ('a_presupuestar
 ALTER TABLE conversations ADD COLUMN stage_since_utc INTEGER; -- desde cuándo está en esa etapa (mide la espera)
 ALTER TABLE conversations ADD COLUMN lost_reason TEXT;        -- solo perdido / descartado puestos a mano
 ALTER TABLE conversations ADD COLUMN followup_due_utc INTEGER; -- seguimiento futuro: cuándo toca el próximo. Hoy no lo escribe nadie.
+CREATE INDEX audit_chat ON audit (chat_id, id); -- el historial y la última derivación de cada chat en el CRM
 UPDATE conversations SET stage = 'presupuestado', stage_since_utc = (SELECT CAST(value AS INTEGER) FROM settings WHERE key = 'state.quote_sent_utc.' || conversations.chat_id)
-  WHERE EXISTS (SELECT 1 FROM settings WHERE key = 'state.quote_sent_utc.' || conversations.chat_id);
+  WHERE mode IN ('humano','cerrado') AND EXISTS (SELECT 1 FROM settings WHERE key = 'state.quote_sent_utc.' || conversations.chat_id);
 WITH last_stop AS (SELECT chat_id, MAX(id) AS id FROM audit WHERE kind = 'handoff' AND detail LIKE '% (stop, %' AND chat_id IS NOT NULL GROUP BY chat_id)
 UPDATE conversations SET
   stage = CASE WHEN a.detail LIKE 'baja (%' OR a.detail LIKE 'no_es_cliente (%' THEN 'descartado' ELSE 'a_presupuestar' END,

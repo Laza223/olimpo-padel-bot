@@ -105,8 +105,8 @@ Los contenedores se reinician solos si Docker se reinicia. Para que el bot arran
 | Botón | Qué hace |
 |---|---|
 | **Lo tomo** | El chat pasa a vos. El bot deja de contestarle y se cancela lo que tenía pendiente. |
-| **Devolver al bot** | El bot vuelve a atender ese chat. Si el cliente dejó algo sin contestar, lo retoma enseguida. |
-| **Presupuesto mandado** | Anota la hora en que mandaste el presupuesto. Después se usa para los recordatorios (la hora se guarda una sola vez). |
+| **Devolver al bot** | El bot vuelve a atender ese chat (y el chat sale de su etapa del CRM). Si el cliente dejó algo sin contestar, lo retoma enseguida. |
+| **Presupuesto mandado** | Anota la hora en que mandaste el presupuesto y pasa el chat a **Presupuestados** en el CRM. Tocarlo dos veces no cambia la hora; si el chat había vuelto a A presupuestar o al bot, cuenta como presupuesto nuevo. Si el chat todavía estaba con el bot, lo toma el equipo. |
 
 ### Botones del borrador (modo sombra)
 
@@ -151,6 +151,28 @@ Si escribís un comando en el grupo y el bot no responde, en @BotFather: `/mybot
 | `bot_start_utc` | (la primera vez que arrancó) | **No lo toques.** Es lo que le dice al bot qué chats ya existían antes de él. |
 
 El tope diario de USD 2 es un número conservador que puse yo: lo definís vos.
+
+## 3 bis. El CRM (la pantalla de los clientes)
+
+Es una página que sirve el mismo bot: **http://127.0.0.1:8080/crm** (solo desde tu notebook). Se ve como WhatsApp Web: los chats a la izquierda, la conversación en el medio y la ficha con los botones a la derecha. Hace lo mismo que Telegram, con las mismas reglas: lo que hacés en uno se ve en el otro.
+
+**La primera vez:** poné una clave en el `.env` (`CRM_PASSWORD=`, 12 caracteres o más, distinta de `WAHA_API_KEY`) y reiniciá el bot con `docker compose up -d --build`. Sin clave, la página dice que el CRM está apagado.
+
+**La lista de la izquierda:**
+- **Hacer ahora** (la que abre siempre): solo los clientes que te piden algo, el que espera hace más arriba, con su reloj de espera.
+  - *El bot quiere contestar*: un borrador del modo sombra esperando [Mandar].
+  - *Te escribió*: un cliente que ya está con ustedes (o que el bot no está atendiendo) mandó algo y nadie le contestó. Hoy esto **no** avisa por Telegram: miralo acá.
+  - *A presupuestar*: el bot te lo pasó. Si le prometió el presupuesto, muestra cuándo vence la promesa ("en el día, o a más tardar el día hábil siguiente"; día hábil = lunes a sábado; los feriados no se descuentan). En rojo, si ya venció.
+- **Todos** y **Etapas**: como WhatsApp, lo último que se movió arriba.
+- **Buscar** busca en todos los chats (no solo en el filtro abierto), sin importar tildes ni mayúsculas. Tocar un filtro borra la búsqueda.
+
+**Las etapas:** Con el bot → A presupuestar → Presupuestados → Seguimiento → Cliente / Perdido. Además, *Descartado* (no era cliente o pidió la baja), *Con el equipo* (lo tomaron sin que el bot lo derivara) y *Otros chats* (contactos que ya existían antes del bot: no aparecen en "Hacer ahora"; si alguno es cliente, movelo a una etapa).
+- El bot pone solo *A presupuestar* (o *Descartado*) cuando deriva. [Presupuesto mandado] pasa a *Presupuestados*. El resto lo movés vos con **Mover a…** (Perdido no se mueve sin el motivo).
+- Tener etapa = el chat es del equipo y el bot no le contesta. **Devolver al bot** saca la etapa: si el chat tiene una, el CRM pregunta antes.
+
+**Para contestarle a un cliente:** el botón **Abrir en WhatsApp** abre ese chat en el WhatsApp que tengas abierto en la notebook. Tiene que ser la línea del bot; si es otra, tu respuesta no queda registrada y el chat sigue en "Te escribió".
+
+**Arriba:** prender/apagar el bot y el modo sombra (estos dos sí avisan al grupo de Telegram), el estado de WhatsApp y el gasto de hoy. **Salir** cierra la sesión; reiniciar el bot también.
 
 ## 4. Qué pasa si la notebook se duerme o se cierra
 

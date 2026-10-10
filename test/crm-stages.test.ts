@@ -4,7 +4,8 @@ import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { giveBack, moveStage, quoteSent, setBotSwitch, setShadow } from '../src/actions.ts';
 import type { ActionContext } from '../src/actions.ts';
-import { MIGRATIONS, createConversation, enterStage, getConversation, listAudit, migrate, pauseConversation, setStage } from '../src/db.ts';
+import { MIGRATIONS, createConversation, enterStage, getConversation, listAudit, migrate, pauseConversation, saveCard, setStage } from '../src/db.ts';
+import { emptyCard } from '../src/lead.ts';
 import { createTelegram } from '../src/notify/telegram.ts';
 import { getFlag, getState } from '../src/settings.ts';
 import { FIRST_TEXT, policy, turnWith } from './f2-helpers.ts';
@@ -56,6 +57,8 @@ test('V6 sobre una base V5: rellena presupuestados y derivados, deja con el bot 
   add('solo-aviso@c.us', 'humano');
   handoff('solo-aviso@c.us', 700, 'regateo (flag, prioridad normal)');
   add('nuevo@c.us', 'auto');
+  add('presu-auto@c.us', 'auto'); // presupuestado y después devuelto al bot (antes de V6 era común): sin etapa, tener etapa = ser del equipo
+  db.prepare("INSERT INTO settings (key, value) VALUES ('state.quote_sent_utc.presu-auto@c.us', '800')").run();
   migrate(db);
   migrate(db);
   assert.equal((db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version, MIGRATIONS.length);
@@ -69,8 +72,10 @@ test('V6 sobre una base V5: rellena presupuestados y derivados, deja con el bot 
     'devuelto@c.us': [null, null],
     'solo-aviso@c.us': [null, null],
     'nuevo@c.us': [null, null],
+    'presu-auto@c.us': [null, null],
   });
   assert.throws(() => db.prepare("UPDATE conversations SET stage = 'raro'").run(), /CHECK/);
+  assert.ok(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = 'audit_chat'").get()); // historial del CRM sin recorrer toda la auditoría
 });
 
 test('setStage: repetir la misma etapa no reinicia la espera; cambiarla sí; el motivo solo queda en perdido o descartado; null la borra', () => {
@@ -152,6 +157,33 @@ test('[Presupuesto mandado] pasa a Presupuestados, toma el chat si estaba con el
   assert.equal(conv(h, 'seg@c.us').stage, 'seguimiento');
   await h.clock.advance(min(5));
   assert.equal(quoteSent(ctx, conv(h, 'seg@c.us'), 'CRM').status, 'ya_estaba');
+  // Doble toque: la hora no cambia.
+  const first = getState(h.db, `quote_sent_utc.${CHAT}`);
+  assert.equal(quoteSent(ctx, conv(h), 'CRM').status, 'ya_estaba');
+  assert.equal(getState(h.db, `quote_sent_utc.${CHAT}`), first);
+});
+
+test('[Presupuesto mandado] de nuevo después de volver a A presupuestar: es un presupuesto nuevo (hora nueva y pasa a Presupuestados)', async () => {
+  const { h, ctx } = setup();
+  createConversation(h.db, { chatId: CHAT, session: 'default', mode: 'humano', nowMs: h.clock.now() });
+  setStage(h.db, CHAT, 'a_presupuestar', h.clock.now());
+  assert.equal(quoteSent(ctx, conv(h), 'CRM').status, 'anotado');
+  await h.clock.advance(min(60));
+  moveStage(ctx, conv(h), 'a_presupuestar', 'CRM'); // el cliente pidió otro presupuesto
+  const r = quoteSent(ctx, conv(h), 'CRM');
+  assert.deepEqual([r.status, r.atUtc], ['anotado', h.clock.now()]);
+  assert.deepEqual([conv(h).stage, conv(h).stageSinceUtc], ['presupuestado', h.clock.now()]);
+  assert.equal(getState(h.db, `quote_sent_utc.${CHAT}`), String(h.clock.now()));
+});
+
+test('Devolver al bot un chat con la ficha cerrada: vuelve a auto, pero avisa que el bot no le escribe', () => {
+  const { h, ctx } = setup();
+  createConversation(h.db, { chatId: CHAT, session: 'default', mode: 'humano', nowMs: h.clock.now() });
+  const card = emptyCard();
+  card.state = 'derivado';
+  saveCard(h.db, CHAT, card);
+  assert.equal(giveBack(ctx, conv(h), 'CRM', 'CRM'), 'ficha_cerrada');
+  assert.equal(conv(h).mode, 'auto');
 });
 
 test('mover de etapa un chat pausado lo pasa al equipo (la vuelta de las 00:00 no lo devuelve al bot) y queda en la auditoría', () => {
