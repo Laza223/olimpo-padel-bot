@@ -27,4 +27,4 @@ espera:
   dice_todas:
     - '(?i)presupuesto'
   nunca_dice:
-    - '(?i)(urgen|no (lo )?dejes pasar|aprovech|[uú]ltim|se termina|antes de que)'
+    - '(?i)(urgen|no (lo )?dejes pasar|aprovech|[uú]ltim[oa]s? (oportunidad|unidad|cupo|d[ií]a|lugar|semana|chance)|se termina|antes de que)'

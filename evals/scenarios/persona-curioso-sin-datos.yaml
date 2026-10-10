@@ -17,4 +17,4 @@ espera:
     - '19\.?900'
   nunca_dice:
     - '(?i)(sin (tus |tu )?(datos|nombre) no|es obligatorio|ten[eé]s que (darme|pasarme|decirme)|necesito (s[ií] o s[ií]|que me (des|pases)))'
-    - '(?i)(urgen|[uú]ltim|aprovech)'
+    - '(?i)(urgen|[uú]ltim[oa]s? (oportunidad|unidad|cupo|d[ií]a|lugar|semana|chance)|aprovech)'

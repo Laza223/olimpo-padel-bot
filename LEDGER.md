@@ -431,3 +431,20 @@ Imagen `ghcr.io/ggml-org/whisper.cpp:main-d1be6fde…` (v1.9.5, sin tags de vers
 - Después de la respuesta y 2 mensajes más del cliente, se puede pedir **una vez más**, con otras palabras. Si tampoco sale, no se pide más.
 - Si dice que no lo quiere dar ("prefiero no"), nunca más.
 - Implementado: `askStatus` en `lead.ts`, línea `volver_a_preguntar_una_vez` en el contexto de Claude y prompt. 816/816.
+
+**Confirmación final 1** (USD 3,06; `evals/out/2026-10-09-2111-…`):
+- Corrida 1: 4 críticas. Corrida 2: 5 críticas, con 1,9 % de mensajes seguros.
+- Juez 4,72 y 4,71. **NO PASA.**
+- **Análisis de las 5 conversaciones:**
+  1. curioso: la regex de urgencia `[uú]ltim` agarra "la última es un render". Falso positivo del escenario.
+  2. galpon-6m: "y si entra en tu galpón lo revisa el equipo" es un condicional; la jueza le dio 5,0. Falso positivo del escenario, la misma clase que en Uruguay.
+  3. cambia-de-idea: el cliente simulado cortó a los 2 turnos; la jueza le dio 5,0. Ruido del simulador.
+  4. country r2: `modelo_inventado` agarró "Panorámica USD" (bug de F4), y el reintento cayó en `price_product` por "USD 19.900 la Full Panorámica y USD 20.900 la Panorámica" (el monto antes del producto) → mensaje seguro. Bug de código.
+  5. country r1: no llega a completar la ficha. Pregunta la provincia de Pilar, que tiene homónimo y por regla se pregunta.
+- **Arreglos:**
+  - `modelo_inventado` solo toma palabras tipo nombre propio;
+  - `price_product` asocia el monto al producto que lo sigue pegado ("USD X la Full");
+  - la clase "si" condicional (`(?:sí,?|si,)`) en galpon-6m y factura-a;
+  - urgencia con frases concretas en curioso, habla-con-socio y tono-14.
+  - Todo probado. 817/817.
+- Gasto acumulado: **USD 10,9**.

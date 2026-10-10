@@ -191,7 +191,8 @@ function inventedModel(text: string, modelNames: string[]): string | undefined {
   for (const [i, w] of words.entries()) {
     const next = words[i + 1];
     if (!next || !known.has(stem(w[0])) || !/^[ \t]+$/.test(text.slice(w.index + w[0].length, next.index))) continue;
-    if (/^\p{Lu}/u.test(next[0]) && !known.has(stem(next[0]))) return `${w[0]} ${next[0]}`;
+    // Solo una palabra tipo nombre propio (mayúscula y después minúsculas): "Panorámica USD 20.900" o "LED" no son modelos (banco del 9-oct).
+    if (/^\p{Lu}\p{Ll}/u.test(next[0]) && !known.has(stem(next[0]))) return `${w[0]} ${next[0]}`;
   }
   return undefined;
 }
@@ -259,7 +260,9 @@ export function supervise(draft: TurnDraft, customerTexts: string[], policy: Sup
     if (!mentions.length) continue;
     for (const n of extractNumbers(sentence)) {
       if (n.pesos || n.unit || !policy.approvedPricesUsd.includes(n.value)) continue;
-      const { product } = mentions.findLast((m) => m.at < n.start) ?? mentions[0];
+      // "USD 19.900 la Full Panorámica y USD 20.900 la Panorámica": un monto pegado al producto que le sigue ("la", "para la") es de ese producto (banco del 9-oct).
+      const following = mentions.find((m) => m.at >= n.end && /^\s*(?:(?:para|por|de) )?(?:la|el)?\s*$/.test(sentence.slice(n.end, m.at)));
+      const { product } = following ?? mentions.findLast((m) => m.at < n.start) ?? mentions[0];
       const allowed = PRICE_BY_PRODUCT[product];
       if (!allowed.includes(n.value)) v.push({ rule: 'price_product', detail: `"${n.raw}" no es el precio de ${product} (${allowed.join(' o ')})` });
     }

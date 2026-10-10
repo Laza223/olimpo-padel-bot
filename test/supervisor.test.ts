@@ -707,3 +707,14 @@ test('incluido: el "aparte" que viene después también corta ("incluye todo lo 
   assert.ok(!rules(['Incluye todo lo de la cancha, la instalación y el flete se cotizan aparte.']).includes('incluido'));
   assert.ok(rules(['Incluye todo lo de la cancha y la instalación.']).includes('incluido'));
 });
+
+test('banco final del 9-oct: "Panorámica USD 20.900" no es un modelo inventado y "USD 19.900 la Full Panorámica y USD 20.900 la Panorámica" va con su producto', () => {
+  const ok = [
+    'Con los montos de hoy, la Full Panorámica está USD 19.900 y la Panorámica USD 20.900.',
+    'Con los montos de hoy, USD 19.900 la Full Panorámica y USD 20.900 la Panorámica, así que la Full sale menos.',
+    'La Full está USD 19.900 y la Panorámica USD 20.900.',
+  ];
+  for (const t of ok) assert.deepEqual(rules([t]).filter((r) => ['modelo_inventado', 'price_product'].includes(r)), [], t);
+  assert.ok(rules(['USD 20.900 la Full Panorámica.']).includes('price_product'));
+  assert.ok(rules(['La Panorámica Rosario está lista.']).includes('modelo_inventado'));
+});
