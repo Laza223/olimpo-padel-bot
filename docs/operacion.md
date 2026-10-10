@@ -45,6 +45,7 @@ Copiá `.env.example` como `.env` y completá estos valores. **El `.env` tiene c
 1. Creá un grupo con Tomás y sumá al bot que creaste.
 2. Mandá cualquier mensaje en el grupo.
 3. **Antes de prender el bot**, abrí en el navegador `https://api.telegram.org/bot<TU_TOKEN>/getUpdates` (poné tu token en lugar de `<TU_TOKEN>`). Buscá `"chat":{"id":-100...`: ese número negativo, completo y con el signo, es el `TELEGRAM_GROUP_ID`.
+5. **Ojo:** si después cambiás algo del grupo (hacer admin al bot, activar el historial, etc.), Telegram puede convertirlo en "supergrupo" y **le cambia el número** (pasa a empezar con `-100`). Ahí el bot deja de avisar y no contesta `/qr`. El error queda en el registro como "group chat was upgraded to a supergroup chat". Hay que poner el número nuevo en `TELEGRAM_GROUP_ID` y correr `docker compose up -d --force-recreate bot`.
 4. Si ya prendiste el bot, ese enlace da error porque el bot ya está leyendo los mensajes: apagalo (`docker compose stop`), mirá el número y volvé a prender.
 
 **El latido (healthchecks.io):** creá un check nuevo con período de 1 minuto y tolerancia de 5 minutos, y poné que te avise por mail o por Telegram. Copiá la "ping URL" en `HEALTHCHECKS_PING_URL`. Si la notebook se apaga o el WhatsApp se cae, el bot deja de latir y healthchecks te avisa solo. Es la única alarma que funciona aunque la notebook esté apagada.
