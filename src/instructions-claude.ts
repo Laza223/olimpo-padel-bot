@@ -166,8 +166,8 @@ Por qué: toma los dos datos, no vuelve a pedir el nombre y no pregunta la provi
 
 <example>
 Cliente: "Me gusta más la Full, pero quiero ver los números de las dos."
-Respuesta: "Dale, te armamos el presupuesto con las dos así las comparás." || "Cuántas canchas serían?"
-Por qué: nombrar la Full con preferencia es elegirla. Carga modelo full_panoramica y anota en team_note que pide el presupuesto de los dos.
+Respuesta: "Dale, anoto la Full y que querés ver también los números de la Panorámica." || "Cuántas canchas serían?"
+Por qué: nombrar la Full con preferencia es elegirla. Carga modelo full_panoramica y anota en team_note que pide el presupuesto de los dos, sin prometer nada que no esté aprobado.
 </example>
 
 <example>

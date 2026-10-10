@@ -591,7 +591,7 @@ const list = (s: string) => s.split(', ');
 test('provincia deducida: las localidades de la lista de Lazar completan la provincia con la evidencia "deducida de <localidad>"', () => {
   const expected: [string, string[]][] = [
     ['CABA', list('CABA, capital federal, Ciudad de Buenos Aires')],
-    ['Buenos Aires', list('Almirante Brown, Berazategui, Esteban Echeverría, Ezeiza, Florencio Varela, Hurlingham, José C. Paz, La Matanza, Lanús, Lomas de Zamora, Malvinas Argentinas, Moreno, Morón, Quilmes, San Isidro, Tigre, Tres de Febrero, Vicente López, Escobar, Luján, Berisso, Ensenada, Cañuelas, Marcos Paz, General Rodríguez, Campana, Zárate, Exaltación de la Cruz, Nordelta, La Plata')],
+    ['Buenos Aires', list('Berazategui, Esteban Echeverría, Ezeiza, Florencio Varela, Hurlingham, José C. Paz, La Matanza, Lanús, Lomas de Zamora, Moreno, Morón, Quilmes, Tigre, Tres de Febrero, Vicente López, Escobar, Berisso, Ensenada, Cañuelas, Marcos Paz, General Rodríguez, Campana, Zárate, Exaltación de la Cruz, Nordelta, La Plata')],
     ['Entre Ríos', ['Paraná']], ['Neuquén', ['Neuquén']], ['Río Negro', ['Viedma']], ['Santa Cruz', ['Río Gallegos']], ['Tierra del Fuego', ['Ushuaia']],
     ['Jujuy', ['San Salvador de Jujuy']], ['Tucumán', ['San Miguel de Tucumán']], ['Catamarca', ['San Fernando del Valle de Catamarca']], ['Chaco', ['Resistencia']], ['Misiones', ['Posadas']],
   ];
@@ -605,7 +605,7 @@ test('provincia deducida: las localidades de la lista de Lazar completan la prov
 });
 
 test('provincia deducida: las que se repiten en otras provincias se siguen preguntando (Pilar, San Martín, Merlo...), y solo vale la coincidencia exacta', () => {
-  for (const place of ['Pilar', ...list('San Martín, San Miguel, San Fernando, Merlo, Ituzaingó, Avellaneda, Santa Rosa, Rawson'), 'Luján de Cuyo', 'Tigre Norte', 'Rosario', 'constructor', 'toString']) {
+  for (const place of ['Pilar', ...list('San Martín, San Miguel, San Fernando, Merlo, Ituzaingó, Avellaneda, Santa Rosa, Rawson, San Isidro, Malvinas Argentinas, Almirante Brown, Luján'), 'Luján de Cuyo', 'Tigre Norte', 'Rosario', 'constructor', 'toString']) {
     assert.equal(provinceAfter(place), undefined, place);
   }
   // sin localidad no hay nada que deducir
@@ -730,4 +730,14 @@ test('stop_question: no bloquea si no hay "?", ni las derivaciones que solo avis
   const r = await runTurn(second('me hacés 18.000?'), { llm: fakeLlm([flag]), policy, config });
   assert.deepEqual(r.attempts[0].violations, []);
   assert.equal(r.stopBot, false);
+});
+
+test('pide_financiacion por código: dicha para negarla no se carga (revisión del 9-oct)', async () => {
+  const { financingFromCustomer } = await import('../src/lead.ts');
+  for (const text of ['no necesito financiación, pago contado', 'ya tengo financiación propia del banco', 'no me interesa financiar', 'sin cuotas, lo pago al contado']) {
+    assert.equal(financingFromCustomer(emptyCard(), [msg('m1', 'customer', text)], ['m1']), undefined, text);
+  }
+  for (const text of ['Tienen financiación? cuotas?', 'se puede pagar en partes?', 'no tengo todo junto, financian?']) {
+    assert.deepEqual(financingFromCustomer(emptyCard(), [msg('m1', 'customer', text)], ['m1']), { value: 'si', evidenceMsgId: 'm1' }, text);
+  }
 });

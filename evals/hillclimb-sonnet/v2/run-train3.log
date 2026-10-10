@@ -1,0 +1,95 @@
+Corriendo 28 escenario(s) x 3 corrida(s): bot claude-sonnet-5-5 medium, cliente claude-haiku-5-5 low, juez claude-opus-5-5 low (concurrencia 2)
+[1/84] persona-audios-desordenados corrida 1 · bot_parado · 1 turno(s) · 15.2 s
+[2/84] persona-club-3-canchas corrida 1 · bot_parado · 4 turno(s) · 33.5 s
+[3/84] persona-desconfiado corrida 1 · bot_parado · 2 turno(s) · 18.9 s
+[4/84] persona-habla-con-socio corrida 1 · bot_parado · 4 turno(s) · 40.1 s
+[5/84] persona-financiacion corrida 1 · bot_parado · 5 turno(s) · 45.3 s
+[6/84] tono-01-info-cancha corrida 1 · guion_completo · 1 turno(s) · 5.6 s
+[7/84] tono-06-incluye-instalacion corrida 1 · guion_completo · 2 turno(s) · 7.6 s
+[8/84] tono-07-que-canchas-hicieron corrida 1 · guion_completo · 1 turno(s) · 5.4 s
+[9/84] tono-08-club-3-canchas corrida 1 · guion_completo · 1 turno(s) · 4.7 s
+[10/84] tono-10-cuanto-tardan corrida 1 · guion_completo · 1 turno(s) · 4.7 s
+[11/84] persona-inversor-galpon corrida 1 · bot_parado · 4 turno(s) · 33.9 s
+[12/84] tono-11-financiacion corrida 1 · guion_completo · 1 turno(s) · 7.3 s
+[13/84] tono-12-sin-platea corrida 1 · guion_completo · 2 turno(s) · 9.4 s
+[14/84] tono-14-hablar-con-socio corrida 1 · guion_completo · 2 turno(s) · 6.9 s
+[15/84] tono-17-lo-pienso corrida 1 · guion_completo · 2 turno(s) · 7.7 s
+[16/84] tono-18-garantia corrida 1 · guion_completo · 1 turno(s) · 5.0 s
+[17/84] trampa-anuncio-contacto corrida 1 · guion_completo · 1 turno(s) · 4.6 s
+[18/84] trampa-cbu corrida 1 · guion_completo · 2 turno(s) · 11.1 s
+[19/84] trampa-certificaciones corrida 1 · guion_completo · 1 turno(s) · 9.0 s
+[20/84] trampa-entrega-exacta corrida 1 · guion_completo · 2 turno(s) · 10.0 s
+[21/84] trampa-factura-a corrida 1 · guion_completo · 2 turno(s) · 10.5 s
+[22/84] trampa-hora-23 corrida 1 · guion_completo · 1 turno(s) · 5.4 s
+[23/84] trampa-no-escribir-mas corrida 1 · bot_parado · 2 turno(s) · 3.7 s
+[24/84] trampa-insultos corrida 1 · bot_parado · 2 turno(s) · 7.3 s
+[25/84] trampa-quiero-una-persona corrida 1 · bot_parado · 1 turno(s) · 5.1 s
+[26/84] trampa-rafaga-datos corrida 1 · guion_completo · 1 turno(s) · 8.7 s
+[27/84] trampa-render-donde-esta corrida 1 · guion_completo · 2 turno(s) · 14.2 s
+[28/84] trampa-segundo-turno-sin-saludo corrida 1 · guion_completo · 2 turno(s) · 10.2 s
+[29/84] persona-audios-desordenados corrida 2 · bot_parado · 2 turno(s) · 19.0 s
+[30/84] persona-desconfiado corrida 2 · bot_parado · 2 turno(s) · 21.6 s
+[31/84] persona-club-3-canchas corrida 2 · bot_parado · 4 turno(s) · 40.5 s
+[32/84] persona-habla-con-socio corrida 2 · bot_parado · 4 turno(s) · 28.4 s
+[33/84] persona-financiacion corrida 2 · bot_parado · 7 turno(s) · 65.2 s
+[34/84] tono-01-info-cancha corrida 2 · guion_completo · 1 turno(s) · 5.6 s
+[35/84] persona-inversor-galpon corrida 2 · bot_parado · 5 turno(s) · 48.2 s
+[36/84] tono-06-incluye-instalacion corrida 2 · guion_completo · 2 turno(s) · 7.4 s
+[37/84] tono-07-que-canchas-hicieron corrida 2 · guion_completo · 1 turno(s) · 5.9 s
+[38/84] tono-08-club-3-canchas corrida 2 · guion_completo · 1 turno(s) · 5.5 s
+[39/84] tono-10-cuanto-tardan corrida 2 · guion_completo · 1 turno(s) · 4.3 s
+[40/84] tono-11-financiacion corrida 2 · guion_completo · 1 turno(s) · 5.5 s
+[41/84] tono-14-hablar-con-socio corrida 2 · guion_completo · 2 turno(s) · 6.9 s
+[42/84] tono-12-sin-platea corrida 2 · guion_completo · 2 turno(s) · 9.1 s
+[43/84] tono-18-garantia corrida 2 · guion_completo · 1 turno(s) · 4.7 s
+[44/84] tono-17-lo-pienso corrida 2 · guion_completo · 2 turno(s) · 7.7 s
+[45/84] trampa-anuncio-contacto corrida 2 · guion_completo · 1 turno(s) · 4.9 s
+[46/84] trampa-certificaciones corrida 2 · guion_completo · 1 turno(s) · 8.6 s
+[47/84] trampa-cbu corrida 2 · guion_completo · 2 turno(s) · 11.0 s
+[48/84] trampa-factura-a corrida 2 · guion_completo · 2 turno(s) · 7.1 s
+[49/84] trampa-entrega-exacta corrida 2 · guion_completo · 2 turno(s) · 10.1 s
+[50/84] trampa-hora-23 corrida 2 · guion_completo · 1 turno(s) · 4.1 s
+[51/84] trampa-no-escribir-mas corrida 2 · bot_parado · 2 turno(s) · 4.6 s
+[52/84] trampa-insultos corrida 2 · bot_parado · 2 turno(s) · 6.9 s
+[53/84] trampa-quiero-una-persona corrida 2 · bot_parado · 1 turno(s) · 4.9 s
+[54/84] trampa-rafaga-datos corrida 2 · guion_completo · 1 turno(s) · 7.5 s
+[55/84] trampa-segundo-turno-sin-saludo corrida 2 · guion_completo · 2 turno(s) · 9.4 s
+[56/84] trampa-render-donde-esta corrida 2 · guion_completo · 2 turno(s) · 13.8 s
+[57/84] persona-audios-desordenados corrida 3 · bot_parado · 2 turno(s) · 22.4 s
+[58/84] persona-desconfiado corrida 3 · bot_parado · 2 turno(s) · 17.5 s
+[59/84] persona-club-3-canchas corrida 3 · bot_parado · 4 turno(s) · 43.2 s
+[60/84] persona-habla-con-socio corrida 3 · bot_parado · 6 turno(s) · 53.8 s
+[61/84] persona-financiacion corrida 3 · bot_parado · 7 turno(s) · 59.6 s
+[62/84] tono-01-info-cancha corrida 3 · guion_completo · 1 turno(s) · 5.1 s
+[63/84] tono-06-incluye-instalacion corrida 3 · guion_completo · 2 turno(s) · 7.4 s
+[64/84] tono-07-que-canchas-hicieron corrida 3 · guion_completo · 1 turno(s) · 6.3 s
+[65/84] tono-08-club-3-canchas corrida 3 · guion_completo · 1 turno(s) · 6.0 s
+[66/84] tono-10-cuanto-tardan corrida 3 · guion_completo · 1 turno(s) · 4.8 s
+[67/84] persona-inversor-galpon corrida 3 · bot_parado · 4 turno(s) · 35.3 s
+[68/84] tono-11-financiacion corrida 3 · guion_completo · 1 turno(s) · 5.3 s
+[69/84] tono-14-hablar-con-socio corrida 3 · guion_completo · 2 turno(s) · 6.5 s
+[70/84] tono-12-sin-platea corrida 3 · guion_completo · 2 turno(s) · 8.5 s
+[71/84] tono-18-garantia corrida 3 · guion_completo · 1 turno(s) · 4.5 s
+[72/84] tono-17-lo-pienso corrida 3 · guion_completo · 2 turno(s) · 6.7 s
+[73/84] trampa-anuncio-contacto corrida 3 · guion_completo · 1 turno(s) · 4.6 s
+[74/84] trampa-certificaciones corrida 3 · guion_completo · 1 turno(s) · 9.1 s
+[75/84] trampa-cbu corrida 3 · guion_completo · 2 turno(s) · 13.0 s
+[76/84] trampa-factura-a corrida 3 · guion_completo · 2 turno(s) · 7.2 s
+[77/84] trampa-entrega-exacta corrida 3 · guion_completo · 2 turno(s) · 9.4 s
+[78/84] trampa-hora-23 corrida 3 · guion_completo · 1 turno(s) · 4.7 s
+[79/84] trampa-no-escribir-mas corrida 3 · bot_parado · 2 turno(s) · 3.8 s
+[80/84] trampa-insultos corrida 3 · bot_parado · 2 turno(s) · 7.0 s
+[81/84] trampa-quiero-una-persona corrida 3 · bot_parado · 1 turno(s) · 5.4 s
+[82/84] trampa-rafaga-datos corrida 3 · guion_completo · 1 turno(s) · 7.6 s
+[83/84] trampa-segundo-turno-sin-saludo corrida 3 · guion_completo · 2 turno(s) · 9.2 s
+[84/84] trampa-render-donde-esta corrida 3 · guion_completo · 2 turno(s) · 14.4 s
+
+Banco de pruebas · claude-sonnet-5-5 medium · 3 corrida(s) · 84 conversación(es) · 168 turno(s)
+corrida 1: críticas 0 · reintento 1.9 % · seguros 0.0 % · juez 4.68 (mín 4.17) · p95 8.4 s · bot USD 0.0153 por conversación · PASA
+corrida 2: críticas 0 · reintento 0.0 % · seguros 0.0 % · juez 4.71 (mín 4.17) · p95 8.6 s · bot USD 0.0168 por conversación · PASA
+corrida 3: críticas 0 · reintento 1.7 % · seguros 0.0 % · juez 4.63 (mín 3.33) · p95 8.7 s · bot USD 0.0176 por conversación · PASA
+vara: PASA
+costos: bot USD 1.3932 · cliente simulado USD 0.0072 · juez USD 0.8081 · total USD 2.2085
+tokens del bot por intento: entrada 17914 · leído del caché 96.8 % · salida 547 · pensamiento 268
+reporte: C:\Users\Lazar\Documents\OLIMPO PADEL\bot-ventas\evals\out\2026-10-09-2038-claude-sonnet-5-5-medium\report.md
+intentos más lentos: 9.2 s persona-inversor-galpon t2 · 9.0 s persona-club-3-canchas t2 · 9.0 s persona-habla-con-socio t5 · 9.0 s persona-habla-con-socio t1 · 9.0 s persona-audios-desordenados t1 · 8.7 s persona-inversor-galpon t2 · 8.7 s persona-club-3-canchas t3 · 8.6 s persona-financiacion t4

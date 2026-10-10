@@ -679,6 +679,7 @@ test('precio_comparacion: dicha de un modelo, la comparación tiene que coincidi
     'La Full está USD 19.900 y la Panorámica USD 20.900, así que la Panorámica sale menos.', // el caso real
     'La Panorámica es más barata.', 'La más económica es la Panorámica.', 'La Panorámica cuesta menos que la Full.', 'La Panorámica es la opción más económica de las dos.',
     'La Full sale más.', 'La Full es más cara que la Panorámica.', 'La Full Panorámica cuesta más que la Panorámica.',
+    'La Panorámica sale un poco menos que la Full Panorámica.', 'La Panorámica cuesta bastante menos.', 'La Full sale algo más.', // con relleno (revisión del 9-oct)
   ];
   for (const t of wrong) assert.ok(rules([t]).includes('precio_comparacion'), t);
   const right = [
@@ -700,4 +701,9 @@ test('precio_comparacion: los montos salen de la política (con los montos al re
   assert.ok(r('La Full sale menos.').includes('precio_comparacion'));
   assert.equal(loadPolicy().supervisorPolicy.fullPromoUsd, 19900);
   assert.equal(loadPolicy().supervisorPolicy.panoramicaUsd, 20900);
+});
+
+test('incluido: el "aparte" que viene después también corta ("incluye todo lo de la cancha, la instalación se cotiza aparte")', () => {
+  assert.ok(!rules(['Incluye todo lo de la cancha, la instalación y el flete se cotizan aparte.']).includes('incluido'));
+  assert.ok(rules(['Incluye todo lo de la cancha y la instalación.']).includes('incluido'));
 });

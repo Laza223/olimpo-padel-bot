@@ -311,3 +311,12 @@ test('runTurn con Claude: los reintentos reales de globo largo y de "descuento" 
   assert.match(await secondCall(long), new RegExp(`- length: el globo 1 tiene ${long.length} caracteres: dejalo en 280 o menos \\(unas 40 palabras\\), resumiendo`));
   assert.match(await secondCall('El tema del descuento lo ve el equipo.'), /- discount: ofrece descuento: "descuento"\. Arreglo: no escribas descuento, rebaja ni precio especial/);
 });
+
+test('Claude: "el nombre te lo paso después" (la frase del ejemplo 3 del prompt) cuenta como postergación', () => {
+  const h = talk([
+    ['bot', 'Dale. Cómo te llamás?'],
+    ['customer', 'el nombre te lo paso después, serían dos canchas'],
+  ]);
+  const { lines } = contextOf(h, ['m2'], ['nombre', 'platea']);
+  assert.ok(lines.includes('no_volver_a_preguntar: nombre (dijo que no sabe o que lo ve después)'), lines.join(' | '));
+});

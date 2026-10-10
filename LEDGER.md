@@ -399,7 +399,13 @@ Imagen `ghcr.io/ggml-org/whisper.cpp:main-d1be6fde…` (v1.9.5, sin tags de vers
 - El system pasa de 16.517 a 16.003 tokens (count_tokens). Pesan más la política y el tono que las reglas.
 - 801/801.
 
-| 32 | sonnet-implementer (worktree), F7 (`<mensajes_nuevos>` al final + `ya_preguntaste`/`no_volver_a_preguntar`) + F8 (reintento con borrador y arreglo en positivo, refusal sin reintento, timeout según esfuerzo) + guardia `precio_comparacion` | en curso | — |
+| 32 | sonnet-implementer (worktree), F7 (`<mensajes_nuevos>` al final + `ya_preguntaste`/`no_volver_a_preguntar`) + F8 (reintento con borrador y arreglo en positivo, refusal sin reintento, timeout según esfuerzo) + guardia `precio_comparacion` | Commits 32aaa63, a52aec8 y 114abe2; 812/812. Unas 410 líneas: 6 archivos de src y 6 de test. Sobre las 8.421 líneas del bot en `evals/out`, `precio_comparacion` da 2 hits: la inversión real de Sonnet y un falso positivo viejo de Haiku. **Ajuste del orquestador:** "no sé mucho de modelos" pide ayuda, no posterga (se saca "mucho" de `DEFER`), y la etiqueta queda neutra | 318k |
+| 33 | sonnet-adversarial-reviewer, revisión con contexto fresco del diff 8b7f51f..HEAD | **APROBADO CON CAMBIOS, sin 🔴.** El caché, la derivación de `stop_question`, la provincia deducida, el reintento sin inyección, el refusal, la migración V4 y 8 mutaciones que matan tests están verificados. 🟡 1: `no_volver_a_preguntar` puede dejar un dato obligatorio sin pedir nunca más, y no hay derivación: el lead se pierde en silencio (REQUIERE INPUT a Lazar). 🟡 2: `precio_comparacion` no veía "sale un poco menos". 🟡 3: `pide_financiacion` se cargaba con negaciones. 🟡 4: el prompt de Sol no conoce `stop_question` ni la provincia deducida (riesgo solo si se vuelve a Sol). ⚪: la frase "te lo paso después"; el ejemplo 4 prometía "te armamos el presupuesto con las dos"; falso positivo de `incluido` con "aparte" al final; San Isidro, Malvinas Argentinas, Almirante Brown y Luján tienen homónimos | 225k |
+
+**Arreglos del orquestador después de #33:**
+- 🟡 2, 🟡 3 y los ⚪ corregidos, con tests. Las 4 localidades con homónimos salen de la lista, por la regla de Lazar de que lo repetido se pregunta.
+- 815/815.
+- 🟡 4 queda anotado como deuda: si se vuelve a Sol, hay que correr su banco antes.
 
 **v1 en train ×3** (USD 2,31; reporte `evals/out/2026-10-09-2010-…`):
 - **0 / 0 / 0 críticas, las 3 corridas PASAN.**
@@ -413,3 +419,9 @@ Imagen `ghcr.io/ggml-org/whisper.cpp:main-d1be6fde…` (v1.9.5, sin tags de vers
   - Se saltea F9 (high), porque el criterio era bajar críticas un 40 % y ya están en 0, y high empujaría el p95 hacia los 15 s.
   - Se saltea F6 (orden del schema): no hay evidencia que lo pida.
 - Gasto acumulado: **USD 5,6**.
+
+**v2 (F7 + F8 + `precio_comparacion`) en train ×3** (USD 2,21):
+- **0 / 0 / 0 críticas, las 3 PASAN.**
+- Juez 4,68 / 4,71 / 4,63, con mínimos de 4,17, 4,17 y 3,33.
+- p95 de 8,4 a 8,7 s, bot de USD 0,015 a 0,018 por conversación, pensamiento de 268 tokens.
+- Se queda v2. Gasto acumulado: **USD 7,8**.

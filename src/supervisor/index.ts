@@ -35,8 +35,9 @@ type Product = keyof typeof PRICE_BY_PRODUCT;
 const PRODUCT_MENTION: Record<Product, RegExp> = { full: /\bfull\b/g, panoramica: /(?<!full )panoramic/g, platea: /\bplatea/g };
 
 // Comparaciones de precio dichas de un modelo (texto normalizado): "sale menos", "cuesta menos", "más barata", "más económica" / "sale más", "cuesta más", "más cara".
-const LESS_PRICE = /\b(?:sale|cuesta) menos\b|\bmas (?:barat|economic)[ao]s?\b/g;
-const MORE_PRICE = /\b(?:sale|cuesta) mas\b(?! (?:barat|economic))|\bmas car[ao]s?\b/g;
+// Hasta 2 palabras de relleno entre el verbo y "menos/más" ("sale un poco menos", "cuesta bastante más"): sin eso la inversión pasaba (revisión del 9-oct).
+const LESS_PRICE = /\b(?:sale|cuesta)(?: \w+){0,2}? menos\b|\bmas (?:barat|economic)[ao]s?\b/g;
+const MORE_PRICE = /\b(?:sale|cuesta)(?: \w+){0,2}? mas\b(?! (?:barat|economic))|\bmas car[ao]s?\b/g;
 const MODEL_NAME = { full: 'Full Panorámica', panoramica: 'Panorámica' };
 const usd = (n: number) => `USD ${String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '.')}`; // 19900 → USD 19.900, igual en cualquier entorno
 
@@ -78,10 +79,11 @@ const CLAIMS: RegExp[] = [
 // "La instalación y el flete se cotizan aparte" y "no están incluidos / no incluye" son lo aprobado: el "no" y el "aparte" cortan la coincidencia.
 // Las listas aprobadas de "qué incluye" (estructura, vidrios, césped, red, luces) no nombran instalación, flete ni IVA, así que pasan.
 const NOT_NEGATED = String.raw`(?:(?!\bno\b|\baparte\b)[^.?!]){0,30}?`;
+const NOT_SEPARATE = String.raw`(?![^.?!]{0,40}\b(?:aparte|se cotiza))`; // el "aparte" también puede venir después ("incluye todo lo de la cancha, la instalación se cotiza aparte")
 const INCLUIDO = new RegExp([
   String.raw`\btodo incluido\b`,
   String.raw`\b(?:instalacion|flete)\b${NOT_NEGATED}\bincluid[oa]s?\b`, // "instalación y flete incluidos"
-  String.raw`(?<!\bno )(?<!\btampoco )\bincluy(?:e|en)\b${NOT_NEGATED}\b(?:instalacion|flete)\b`, // "incluye la instalación"
+  String.raw`(?<!\bno )(?<!\btampoco )\bincluy(?:e|en)\b${NOT_NEGATED}\b(?:instalacion|flete)\b${NOT_SEPARATE}`, // "incluye la instalación"
   String.raw`\biva incluido\b|\bincluy(?:e|en) (?:el )?iva\b|\bmas iva\b|\+ ?iva\b`,
 ].join('|'));
 

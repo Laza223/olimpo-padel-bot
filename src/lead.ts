@@ -95,21 +95,24 @@ export function applyPatch(card: LeadCard, patch: ModelTurn['lead_patch'], histo
 // El cliente nombra la financiación ("financiación", "financiar", "cuotas", "en partes", "plan de pago", "pagar de a poco"), texto normalizado.
 // "financiero/a" no cuenta ("respaldo financiero"): es otra cosa.
 const FINANCING = /\bfinancia\w*|\bcuotas?\b|\ben partes\b|\bplan(?:es)? de pago\b|\bpagar(?:l[aeo]s?)? de a poco\b/;
+// Dicha para negarla no cuenta: "no necesito financiación", "sin cuotas", "ya tengo financiación propia", "pago al contado" (revisión del 9-oct).
+const NO_FINANCING = /\b(?:no|sin|ni)\b(?: \w+){0,3} (?:financia\w*|cuotas?)\b|\bfinanciacion propia\b|\b(?:al|de) contado\b|\bpago contado\b/;
 
 // La ficha sola no confía en que el modelo cargue pide_financiacion: si un mensaje NUEVO del cliente la nombra, el código la carga citando ese mensaje.
 // Con el campo ya cargado (por el modelo o antes) no se toca. Devuelve el dato a agregar, o undefined.
 export function financingFromCustomer(card: LeadCard, history: ChatMessage[], newMessageIds: string[]): LeadCard['fields']['pide_financiacion'] {
   if (card.fields.pide_financiacion) return undefined;
-  const m = history.find((x) => x.author === 'customer' && newMessageIds.includes(x.id) && FINANCING.test(plain(x.text.slice(0, MAX_EVIDENCE_CHARS))));
+  const m = history.find((x) => x.author === 'customer' && newMessageIds.includes(x.id) && FINANCING.test(plain(x.text.slice(0, MAX_EVIDENCE_CHARS))) && !NO_FINANCING.test(plain(x.text.slice(0, MAX_EVIDENCE_CHARS))));
   return m && { value: 'si', evidenceMsgId: m.id };
 }
 
 // Provincia deducida de la localidad (Lazar, 9-oct): solo las localidades que no se repiten en otra provincia, y solo si la localidad coincide EXACTO.
 // Quedan afuera a propósito San Martín, San Miguel, San Fernando, Merlo, Ituzaingó, Avellaneda, Pilar, Santa Rosa y Rawson: se siguen preguntando.
+// También San Isidro, Malvinas Argentinas, Almirante Brown y Luján, que tienen homónimos en otras provincias (revisión del 9-oct; lo repetido se pregunta, regla de Lazar).
 // Córdoba, Mendoza, Salta, Santa Fe, San Juan, San Luis, Formosa, Corrientes, La Rioja y Santiago del Estero no van: ahí la provincia aparece literal y ya la toma el mecanismo de siempre.
 const PROVINCE_PLACES: Record<string, string> = {
   CABA: 'CABA, Capital Federal, Ciudad de Buenos Aires',
-  'Buenos Aires': 'Almirante Brown, Berazategui, Esteban Echeverría, Ezeiza, Florencio Varela, Hurlingham, José C. Paz, La Matanza, Lanús, Lomas de Zamora, Malvinas Argentinas, Moreno, Morón, Quilmes, San Isidro, Tigre, Tres de Febrero, Vicente López, Escobar, Luján, Berisso, Ensenada, Cañuelas, Marcos Paz, General Rodríguez, Campana, Zárate, Exaltación de la Cruz, Nordelta, La Plata',
+  'Buenos Aires': 'Berazategui, Esteban Echeverría, Ezeiza, Florencio Varela, Hurlingham, José C. Paz, La Matanza, Lanús, Lomas de Zamora, Moreno, Morón, Quilmes, Tigre, Tres de Febrero, Vicente López, Escobar, Berisso, Ensenada, Cañuelas, Marcos Paz, General Rodríguez, Campana, Zárate, Exaltación de la Cruz, Nordelta, La Plata',
   'Entre Ríos': 'Paraná', Neuquén: 'Neuquén', 'Río Negro': 'Viedma', 'Santa Cruz': 'Río Gallegos', 'Tierra del Fuego': 'Ushuaia', Jujuy: 'San Salvador de Jujuy',
   Tucumán: 'San Miguel de Tucumán', Catamarca: 'San Fernando del Valle de Catamarca', Chaco: 'Resistencia', Misiones: 'Posadas',
 };
@@ -165,7 +168,7 @@ export function questionFields(bubble: string): LeadField[] {
 }
 
 // El cliente deja un dato para después o dice que no lo sabe (texto normalizado). "no se" cuenta solo si cierra la frase o sigue "si, cual, cuanto…": "no se puede" no posterga nada.
-const DEFER = /\bdespues te (?:lo )?paso\b|\bmas adelante\b|\bno (?:lo )?se(?= *(?:$|[,.;!?]|todavia|aun|si\b|cual|cuant|cuando|como|donde|que\b|bien|muy))|\btodavia no (?:se|lo se|lo tengo|decidi)\b|\blo veo despues\b|\bprefiero no\b|\bya veremos\b|\bpor ahora no\b|\btendria que (?:ver|medir|averiguar)\b/;
+const DEFER = /\bdespues te (?:lo )?paso\b|\b(?:te )?lo paso despues\b|\bmas adelante\b|\bno (?:lo )?se(?= *(?:$|[,.;!?]|todavia|aun|si\b|cual|cuant|cuando|como|donde|que\b|bien|muy))|\btodavia no (?:se|lo se|lo tengo|decidi)\b|\blo veo despues\b|\bprefiero no\b|\bya veremos\b|\bpor ahora no\b|\btendria que (?:ver|medir|averiguar)\b/;
 
 export interface AskedField {
   field: LeadField;
