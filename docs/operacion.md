@@ -32,6 +32,7 @@ Copiá `.env.example` como `.env` y completá estos valores. **El `.env` tiene c
 | `TELEGRAM_GROUP_ID` | El número del grupo (empieza con `-`) | Mirá abajo. |
 | `HEALTHCHECKS_PING_URL` | La dirección de latido (opcional) | healthchecks.io, mirá abajo. Si la dejás vacía, no hay latido. |
 | `BOT_LLM` | `openai` para el cerebro de verdad, `fake` para probar sin gastar nada | `fake` contesta siempre lo mismo: sirve para ver que todo está conectado. Con `fake` los audios también se "transcriben" de mentira (siempre el mismo texto, gratis). |
+| `BOT_MODEL` y `BOT_EFFORT` | El cerebro: `claude-sonnet-5-5` y `medium` | Es lo que pasó el banco de pruebas el 9-oct. Van los dos: sin `BOT_EFFORT` queda en `low`, y en `low` Sonnet no pasó. Con Sonnet hace falta `ANTHROPIC_API_KEY` con saldo (la Claude Platform). Sin estas dos líneas el bot usa Sol de OpenAI. |
 | `BOT_TRANSCRIBER` | (opcional) Quién transcribe los audios: `local` u `openai` | Sin esto, `local`: Whisper en tu notebook, gratis. `openai` cuesta y necesita saldo (ver el punto 9). |
 | `BOT_TRANSCRIBE_MODEL` | (opcional) El modelo de OpenAI que transcribe los audios | Solo con `BOT_TRANSCRIBER=openai`. Sin esto, `gpt-transcribe`. Va siempre a OpenAI, aunque `BOT_MODEL` sea de Claude. |
 | `WHISPER_URL` y `WHISPER_THREADS` | (opcionales) Dónde está Whisper y cuántos hilos de CPU usa | Sin esto, `http://whisper:8080` y 4 hilos. No se tocan salvo que cambie la instalación. |

@@ -448,3 +448,12 @@ Imagen `ghcr.io/ggml-org/whisper.cpp:main-d1be6fde…` (v1.9.5, sin tags de vers
   - urgencia con frases concretas en curioso, habla-con-socio y tono-14.
   - Todo probado. 817/817.
 - Gasto acumulado: **USD 10,9**.
+
+**Confirmación final 2** (USD 3,05; `evals/out/2026-10-09-2132-claude-sonnet-5-5-medium/`):
+- Corrida 1: 0 críticas, reintentos 0,9 %, mensajes seguros 0 %, juez 4,70 (mín 3,83), p95 8,2 s. **PASA**.
+- Corrida 2: 0 críticas, reintentos 0,9 %, mensajes seguros 0 %, juez 4,69 (mín 3,67), p95 8,7 s. **PASA**.
+- **Vara: PASA.** Es la primera vez que un modelo pasa el banco completo en las dos corridas.
+- Bot: USD 0,018 por conversación con el caché caliente. Pensamiento de 279 tokens y salida de 560 por intento.
+- **Gasto total del esfuerzo Sonnet: USD 14,0** de los 30 de tope (sin contar los ~3,9 de las pruebas de la mañana).
+
+| 34 | sonnet-release-verifier, gate de cierre | **GO.** `pnpm verify` dio 817/0/2 skipped (Whisper real); golden de Sol OK; sin secretos trackeados; el banco final corrió sobre el código integrado (a3cecb2) con jueza Opus. Advertencias: (1) entre la final roja y la verde se tocaron 5 regex de escenarios, por falsos positivos probados, y eso hay que avisarlo; (2) `.env.example` y `docs/operacion.md` no documentaban Sonnet + medium (resuelto); (3) faltaba commitear y pushear | 50k |
