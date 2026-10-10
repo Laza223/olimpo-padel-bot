@@ -11,4 +11,3 @@ export const systemClock: Clock = {
   clearTimeout: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
 };
 
-export const sleep = (clock: Clock, ms: number): Promise<void> => new Promise((resolve) => void clock.setTimeout(resolve, ms));

@@ -5,7 +5,7 @@ import { LlmOutputError, TransientLlmError } from '../src/brain.ts';
 import { ChannelError } from '../src/channel/types.ts';
 import { addSpend, getConversation, listAgentRuns, listAudit, listDrafts, listOutbox, saveCard, setMode } from '../src/db.ts';
 import { emptyCard } from '../src/lead.ts';
-import { setSetting } from '../src/settings.ts';
+import { SETTING_DEFAULTS, setSetting } from '../src/settings.ts';
 import { FALLBACK_TEXT, OPT_OUT_TEXT } from '../src/turn.ts';
 import { FIRST_TEXT, ScriptedLlm, T0, deferred, policy, turnWith } from './f2-helpers.ts';
 import type { Harness } from './f2-harness.ts';
@@ -556,3 +556,87 @@ test('stop() deja el worker sin timers', async () => {
   assert.equal(h.clock.pending, 0);
 });
 
+
+// ---------- lectura: el primer globo no sale antes de que "haya leído" ----------
+// El azar de las esperas está fijo en 0,5 (vale 1): lectura por letra de lo que escribió el cliente, con tope, desde su último mensaje; "escribiendo" por letra de cada globo.
+// Los valores salen de SETTING_DEFAULTS.
+const READ_PER_CHAR = Number(SETTING_DEFAULTS.read_ms_per_char);
+const READ_MAX = Number(SETTING_DEFAULTS.read_max_ms);
+const readMs = (chars: number) => Math.min(chars * READ_PER_CHAR, READ_MAX);
+const TWO = ['Buenas tardes, te escribimos de Olimpo Padel.', 'Contame, de dónde sos y de qué se trata tu proyecto?'];
+const typing = (text: string) => text.length * Number(SETTING_DEFAULTS.typing_ms_per_char);
+
+test('lectura: el primer globo espera la lectura de lo que escribió el cliente (contada desde su mensaje); el segundo solo espera su "escribiendo"', async () => {
+  const h = makeHarness({ llm: new ScriptedLlm(() => turnWith(TWO)) });
+  h.say(CHAT, 'x'.repeat(200));
+  assert.ok(readMs(200) > sec(2) && readMs(200) < READ_MAX); // la lectura de 200 letras supera la ráfaga y no llega al tope
+  await h.clock.advance(sec(2)); // el turno corre a los 2 s y encola
+  assert.deepEqual(listOutbox(h.db).map((r) => r.nextTryUtc), [T0 + readMs(200), null]);
+  await h.clock.advance(readMs(200) - sec(2) + typing(TWO[0]) - 1); // lee y "escribe" el primero
+  assert.deepEqual(h.texts(), []);
+  await h.clock.advance(1);
+  assert.deepEqual(h.texts(), [TWO[0]]);
+  await h.clock.advance(typing(TWO[1]) - 1); // el segundo globo: solo su "escribiendo", sin otra lectura
+  assert.deepEqual(h.texts(), [TWO[0]]);
+  await h.clock.advance(1);
+  assert.deepEqual(h.texts(), TWO);
+});
+
+test('lectura: si el modelo ya tardó más que la lectura no se espera nada extra', async () => {
+  const h = makeHarness({ llm: new ScriptedLlm(ok) });
+  h.say(CHAT, 'Hola'); // 4 letras: 0,1 s, mucho menos que la ráfaga de 2 s
+  await h.clock.advance(sec(2) + typing(FIRST_TEXT) - 1);
+  assert.deepEqual(h.texts(), []);
+  await h.clock.advance(1); // 2 s de ráfaga + el "escribiendo", sin lectura de más
+  assert.deepEqual(h.texts(), [FIRST_TEXT]);
+});
+
+test('lectura: tope, y varios mensajes del cliente suman sus letras (desde el último)', async () => {
+  const big = makeHarness({ llm: new ScriptedLlm(ok) });
+  big.say(CHAT, 'x'.repeat(2000));
+  await big.clock.advance(sec(2));
+  assert.deepEqual(listOutbox(big.db).map((r) => r.nextTryUtc), [T0 + READ_MAX]);
+
+  const burst = makeHarness({ llm: new ScriptedLlm(ok) });
+  burst.say(CHAT, 'x'.repeat(100));
+  await burst.clock.advance(sec(1));
+  burst.say(CHAT, 'y'.repeat(100));
+  await burst.clock.advance(sec(2)); // el turno corre a los 2 s del último
+  assert.deepEqual(listOutbox(burst.db).map((r) => r.nextTryUtc), [T0 + sec(1) + readMs(200)]); // 200 letras desde el último mensaje
+});
+
+test('lectura: un audio cuenta por el largo de lo transcripto', async () => {
+  const h = makeHarness({ llm: new ScriptedLlm(ok) });
+  h.audio.script = ['z'.repeat(120)];
+  h.sayAudio(CHAT);
+  await h.clock.advance(sec(2));
+  const { n } = h.db.prepare("SELECT length(text) AS n FROM messages WHERE author = 'customer'").get() as { n: number };
+  assert.ok(n >= 120);
+  assert.deepEqual(listOutbox(h.db).map((r) => r.nextTryUtc), [T0 + readMs(n)]);
+});
+
+test('lectura: el azar (0,8 a 1,2 veces) se aplica a la espera de lectura', async () => {
+  const h = makeHarness({ llm: new ScriptedLlm(ok), random: () => 0 });
+  h.say(CHAT, 'x'.repeat(200));
+  await h.clock.advance(sec(2));
+  assert.deepEqual(listOutbox(h.db).map((r) => r.nextTryUtc), [T0 + Math.round(readMs(200) * 0.8)]); // random 0 = el mínimo, 0,8 veces
+});
+
+test('lectura: en modo sombra no se encola nada (el borrador no lleva espera de lectura)', async () => {
+  const h = makeHarness({ shadow: true, llm: new ScriptedLlm(ok) });
+  h.say(CHAT, 'x'.repeat(200));
+  await h.clock.advance(sec(2));
+  assert.equal(listDrafts(h.db, CHAT).length, 1);
+  assert.deepEqual(listOutbox(h.db), []);
+});
+
+test('lectura: lo que cierra el chat (acá, el traspaso) no espera la lectura: solo su "escribiendo"', async () => {
+  const text = 'Buenas tardes, le paso tu consulta al equipo para que te escriba por acá.';
+  const llm = new ScriptedLlm(() => turnWith([text], { signals: { ...turnWith([]).signals, asks_human: true } }));
+  const h = makeHarness({ llm });
+  h.say(CHAT, `quiero hablar con una persona ${'x'.repeat(300)}`); // 330 letras: con lectura serían más de 10 s
+  await h.clock.advance(sec(2) + typing(text) - 1);
+  assert.deepEqual(h.texts(), []);
+  await h.clock.advance(1); // 2 s de ráfaga + el "escribiendo", sin lectura
+  assert.deepEqual(h.texts(), [text]);
+});

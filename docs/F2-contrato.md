@@ -127,7 +127,10 @@ export interface Channel {
 | `max_new_chats_per_day` | 30 | |
 | `bot_start_utc` | Se fija en el primer arranque | Los chats con historia anterior arrancan en `humano` |
 | `outbox_expiry_min` | 30 | |
-| `typing_ms` | 2500 | Por globo, con tope |
+| `typing_ms_per_char` | 60 | "Escribiendo…" por letra de cada globo (piso 1,5 s), ±20 % al azar |
+| `typing_max_ms` | 12000 | Tope del "escribiendo…" de un globo |
+| `read_ms_per_char` | 40 | Lectura por letra de lo que escribió el cliente, ±20 % al azar |
+| `read_max_ms` | 15000 | Tope de la lectura |
 
 ## Recepción → respuesta (parte A)
 
@@ -163,7 +166,7 @@ export interface Channel {
    - Si no, cada globo y cada imagen va al outbox con `logical_key` única.
    - Se aplica la ficha. Las derivaciones van a Telegram; las de tipo `stop` dejan el chat en `humano`.
 8. **Outbox:**
-   - Un solo enviador, con una pausa corta entre globos (`typing_ms`).
+   - Un solo enviador. Cada globo "escribe" (`typing_ms_per_char`, `typing_max_ms`) sin frenar a los otros chats: la fila guarda `typing_until_utc` y vuelve a estar lista cuando termina. La primera fila de una respuesta espera además la lectura (`read_ms_per_char`, `read_max_ms`).
    - Timeout o 5xx después de enviar → `incierto` → reconcilia con `messagesSince`, buscando el texto exacto en los mensajes `fromMe` posteriores al intento:
      - si lo encuentra, queda `aceptado`;
      - si no, queda `fallido` con aviso para revisión manual.

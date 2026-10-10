@@ -13,7 +13,10 @@ export const SETTING_DEFAULTS = {
   max_new_chats_per_day: '30',
   bot_start_utc: '', // vacío = todavía no arrancó; se fija en el primer arranque
   outbox_expiry_min: '30',
-  typing_ms: '2500', // por globo, con tope
+  typing_ms_per_char: '60', // "escribiendo…" por letra de cada globo (con piso de 1,5 s), más o menos 20 % al azar
+  typing_max_ms: '12000', // tope del "escribiendo…" de un globo
+  read_ms_per_char: '40', // lo que tarda en "leer" por letra de lo que escribió el cliente, más o menos 20 % al azar
+  read_max_ms: '15000', // tope de esa lectura
   max_audio_seconds: '600', // un audio más largo que esto no se transcribe: se trata como ilegible
 } as const;
 

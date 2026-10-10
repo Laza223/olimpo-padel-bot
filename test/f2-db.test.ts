@@ -23,7 +23,7 @@ test('esquema: las 8 tablas del contrato, y migrar de nuevo no rompe ni borra na
   migrate(db);
   migrate(db);
   assert.ok(getConversation(db, 'c1@c.us'));
-  assert.equal((db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version, 4);
+  assert.equal((db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version, 5);
 });
 
 test('migración V4 sobre una base V3: agrega las columnas de tokens (NULL en lo viejo), conserva los datos y es idempotente', () => {
@@ -33,7 +33,7 @@ test('migración V4 sobre una base V3: agrega las columnas de tokens (NULL en lo
   db.prepare("INSERT INTO agent_runs (chat_id, ts_utc, model, effort, policy_hash, input_tokens, cached_tokens, output_tokens, cost_usd) VALUES ('c1@c.us', 5, 'gpt-6.1-sol', 'low', 'h', 3000, 2048, 200, 0.004)").run();
   migrate(db);
   migrate(db);
-  assert.equal((db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version, 4);
+  assert.equal((db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version, 5);
   const cols = db.prepare('PRAGMA table_info(agent_runs)').all().map((c) => c.name);
   assert.deepEqual(cols.slice(-3), ['cache_write_tokens', 'cache_write_1h_tokens', 'thinking_tokens']);
   assert.deepEqual({ ...db.prepare('SELECT input_tokens, cache_write_tokens, cache_write_1h_tokens, thinking_tokens FROM agent_runs').get() }, { input_tokens: 3000, cache_write_tokens: null, cache_write_1h_tokens: null, thinking_tokens: null });
@@ -41,6 +41,19 @@ test('migración V4 sobre una base V3: agrega las columnas de tokens (NULL en lo
   insertAgentRun(db, { ...run, cacheWriteTokens: 3900, cacheWrite1hTokens: 3900, thinkingTokens: 120 });
   insertAgentRun(db, run); // sin dato: NULL, no 0
   assert.deepEqual(db.prepare('SELECT cache_write_tokens AS w, cache_write_1h_tokens AS w1, thinking_tokens AS t FROM agent_runs WHERE ts_utc > 5 ORDER BY id').all().map((r) => ({ ...r })), [{ w: 3900, w1: 3900, t: 120 }, { w: null, w1: null, t: null }]);
+});
+
+test('migración V5 sobre una base V4: agrega typing_until_utc (NULL en lo viejo), conserva el outbox y es idempotente', () => {
+  const db = new DatabaseSync(':memory:');
+  for (const sql of MIGRATIONS.slice(0, 4)) db.exec(sql);
+  db.exec('PRAGMA user_version = 4');
+  db.prepare("INSERT INTO outbox (logical_key, chat_id, kind, body, expires_utc, context_version, created_utc, next_try_utc) VALUES ('c1@c.us:1:0', 'c1@c.us', 'text', 'Hola', 9, 1, 5, 7)").run();
+  migrate(db);
+  migrate(db);
+  assert.equal((db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version, 5);
+  assert.equal(db.prepare('PRAGMA table_info(outbox)').all().filter((c) => c.name === 'typing_until_utc').length, 1);
+  assert.deepEqual(listOutbox(db).map((r) => [r.logicalKey, r.body, r.nextTryUtc, r.typingUntilUtc]), [['c1@c.us:1:0', 'Hola', 7, null]]); // lo viejo sigue igual y todavía no "escribió"
+  assert.equal(listOutbox(db)[0].status, 'pendiente');
 });
 
 test('archivo: modo WAL y busy_timeout de 5000', () => {
@@ -63,7 +76,7 @@ test('settings: los defaults del contrato, validación y claves desconocidas', (
     { ...SETTING_DEFAULTS },
     {
       kill_switch: '0', shadow_mode: '1', burst_quiet_ms: '2000', burst_max_ms: '8000', reply_window_hours: '12', daily_budget_usd: '2', conv_budget_usd: '0.25',
-      max_new_chats_per_day: '30', bot_start_utc: '', outbox_expiry_min: '30', typing_ms: '2500', max_audio_seconds: '600',
+      max_new_chats_per_day: '30', bot_start_utc: '', outbox_expiry_min: '30', typing_ms_per_char: '60', typing_max_ms: '12000', read_ms_per_char: '40', read_max_ms: '15000', max_audio_seconds: '600',
     },
   );
   assert.equal(getFlag(db, 'shadow_mode'), true);
@@ -77,7 +90,8 @@ test('settings: los defaults del contrato, validación y claves desconocidas', (
   assert.throws(() => setSetting(db, 'kill_switch', 'si'), /0 o 1/);
   assert.throws(() => setSetting(db, 'burst_quiet_ms', '-5'), /número/);
   assert.throws(() => setSetting(db, 'burst_quiet_ms', 'abc'), /número/);
-  assert.equal(isSettingKey('typing_ms'), true);
+  assert.equal(isSettingKey('typing_max_ms'), true);
+  assert.equal(isSettingKey('read_ms_per_char'), true);
   assert.equal(isSettingKey('state.session_status'), false);
   db.prepare("UPDATE settings SET value = 'basura' WHERE key = 'burst_quiet_ms'").run(); // un valor roto por SQL cae al default
   assert.equal(getNum(db, 'burst_quiet_ms'), 2000);

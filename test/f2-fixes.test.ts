@@ -52,7 +52,7 @@ test('1. r9: globo en vuelo + info nueva + toma humana; el envío falla pasajero
     return real(chatId, text);
   };
   h.say(CHAT, 'Hola');
-  await h.clock.advance(5000);
+  await h.clock.advance(6500); // turno (2 s) + "escribiendo" del globo (68 letras por 60 ms: 4,1 s)
   assert.deepEqual(listOutbox(h.db).map((r) => r.status), ['en_proceso']);
   h.say(CHAT, 'Ah, somos de Cordoba y la queremos techada');
   h.deliver(h.ownEvent(CHAT, 'Hola, soy Tomas, sigo yo'));

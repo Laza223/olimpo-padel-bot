@@ -23,6 +23,7 @@ export interface HarnessOpts {
   config?: BrainConfig;
   audio?: ScriptedAudio; // por defecto uno nuevo (conversor y transcriptor falsos)
   botStartAgoMs?: number; // el bot "arrancó" hace tanto (para chats con historia anterior)
+  random?: () => number; // el azar de las esperas de lectura y de "escribiendo"; por defecto fijo en 0,5 (vale justo 1) para que las pruebas sean exactas
 }
 
 let seq = 0;
@@ -36,8 +37,9 @@ export function makeHarness(o: HarnessOpts = {}) {
   const notifier = new FakeNotifier();
   const llm = o.llm ?? new FakeLlm(policy);
   const audio = o.audio ?? new ScriptedAudio();
-  const outbox = createOutbox({ db, channel, notifier, clock, onExpired: (chatId) => worker.onCustomerMessage(chatId) });
-  const worker = createWorker({ db, channel, llm, policy, config: o.config ?? { model: 'gpt-6.1-sol', effort: 'low' }, audio, notifier, clock, kickOutbox: () => outbox.kick() });
+  const random = o.random ?? (() => 0.5);
+  const outbox = createOutbox({ db, channel, notifier, clock, random, onExpired: (chatId) => worker.onCustomerMessage(chatId) });
+  const worker = createWorker({ db, channel, llm, policy, config: o.config ?? { model: 'gpt-6.1-sol', effort: 'low' }, audio, notifier, clock, random, kickOutbox: () => outbox.kick() });
   const ingest = createIngest({ db, channel, clock, notifier, onCustomerMessage: (chatId) => worker.onCustomerMessage(chatId), onOutboxChange: () => outbox.kick() });
   const webhook = { db, secret: SECRET, clock, onStored: () => ingest.kick() };
 

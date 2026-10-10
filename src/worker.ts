@@ -15,7 +15,7 @@ import type { Conversation, Db, MessageRow, PauseReason } from './db.ts';
 import { isClaudeModel } from './llm.ts';
 import { safeNotify, sendAlert } from './notify/alert.ts';
 import type { Notifier } from './notify/types.ts';
-import { enqueueReply } from './outbox.ts';
+import { enqueueReply, readMsFor } from './outbox.ts';
 import { openingText } from './policy.ts';
 import type { Policy } from './policy.ts';
 import { getFlag, getNum, getState, setState } from './settings.ts';
@@ -49,6 +49,7 @@ export interface WorkerDeps {
   kickOutbox: () => void; // hay respuestas nuevas para mandar
   assetsDir?: URL;
   maxConcurrentLlm?: number;
+  random?: () => number; // el azar de la espera de lectura (por defecto Math.random)
 }
 
 export interface Worker {
@@ -92,6 +93,7 @@ export function createWorker(deps: WorkerDeps): Worker {
   const states = new Map<string, ChatState>();
   const inflight = new Set<Promise<void>>();
   const llmSlots = new Semaphore(deps.maxConcurrentLlm ?? MAX_CONCURRENT_LLM);
+  const random = deps.random ?? Math.random;
   const alerted = new Set<string>(); // "sin saldo" y "clave o modelo rechazados" salen una vez por caída, por proveedor y por lado: el cerebro (quota:OpenAI) o la transcripción (config:OpenAI:audio)
   const audioFailures = new Map<number, number>(); // fallos pasajeros seguidos de la transcripción, por id de mensaje (en memoria: si el bot se reinicia, se vuelve a contar)
   let stopped = false;
@@ -505,6 +507,14 @@ export function createWorker(deps: WorkerDeps): Worker {
     });
   }
 
+  // Lo que tarda en "leer" lo que escribió el cliente (audios: el largo de lo transcripto), medido desde su último mensaje: el primer globo no sale antes.
+  // Si el modelo ya tardó más que eso, no se espera nada extra. Si el reloj del cliente está adelantado, se cuenta desde ahora.
+  function readNotBefore(chatId: string, now: number): number | undefined {
+    const msgs = unansweredMessages(db, chatId);
+    const last = msgs[msgs.length - 1];
+    return last && Math.min(last.tsUtcMs, now) + readMsFor(db, msgs.reduce((n, m) => n + m.text.length, 0), random);
+  }
+
   // Salida: con modo sombra va a borradores y a Telegram; si no, al outbox. Se aplica la ficha; las derivaciones van a Telegram y las de tipo stop dejan el chat en humano.
   async function apply(chatId: string, version: number, answersUpto: number, result: TurnResult, shadow: boolean): Promise<void> {
     const now = clock.now();
@@ -512,7 +522,7 @@ export function createWorker(deps: WorkerDeps): Worker {
     tx(db, () => {
       if (result.bubbles.length || result.material.length) {
         if (shadow) draftId = createDraft(db, { chatId, contextVersion: version, bubbles: result.bubbles, material: result.material, nowMs: now, answersUpto });
-        else enqueueReply(db, { chatId, version, bubbles: result.bubbles, material: result.material, assets: policy.assets, assetsDir: deps.assetsDir, nowMs: now, answersUpto });
+        else enqueueReply(db, { chatId, version, bubbles: result.bubbles, material: result.material, assets: policy.assets, assetsDir: deps.assetsDir, nowMs: now, answersUpto, notBeforeUtc: result.stopBot ? undefined : readNotBefore(chatId, now) }); // lo que cierra el chat (baja, mensaje seguro, cierre) no "lee": si el cliente escribe en esa espera se cancelaría y nadie lo rearma
       } else advanceAnswered(db, chatId, answersUpto); // no hay nada que mandar (proveedor, baja sin texto): queda atendido igual
       saveCard(db, chatId, result.card);
       if (result.stopBot) setMode(db, chatId, 'humano');

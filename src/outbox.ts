@@ -4,11 +4,10 @@ import { fileURLToPath } from 'node:url';
 import type { Asset } from './policy.ts';
 import type { Channel, HistoryMessage } from './channel/types.ts';
 import { ChannelError } from './channel/types.ts';
-import { sleep } from './clock.ts';
 import type { Clock } from './clock.ts';
 import {
   advanceAnswered, audit, bumpVersion, chatLabel, claimOutbox, dueIncierto, expireOutbox, findMessage, getConversation, getDraft, getOutbox, insertMessage, insertOutbox, markOutbox,
-  cancelChatOutbox, nextOutboxWake, nextPendingOutbox, outboxByProviderId, requeueOutbox, setDraftStatus, tx,
+  cancelChatOutbox, nextOutboxWake, nextPendingOutbox, outboxByProviderId, requeueOutbox, setDraftStatus, setOutboxTyping, tx,
 } from './db.ts';
 import type { Db, OutboxRow } from './db.ts';
 import { sendAlert } from './notify/alert.ts';
@@ -22,17 +21,26 @@ const RECONCILE_GIVE_UP_MS = 10 * 60_000; // y si en 10 min no se pudo confirmar
 const RECONCILE_SKEW_MS = 60_000; // el reloj de WhatsApp y el nuestro no coinciden al segundo
 const TRANSIENT_BACKOFF_MS = [5_000, 30_000]; // entre reintentos de un error que seguro no salió
 const MAX_SEND_ATTEMPTS = 3;
-const TYPING_MS_PER_CHAR = 50;
-const TYPING_MIN_MS = 400;
+const TYPING_MIN_MS = 1_500; // piso del "escribiendo…" de un globo, por corto que sea
+
+// Esperas "humanas": proporcionales al largo del texto, con tope, y entre 0,8 y 1,2 veces al azar para que no parezcan de reloj.
+// `random` es inyectable (devuelve [0, 1)): las pruebas lo fijan.
+const jitter = (random: () => number): number => 0.8 + 0.4 * random();
+export const typingMsFor = (db: Db, chars: number, random: () => number): number =>
+  Math.round(Math.min(Math.max(chars * getNum(db, 'typing_ms_per_char'), TYPING_MIN_MS), getNum(db, 'typing_max_ms')) * jitter(random));
+export const readMsFor = (db: Db, chars: number, random: () => number): number =>
+  Math.round(Math.min(chars * getNum(db, 'read_ms_per_char'), getNum(db, 'read_max_ms')) * jitter(random));
 
 // Encola una respuesta: los globos primero y después las imágenes del material (una por archivo). Devuelve cuántas filas nuevas entraron.
 // La clave `chat:versión:índice` es única: encolar dos veces la misma respuesta no duplica nada.
-export function enqueueReply(db: Db, o: { chatId: string; version: number; bubbles: string[]; material: string[]; assets: Asset[]; assetsDir?: URL; nowMs: number; answersUpto: number }): number {
+// `notBeforeUtc`: la primera fila no sale antes de esa hora (el tiempo de "leer" lo que escribió el cliente); las siguientes solo esperan su "escribiendo…".
+export function enqueueReply(db: Db, o: { chatId: string; version: number; bubbles: string[]; material: string[]; assets: Asset[]; assetsDir?: URL; nowMs: number; answersUpto: number; notBeforeUtc?: number }): number {
   const expiresUtc = o.nowMs + getNum(db, 'outbox_expiry_min') * 60_000;
   let index = 0;
   let inserted = 0;
   const add = (kind: 'text' | 'image', body: string) => {
-    if (insertOutbox(db, { logicalKey: `${o.chatId}:${o.version}:${index++}`, chatId: o.chatId, kind, body, expiresUtc, contextVersion: o.version, createdUtc: o.nowMs, answersUpto: o.answersUpto })) inserted++;
+    const i = index++;
+    if (insertOutbox(db, { logicalKey: `${o.chatId}:${o.version}:${i}`, chatId: o.chatId, kind, body, expiresUtc, contextVersion: o.version, createdUtc: o.nowMs, answersUpto: o.answersUpto, nextTryUtc: i === 0 ? o.notBeforeUtc : undefined })) inserted++;
   };
   for (const b of o.bubbles) add('text', b);
   for (const id of o.material) {
@@ -66,6 +74,7 @@ export interface OutboxDeps {
   notifier: Notifier;
   clock: Clock;
   onExpired?: (chatId: string) => void; // se venció una respuesta sin mandar de un chat en `auto`: se vuelve a armar el turno
+  random?: () => number; // el azar de las esperas (por defecto Math.random)
 }
 
 export interface Outbox {
@@ -80,6 +89,8 @@ export const outboxText = (row: OutboxRow): string => (row.kind === 'text' ? row
 
 export function createOutbox(deps: OutboxDeps): Outbox {
   const { db, channel, notifier, clock } = deps;
+  const random = deps.random ?? Math.random;
+  const typingOn = new Map<number, { chatId: string; until: number }>(); // filas con el "escribiendo…" prendido (en memoria: si el bot se reinicia, WhatsApp lo apaga solo)
   let running = false;
   let again = false;
   let current: Promise<void> | undefined;
@@ -172,11 +183,28 @@ export function createOutbox(deps: OutboxDeps): Outbox {
     }
   }
 
+  async function typingOff(rowId: number): Promise<void> {
+    const t = typingOn.get(rowId);
+    if (!t) return;
+    typingOn.delete(rowId);
+    await safe(channel.typing(t.chatId, false));
+  }
+
+  // El "escribiendo…" de una fila que ya no va a salir (cancelada, vencida) o con el enviador apagado se apaga: siempre.
+  async function settleTyping(all: boolean): Promise<void> {
+    for (const id of [...typingOn.keys()]) if (all || getOutbox(db, id)?.status !== 'pendiente') await typingOff(id);
+  }
+
+  // Un globo de texto sale en dos tiempos para no frenar a los otros chats: primero "escribe" (la fila queda lista recién cuando termina) y el enviador sigue con otro;
+  // cuando vuelve a estar lista, se manda. Un reintento por error pasajero ya "escribió": va directo, con su espera.
   async function sendRow(row: OutboxRow): Promise<void> {
     const isText = row.kind === 'text';
-    if (isText) {
+    if (isText && row.typingUntilUtc === null) {
+      const until = clock.now() + typingMsFor(db, row.body.length, random);
+      setOutboxTyping(db, row.id, until);
+      typingOn.set(row.id, { chatId: row.chatId, until });
       await safe(channel.typing(row.chatId, true));
-      await sleep(clock, Math.min(getNum(db, 'typing_ms'), Math.max(TYPING_MIN_MS, row.body.length * TYPING_MS_PER_CHAR))); // por globo, con tope
+      return;
     }
     try {
       if (stopped || getFlag(db, 'kill_switch')) return;
@@ -190,14 +218,15 @@ export function createOutbox(deps: OutboxDeps): Outbox {
         await handleFailure(claimed, e instanceof ChannelError ? e : new ChannelError('uncertain', undefined, e instanceof Error ? e.message : String(e)));
       }
     } finally {
-      if (isText) await safe(channel.typing(row.chatId, false)); // siempre se apaga
+      await typingOff(row.id); // siempre se apaga
     }
   }
 
   async function drain(): Promise<void> {
     for (;;) {
-      if (stopped || getFlag(db, 'kill_switch')) return;
+      if (stopped || getFlag(db, 'kill_switch')) return settleTyping(true);
       await expire();
+      await settleTyping(false);
       for (const row of dueIncierto(db, clock.now())) await reconcile(row);
       const row = nextPendingOutbox(db, clock.now());
       if (!row) return;
@@ -208,8 +237,8 @@ export function createOutbox(deps: OutboxDeps): Outbox {
   function armWake(): void {
     if (wake !== undefined) clock.clearTimeout(wake);
     wake = undefined;
-    const at = nextOutboxWake(db);
-    if (stopped || at === undefined || getFlag(db, 'kill_switch')) return; // apagado: nada que despertar (al prender, rescan() vuelve a darle kick)
+    const at = Math.min(nextOutboxWake(db) ?? Infinity, ...[...typingOn.values()].map((t) => t.until)); // y cuando termina un "escribiendo…" prendido (si la fila se canceló, hay que apagarlo)
+    if (stopped || at === Infinity || getFlag(db, 'kill_switch')) return; // apagado: nada que despertar (al prender, rescan() vuelve a darle kick)
     wake = clock.setTimeout(() => { wake = undefined; kick(); }, Math.max(0, at - clock.now()));
   }
 

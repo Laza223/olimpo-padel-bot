@@ -145,7 +145,8 @@ Si escribís un comando en el grupo y el bot no responde, en @BotFather: `/mybot
 | `reply_window_hours` | 12 | Al prender, el bot solo contesta consultas más nuevas que esto. |
 | `burst_quiet_ms` y `burst_max_ms` | 2000 y 8000 | Cuánto espera para juntar mensajes seguidos del cliente antes de contestar. |
 | `outbox_expiry_min` | 30 | Una respuesta que no salió en este tiempo se tira y no se manda. |
-| `typing_ms` | 2500 | Cuánto tiempo aparece "escribiendo…" por mensaje. |
+| `typing_ms_per_char` y `typing_max_ms` | 60 y 12000 | Cuánto aparece "escribiendo…" por globo: 60 ms por letra, con un mínimo de 1,5 s y un tope de 12 s, y entre 0,8 y 1,2 veces al azar. Mientras un chat "escribe", el bot atiende a los demás. |
+| `read_ms_per_char` y `read_max_ms` | 40 y 15000 | Cuánto tarda en "leer" lo que escribió el cliente antes de empezar a contestar: 40 ms por letra, tope de 15 s, también con azar. Se cuenta desde su último mensaje: si el bot ya tardó más armando la respuesta, no espera de más. |
 | `max_audio_seconds` | 600 | Un audio más largo que esto (en segundos) no se transcribe: el bot lo trata como un audio que no pudo escuchar (ver el punto 9). No acepta menos de 10: con un tope más bajo casi cualquier audio quedaría ilegible. |
 | `bot_start_utc` | (la primera vez que arrancó) | **No lo toques.** Es lo que le dice al bot qué chats ya existían antes de él. |
 

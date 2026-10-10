@@ -469,3 +469,19 @@ Pedido de Lazar al ver el borrador #8: que no pregunte "techada o aire libre" (l
 | 35 | sonnet-adversarial-reviewer, diff de ubicación y globos | APROBADO CON RESERVAS: 🟡 fichas completas de golpe quedaban sin aviso al equipo (arreglado con `stillQualifying` + test); 🟡 "lo ve el equipo en la visita" en el prompt no está en la política (sacado). |
 
 - Banco ×1, Sonnet medium, jueza Opus (`evals/out/2026-10-09-2339-…`): 1 crítica, que era la expectativa vieja de `persona-particular-country` (esperaba la ubicación en la ficha; quitada). Reintentos 0,9 %, seguros 0 %, **un globo 39,3 %** (antes casi 0), juez 4,66 (mín 3,67), p95 8,6 s, bot USD 0,020 por conversación. Ningún globo pregunta por techado. Gasto: USD 1,69 (esfuerzo Sonnet: USD 15,7 de 30).
+
+## Tiempos humanos de respuesta (10-oct)
+
+Lazar notó que el bot contestaba al toque aun a mensajes largos: poco natural y una señal más de automatización para WhatsApp. Ahora:
+- **"Escribiendo…":** según lo largo de cada globo (60 ms por letra, entre 1,5 y 12 s). Sale en dos tiempos para no frenar a los otros chats (migración V5: `outbox.typing_until_utc`).
+- **"Lectura":** según lo que escribió el cliente (40 ms por letra, tope 15 s), contada desde su último mensaje.
+- **Azar:** todo varía entre 0,8 y 1,2 veces.
+- **Lo que cierra el chat** (baja, mensaje seguro, traspaso, cierre) no espera la lectura. Si el cliente escribe en esa espera, se cancelaría y nadie lo rearma.
+- **Se ajusta con `/set`:** `typing_ms_per_char`, `typing_max_ms`, `read_ms_per_char`, `read_max_ms`.
+
+| # | Delegación | Resultado |
+|---|---|---|
+| 36 | sonnet-implementer, tiempos humanos en el outbox | Hecho dentro del presupuesto (4 archivos de src). 833/0. Después, ajuste de tests a los defaults de lectura que subió el orquestador (25→40 ms, 8→15 s). |
+| 37 | sonnet-adversarial-reviewer, diff del outbox | APROBADO CON RESERVAS. Sin duplicados, desorden ni filas bloqueadas; 11 de 11 mutaciones atrapadas. Arreglado: docs con los defaults viejos, un test que fija los literales, lo que cierra el chat ya no lee (test con mutación verificada) y `sleep` muerto. Queda abierto: que WhatsApp sostenga un "escribiendo" de hasta ~14 s sin refresco se ve en vivo. |
+
+Además: `docs/PROMPT-CRM.md`, el mensaje con todo el contexto para la sesión que arma el CRM.

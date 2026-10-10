@@ -12,18 +12,19 @@ import { FakeClock, FakeNotifier, T0, policy } from './f2-helpers.ts';
 const CHAT = '5491155550000@c.us';
 const LONG = 'Este es un globo largo de más de cincuenta caracteres para que la espera de tipeo llegue al tope configurado.';
 
-function setup(settings: Record<string, string> = {}) {
+// `random` fijo en 0,5: el azar de las esperas vale justo 1 y las cuentas son exactas. El tope de "escribiendo" arranca en 1 s (cuentas fáciles); cada prueba lo cambia si necesita otro.
+function setup(settings: Record<string, string> = {}, random: () => number = () => 0.5) {
   const clock = new FakeClock();
   const db = openDb(':memory:');
-  setSetting(db, 'typing_ms', '1000');
+  setSetting(db, 'typing_max_ms', '1000');
   for (const [k, v] of Object.entries(settings)) setSetting(db, k, v);
   const channel = new FakeChannel(() => clock.now());
   const notifier = new FakeNotifier();
-  const outbox = createOutbox({ db, channel, notifier, clock });
+  const outbox = createOutbox({ db, channel, notifier, clock, random });
   createConversation(db, { chatId: CHAT, session: 'default', mode: 'auto', nowMs: T0 });
   bumpVersion(db, CHAT, T0); // las respuestas de estas pruebas son de la versión 1: el chat está en la 1 (una versión vieja no sale)
-  const enqueue = (bubbles: string[], o: { chatId?: string; version?: number; material?: string[]; answersUpto?: number } = {}) =>
-    enqueueReply(db, { chatId: o.chatId ?? CHAT, version: o.version ?? 1, bubbles, material: o.material ?? [], assets: policy.assets, nowMs: clock.now(), answersUpto: o.answersUpto ?? 0 });
+  const enqueue = (bubbles: string[], o: { chatId?: string; version?: number; material?: string[]; answersUpto?: number; notBeforeUtc?: number } = {}) =>
+    enqueueReply(db, { chatId: o.chatId ?? CHAT, version: o.version ?? 1, bubbles, material: o.material ?? [], assets: policy.assets, nowMs: clock.now(), answersUpto: o.answersUpto ?? 0, notBeforeUtc: o.notBeforeUtc });
   return { clock, db, channel, notifier, outbox, enqueue };
 }
 
@@ -68,7 +69,7 @@ test('un globo: escribiendo, espera, sale, queda aceptado con el id de WAHA, se 
   assert.equal(getConversation(db, CHAT)!.answeredUpto, m1.id);
 });
 
-test('dos globos salen en orden, con una pausa entre uno y otro (typing_ms por globo, con tope)', async () => {
+test('dos globos salen en orden, con una pausa entre uno y otro (un "escribiendo" por globo, con tope)', async () => {
   const { clock, channel, outbox, enqueue } = setup();
   enqueue([LONG, `${LONG} Segundo.`]);
   outbox.kick();
@@ -81,14 +82,122 @@ test('dos globos salen en orden, con una pausa entre uno y otro (typing_ms por g
   assert.deepEqual(channel.sent.map((m) => m.text.endsWith('Segundo.')), [false, true]);
 });
 
-test('un globo corto no espera el tope entero (la espera sigue al largo del texto)', async () => {
-  const { clock, channel, outbox, enqueue } = setup({ typing_ms: '2500' });
+test('un globo corto espera el piso de 1,5 s (no el tope): la espera sigue al largo del texto', async () => {
+  const { clock, channel, outbox, enqueue } = setup({ typing_max_ms: '12000' });
   enqueue(['Dale']);
   outbox.kick();
-  await clock.advance(399);
+  await clock.advance(1499);
   assert.equal(channel.sent.length, 0);
   await clock.advance(1);
   assert.equal(channel.sent.length, 1);
+});
+
+test('"escribiendo": 60 ms por letra con piso de 1,5 s y tope de 12 s, por azar entre 0,8 y 1,2 veces', async () => {
+  // Cuánto pasa hasta que sale el globo, mirando cada 100 ms.
+  const waitFor = async (text: string, random: number) => {
+    const { clock, channel, outbox, enqueue } = setup({ typing_max_ms: '12000' }, () => random);
+    enqueue([text]);
+    outbox.kick();
+    for (let t = 0; t <= 20_000; t += 100) {
+      await clock.advance(t === 0 ? 0 : 100);
+      if (channel.sent.length) return t;
+    }
+    return Infinity;
+  };
+  assert.equal(await waitFor('x'.repeat(200), 0.5), 12_000); // 200 letras: el tope entero
+  assert.equal(await waitFor('x'.repeat(200), 0), 9_600); // 12 s por 0,8
+  assert.equal(await waitFor('x'.repeat(200), 0.999), 14_400); // 12 s por 1,2 (a 100 ms)
+  assert.equal(await waitFor('x'.repeat(20), 0), 1_200); // 20 letras: el piso de 1,5 s por 0,8
+  assert.equal(await waitFor('x'.repeat(20), 0.999), 1_800); // el piso por 1,2
+  assert.equal(await waitFor('x'.repeat(50), 0.5), 3_000); // en el medio: 50 letras por 60 ms
+});
+
+test('un chat que "escribe" no frena a los otros: el segundo empieza a "escribir" sin esperar que termine el primero', async () => {
+  const { clock, channel, outbox, enqueue, db } = setup({ typing_max_ms: '12000' });
+  createConversation(db, { chatId: 'b@c.us', session: 'default', mode: 'auto', nowMs: T0 });
+  bumpVersion(db, 'b@c.us', T0);
+  enqueue(['x'.repeat(200)]); // chat A: 12 s
+  enqueue(['Dale'], { chatId: 'b@c.us' }); // chat B: 1,5 s
+  outbox.kick();
+  await clock.advance(0);
+  assert.deepEqual(channel.typingLog, [{ chatId: CHAT, on: true }, { chatId: 'b@c.us', on: true }]); // los dos "escriben" a la vez
+  assert.equal(channel.sent.length, 0);
+  await clock.advance(1500);
+  assert.deepEqual(channel.sent.map((m) => [m.chatId, m.text]), [['b@c.us', 'Dale']]); // B sale a su hora, con A todavía "escribiendo"
+  await clock.advance(10_499);
+  assert.equal(channel.sent.length, 1);
+  await clock.advance(1);
+  assert.deepEqual(channel.sent.map((m) => m.chatId), ['b@c.us', CHAT]);
+  assert.deepEqual(channel.typingLog.filter((t) => !t.on).map((t) => t.chatId), ['b@c.us', CHAT]); // y cada uno apaga el suyo
+});
+
+test('notBeforeUtc (la lectura) retrasa el primer globo y no los siguientes, que solo esperan su "escribiendo"', async () => {
+  const { clock, channel, outbox, enqueue, db } = setup(); // "escribiendo" de 1 s por globo
+  enqueue(['Uno', 'Dos'], { material: ['fabricacion_panos'], notBeforeUtc: T0 + 3000 });
+  assert.deepEqual(listOutbox(db).map((r) => r.nextTryUtc), [T0 + 3000, null, null, null]); // solo la primera fila
+  outbox.kick();
+  await clock.advance(2999);
+  assert.deepEqual([channel.typingLog.length, channel.sent.length], [0, 0]); // todavía "leyendo": ni "escribe"
+  await clock.advance(1);
+  assert.deepEqual(channel.typingLog, [{ chatId: CHAT, on: true }]);
+  await clock.advance(1000);
+  assert.deepEqual(channel.sent.map((m) => m.text), ['Uno']);
+  await clock.advance(999);
+  assert.equal(channel.sent.length, 1);
+  await clock.advance(1); // T0 + 5 s: el segundo globo no esperó otra lectura, solo su "escribiendo" de 1 s
+  assert.deepEqual(channel.sent.map((m) => m.kind), ['text', 'text', 'image', 'image']); // y las imágenes salen enseguida, sin esperas
+});
+
+test('un notBeforeUtc que ya pasó (el modelo tardó más que la lectura) no agrega espera', async () => {
+  const { clock, channel, outbox, enqueue } = setup();
+  enqueue(['Uno'], { notBeforeUtc: T0 - 5000 });
+  outbox.kick();
+  await clock.advance(1000);
+  assert.equal(channel.sent.length, 1);
+});
+
+test('lo cancelado mientras "escribe" no se manda y el "escribiendo" se apaga solo, sin otro kick', async () => {
+  const { clock, channel, outbox, enqueue, db } = setup();
+  enqueue(['Uno']);
+  outbox.kick();
+  await clock.advance(300);
+  cancelChatOutbox(db, CHAT, 'toma_humana');
+  await clock.advance(10_000);
+  assert.equal(channel.sendCalls, 0);
+  assert.deepEqual(listOutbox(db).map((r) => r.status), ['cancelado']);
+  assert.deepEqual(channel.typingLog, [{ chatId: CHAT, on: true }, { chatId: CHAT, on: false }]);
+  assert.equal(clock.pending, 0); // sin timers colgados
+});
+
+test('kill switch mientras "escribe": se apaga el "escribiendo", no sale nada; al prender sale directo (ya "escribió")', async () => {
+  const { clock, channel, outbox, enqueue, db } = setup();
+  enqueue(['Uno']);
+  outbox.kick();
+  await clock.advance(300);
+  setSetting(db, 'kill_switch', '1');
+  outbox.kick();
+  await clock.advance(10_000);
+  assert.deepEqual([channel.sendCalls, listOutbox(db)[0].status], [0, 'pendiente']);
+  assert.deepEqual(channel.typingLog, [{ chatId: CHAT, on: true }, { chatId: CHAT, on: false }]);
+  setSetting(db, 'kill_switch', '0');
+  outbox.kick();
+  await clock.advance(0);
+  assert.equal(channel.sent.length, 1);
+  assert.equal(channel.typingLog.filter((t) => t.on).length, 1); // no "escribe" de nuevo
+});
+
+test('un reintento por error pasajero no vuelve a "escribir": va directo, con su espera', async () => {
+  const { clock, channel, outbox, enqueue, db } = setup();
+  channel.failNextSend(new ChannelError('transient', 422, 'x'));
+  enqueue(['Uno']);
+  outbox.kick();
+  await clock.advance(1000); // "escribió" 1 s y el envío falló
+  assert.deepEqual([listOutbox(db)[0].status, channel.sendCalls], ['pendiente', 1]);
+  await clock.advance(4999);
+  assert.equal(channel.sendCalls, 1);
+  await clock.advance(1); // 5 s después del fallo, sin otro "escribiendo"
+  assert.deepEqual([channel.sent.length, listOutbox(db)[0].attempt], [1, 2]);
+  assert.equal(channel.typingLog.filter((t) => t.on).length, 1);
 });
 
 test('imágenes: salen después de los globos, sin "escribiendo", con la leyenda', async () => {
@@ -145,7 +254,7 @@ test('incierto que no aparece en el historial: queda fallido con aviso para revi
 });
 
 test('conciliar no confunde un mensaje igual que ya es de otra respuesta (dos "Dale" seguidos)', async () => {
-  const { clock, channel, outbox, enqueue, db } = setup({ typing_ms: '0' });
+  const { clock, channel, outbox, enqueue, db } = setup({ typing_max_ms: '0' });
   enqueue(['Dale'], { version: 1 });
   outbox.kick();
   await clock.advance(1000);
@@ -216,7 +325,7 @@ test('autenticación: fallido con causa auth y aviso urgente, sin reintentar', a
 });
 
 test('error transitorio (seguro que no salió): se reintenta con espera y a la 3.ª queda fallido con aviso', async () => {
-  const { clock, channel, outbox, enqueue, db, notifier } = setup({ typing_ms: '0' });
+  const { clock, channel, outbox, enqueue, db, notifier } = setup({ typing_max_ms: '0' });
   for (let i = 0; i < 3; i++) channel.failNextSend(new ChannelError('transient', 422, 'sesión no está WORKING'));
   enqueue(['Uno']);
   outbox.kick();
@@ -237,7 +346,7 @@ test('error transitorio (seguro que no salió): se reintenta con espera y a la 3
 });
 
 test('error transitorio que se arregla: sale una sola vez', async () => {
-  const { clock, channel, outbox, enqueue, db } = setup({ typing_ms: '0' });
+  const { clock, channel, outbox, enqueue, db } = setup({ typing_max_ms: '0' });
   channel.failNextSend(new ChannelError('transient', undefined, 'sin conexión con WAHA (ECONNREFUSED)'));
   enqueue(['Uno']);
   outbox.kick();
@@ -254,7 +363,7 @@ test('lo vencido no se manda: ni lo que espera, ni lo que ya venció cuando le t
   assert.equal(channel.sendCalls, 0);
   assert.deepEqual([listOutbox(db)[0].status, listOutbox(db)[0].cause], ['vencido', 'vencido']);
 
-  const late = setup({ typing_ms: '0' });
+  const late = setup({ typing_max_ms: '0' });
   late.channel.failNextSend(new ChannelError('transient', 422, 'x'));
   late.enqueue(['Se vence esperando']);
   late.outbox.kick();
@@ -266,7 +375,7 @@ test('lo vencido no se manda: ni lo que espera, ni lo que ya venció cuando le t
 });
 
 test('lo que vence mientras el bot "escribe" no sale (se vuelve a chequear justo antes de mandar)', async () => {
-  const { clock, channel, outbox, enqueue, db } = setup({ typing_ms: '2500' });
+  const { clock, channel, outbox, enqueue, db } = setup({ typing_max_ms: '2500' });
   enqueue([LONG]);
   outbox.kick();
   await clock.advance(500);
@@ -277,7 +386,7 @@ test('lo que vence mientras el bot "escribe" no sale (se vuelve a chequear justo
 });
 
 test('kill switch: no sale nada; al prenderlo de nuevo sale lo que todavía no venció', async () => {
-  const { clock, channel, outbox, enqueue, db } = setup({ kill_switch: '1', typing_ms: '0' });
+  const { clock, channel, outbox, enqueue, db } = setup({ kill_switch: '1', typing_max_ms: '0' });
   enqueue(['Uno']);
   outbox.kick();
   await clock.advance(10_000);
@@ -301,7 +410,7 @@ test('lo que se cancela mientras el bot "escribe" no sale (toma humana a mitad d
 });
 
 test('un solo enviador a la vez, y el orden entre chats es el de llegada; un chat esperando un reintento no frena a los otros', async () => {
-  const { clock, channel, outbox, enqueue, db } = setup({ typing_ms: '0' });
+  const { clock, channel, outbox, enqueue, db } = setup({ typing_max_ms: '0' });
   createConversation(db, { chatId: 'b@c.us', session: 'default', mode: 'auto', nowMs: T0 });
   bumpVersion(db, 'b@c.us', T0);
   let inFlight = 0;
@@ -324,7 +433,7 @@ test('un solo enviador a la vez, y el orden entre chats es el de llegada; un cha
 });
 
 test('stop() detiene el enviador (no quedan timers)', async () => {
-  const { clock, outbox, enqueue, channel } = setup({ typing_ms: '0' });
+  const { clock, outbox, enqueue, channel } = setup({ typing_max_ms: '0' });
   channel.failNextSend(new ChannelError('transient', 422, 'x'));
   enqueue(['Uno']);
   outbox.kick();
@@ -337,7 +446,7 @@ test('stop() detiene el enviador (no quedan timers)', async () => {
 });
 
 test('un error raro del canal (que no es ChannelError) se trata como incierto: nunca un reenvío a ciegas', async () => {
-  const { clock, channel, outbox, enqueue, db } = setup({ typing_ms: '0' });
+  const { clock, channel, outbox, enqueue, db } = setup({ typing_max_ms: '0' });
   channel.sendText = async () => { throw new Error('algo muy raro'); };
   enqueue(['Uno']);
   outbox.kick();
@@ -349,7 +458,7 @@ test('un error raro del canal (que no es ChannelError) se trata como incierto: n
 });
 
 test('[Mandar] de un borrador: si el contexto no cambió va al outbox (con la clave del borrador) y sale una sola vez; si cambió, vencido; dos veces no duplica', async () => {
-  const { db, clock, channel, outbox } = setup({ typing_ms: '0' });
+  const { db, clock, channel, outbox } = setup({ typing_max_ms: '0' });
   const m1 = insertMessage(db, { session: 'default', providerMsgId: 'c1', chatId: CHAT, author: 'customer', text: 'Hola', tsUtcMs: T0 });
   const v = bumpVersion(db, CHAT, T0);
   const draft = createDraft(db, { chatId: CHAT, contextVersion: v, bubbles: ['Uno', 'Dos'], material: ['modelo_panoramica'], nowMs: T0, answersUpto: m1.id });
@@ -357,6 +466,7 @@ test('[Mandar] de un borrador: si el contexto no cambió va al outbox (con la cl
   assert.equal(approveDraft(db, draft, policy.assets, clock.now()), 'no_pendiente');
   assert.equal(getDraft(db, draft)!.status, 'mandado');
   assert.deepEqual(listOutbox(db).map((r) => [r.logicalKey, r.answersUpto]), [[`${CHAT}:${v}:0`, m1.id], [`${CHAT}:${v}:1`, m1.id], [`${CHAT}:${v}:2`, m1.id]]);
+  assert.ok(listOutbox(db).every((r) => r.nextTryUtc === null)); // el [Mandar] no lleva espera de lectura
   outbox.kick();
   await clock.advance(5000);
   assert.deepEqual(channel.sent.map((m) => m.kind), ['text', 'text', 'image']);
@@ -370,7 +480,7 @@ test('[Mandar] de un borrador: si el contexto no cambió va al outbox (con la cl
 });
 
 test('al prender, lo que estaba "en proceso" cuando murió el proceso se trata como incierto y se concilia: nunca se reenvía a ciegas', async () => {
-  const { db, clock, channel, outbox, enqueue, notifier } = setup({ typing_ms: '0' });
+  const { db, clock, channel, outbox, enqueue, notifier } = setup({ typing_max_ms: '0' });
   enqueue(['Uno', 'Dos']);
   markOutbox(db, 1, 'en_proceso'); // el proceso murió a mitad del envío
   db.prepare('UPDATE outbox SET attempted_utc = ? WHERE id = 1').run(clock.now());
@@ -385,7 +495,7 @@ test('al prender, lo que estaba "en proceso" cuando murió el proceso se trata c
 });
 
 test('al prender, un "en proceso" que no aparece en el historial queda fallido con aviso y no frena el resto para siempre', async () => {
-  const { db, clock, channel, outbox, enqueue, notifier } = setup({ typing_ms: '0' });
+  const { db, clock, channel, outbox, enqueue, notifier } = setup({ typing_max_ms: '0' });
   enqueue(['Uno', 'Dos']);
   markOutbox(db, 1, 'en_proceso');
   recoverOutbox(db, clock.now());

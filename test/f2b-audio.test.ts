@@ -502,7 +502,7 @@ test('12. la migración V3 sobre una base V2 con datos conserva todo, agrega las
   db.prepare("INSERT INTO messages (session, provider_msg_id, chat_id, author, text, ts_utc, media) VALUES ('default', 'false_c1_A', 'c1@c.us', 'customer', 'Hola', 10, NULL), ('default', 'false_c1_B', 'c1@c.us', 'customer', '', 11, 'audio')").run();
   migrate(db);
   migrate(db);
-  assert.equal((db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version, 4); // migrate corre también la V4
+  assert.equal((db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version, 5); // migrate corre también la V4 y la V5
   assert.deepEqual(db.prepare('SELECT chat_id, mode, pause_reason, paused_utc FROM conversations').all().map((r) => ({ ...r })), [{ chat_id: 'c1@c.us', mode: 'pausado', pause_reason: 'budget', paused_utc: 6 }]);
   assert.ok(!db.prepare('PRAGMA table_info(conversations)').all().some((c) => c.name === 'audio_text_asked')); // "ya se pidió texto" se mide con los mensajes del bot, no con una marca
   assert.deepEqual(db.prepare('SELECT text, media, media_url, media_mime, transcript_status FROM messages ORDER BY id').all().map((r) => ({ ...r })), [

@@ -134,8 +134,13 @@ ALTER TABLE agent_runs ADD COLUMN cache_write_1h_tokens INTEGER; -- la parte de 
 ALTER TABLE agent_runs ADD COLUMN thinking_tokens INTEGER;       -- la parte de output_tokens que fue pensamiento
 `;
 
+// "Escribiendo…" en dos tiempos (el enviador no se queda esperando): hasta cuándo "escribe" un globo de texto. NULL = todavía no empezó a "escribir".
+const SCHEMA_V5 = `
+ALTER TABLE outbox ADD COLUMN typing_until_utc INTEGER;
+`;
+
 // Una entrada por versión del esquema: se corren las que faltan (PRAGMA user_version). Idempotente.
-export const MIGRATIONS = [SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4];
+export const MIGRATIONS = [SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5];
 
 export function migrate(db: Db): void {
   const current = (db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version;
@@ -375,22 +380,23 @@ export interface OutboxRow {
   nextTryUtc: number | null;
   ack: string | null;
   answersUpto: number;
+  typingUntilUtc: number | null;
 }
 interface OutboxDbRow {
   id: number; logical_key: string; chat_id: string; kind: 'text' | 'image'; body: string; status: OutboxStatus; attempt: number; expires_utc: number;
   provider_msg_id: string | null; cause: string | null; context_version: number; created_utc: number; attempted_utc: number | null; next_try_utc: number | null;
-  ack: string | null; answers_upto: number;
+  ack: string | null; answers_upto: number; typing_until_utc: number | null;
 }
 const toOutbox = (r: OutboxDbRow): OutboxRow => ({
   id: r.id, logicalKey: r.logical_key, chatId: r.chat_id, kind: r.kind, body: r.body, status: r.status, attempt: r.attempt, expiresUtc: r.expires_utc,
   providerMsgId: r.provider_msg_id, cause: r.cause, contextVersion: r.context_version, createdUtc: r.created_utc, attemptedUtc: r.attempted_utc,
-  nextTryUtc: r.next_try_utc, ack: r.ack, answersUpto: r.answers_upto,
+  nextTryUtc: r.next_try_utc, ack: r.ack, answersUpto: r.answers_upto, typingUntilUtc: r.typing_until_utc,
 });
 
-// La clave lógica es única: encolar dos veces la misma respuesta no duplica nada (devuelve false).
-export function insertOutbox(db: Db, o: { logicalKey: string; chatId: string; kind: 'text' | 'image'; body: string; expiresUtc: number; contextVersion: number; createdUtc: number; answersUpto: number }): boolean {
-  return run(db, 'INSERT INTO outbox (logical_key, chat_id, kind, body, expires_utc, context_version, created_utc, answers_upto) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (logical_key) DO NOTHING',
-    o.logicalKey, o.chatId, o.kind, o.body, o.expiresUtc, o.contextVersion, o.createdUtc, o.answersUpto).changes > 0;
+// La clave lógica es única: encolar dos veces la misma respuesta no duplica nada (devuelve false). `nextTryUtc`: no sale antes de esa hora.
+export function insertOutbox(db: Db, o: { logicalKey: string; chatId: string; kind: 'text' | 'image'; body: string; expiresUtc: number; contextVersion: number; createdUtc: number; answersUpto: number; nextTryUtc?: number }): boolean {
+  return run(db, 'INSERT INTO outbox (logical_key, chat_id, kind, body, expires_utc, context_version, created_utc, answers_upto, next_try_utc) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (logical_key) DO NOTHING',
+    o.logicalKey, o.chatId, o.kind, o.body, o.expiresUtc, o.contextVersion, o.createdUtc, o.answersUpto, o.nextTryUtc ?? null).changes > 0;
 }
 export const getOutbox = (db: Db, id: number): OutboxRow | undefined => {
   const r = one<OutboxDbRow>(db, 'SELECT * FROM outbox WHERE id = ?', id);
@@ -447,6 +453,9 @@ export function markOutbox(db: Db, id: number, status: OutboxStatus, patch: { pr
   run(db, 'UPDATE outbox SET status = ?, provider_msg_id = COALESCE(?, provider_msg_id), cause = COALESCE(?, cause), next_try_utc = ? WHERE id = ?',
     status, patch.providerMsgId ?? null, patch.cause ?? null, patch.nextTryUtc ?? null, id);
 }
+// El globo empieza a "escribir": hasta `untilMs` no sale (vuelve a estar listo recién entonces).
+export const setOutboxTyping = (db: Db, id: number, untilMs: number): void =>
+  void run(db, "UPDATE outbox SET typing_until_utc = ?, next_try_utc = ? WHERE id = ? AND status = 'pendiente'", untilMs, untilMs, id);
 export const setOutboxAck =(db: Db, id: number, ack: string): void => void run(db, 'UPDATE outbox SET ack = ? WHERE id = ?', ack, id);
 // Vence lo pendiente que pasó su hora y devuelve los chats afectados (para avisar y regenerar).
 export function expireOutbox(db: Db, nowMs: number): string[] {
