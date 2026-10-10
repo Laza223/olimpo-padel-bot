@@ -496,6 +496,8 @@ Decisiones de Lazar (10-oct):
 - Telegram queda como hoy. Lo único nuevo: apagar/prender el bot o la sombra desde el CRM avisa al grupo. "Cliente ganado" avisa recién con los seguimientos.
 - Día hábil para la promesa del presupuesto: lunes a sábado.
 - Interfaz tipo WhatsApp Web: chats a la izquierda (por defecto "Hacer ahora"), conversación en el medio, ficha y acciones a la derecha. Sin caja para escribir: el bot habla casi todo y Lazar se mete desde WhatsApp.
+- Si un cliente vuelve a escribir: Perdido aparece en "Hacer ahora" (es una oportunidad), Descartado no (se ve en su etapa).
+- Corte 2 (respuestas del 10-oct): Full Panorámica con los dos precios, "antes USD 21.900 / ahora USD 19.900"; instalación aparte, con el monto escrito a mano en cada presupuesto; "Editar" abre un editor dentro del CRM (no el generador de Electron). Faltan: condiciones (forma de pago, plazo de obra, garantía, validez, moneda y cotización), membrete (razón social, CUIT, dirección) y aprobar el texto de specs Rev. D.
 - Corte 2: "Revisar presupuesto" (armado desde la ficha, en su formato de siempre) → "Enviar presupuesto" por el mismo chat, o "Editar" en el creador. Después de presupuestado, el cliente queda 100 % en manos de Lazar; los seguimientos inteligentes (un bot que lee la charla y arma el perfil del cliente) son otro esfuerzo.
 
 | # | Delegación | Resultado | Tokens aprox. |

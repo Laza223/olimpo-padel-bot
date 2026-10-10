@@ -161,7 +161,7 @@ Es una página que sirve el mismo bot: **http://127.0.0.1:8080/crm** (solo desde
 **La lista de la izquierda:**
 - **Hacer ahora** (la que abre siempre): solo los clientes que te piden algo, el que espera hace más arriba, con su reloj de espera.
   - *El bot quiere contestar*: un borrador del modo sombra esperando [Mandar].
-  - *Te escribió*: un cliente que ya está con ustedes (o que el bot no está atendiendo) mandó algo y nadie le contestó. Hoy esto **no** avisa por Telegram: miralo acá.
+  - *Te escribió*: un cliente que ya está con ustedes (o que el bot no está atendiendo) mandó algo y nadie le contestó. Hoy esto **no** avisa por Telegram: miralo acá. Un *Perdido* que vuelve a escribir aparece; un *Descartado*, no (se ve en su etapa).
   - *A presupuestar*: el bot te lo pasó. Si le prometió el presupuesto, muestra cuándo vence la promesa ("en el día, o a más tardar el día hábil siguiente"; día hábil = lunes a sábado; los feriados no se descuentan). En rojo, si ya venció.
 - **Todos** y **Etapas**: como WhatsApp, lo último que se movió arriba.
 - **Buscar** busca en todos los chats (no solo en el filtro abierto), sin importar tildes ni mayúsculas. Tocar un filtro borra la búsqueda.

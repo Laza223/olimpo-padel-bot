@@ -11,6 +11,7 @@ import { TERMINAL } from '../turn.ts';
 import { LEAD_FIELDS } from '../types.ts';
 import type { Author, HandoffReason, LeadField, Objection, Temperature } from '../types.ts';
 
+// Descartado (spam, proveedores, la baja) que vuelve a escribir no entra a "Hacer ahora"; Perdido sí: es una oportunidad (Lazar, 10-oct).
 const STUCK_MS = 10 * 60_000; // un chat del bot con el cliente esperando más que esto, sin borrador ni respuesta en camino, pasa a "Te escribió"
 const AR_OFFSET_MS = 3 * 3_600_000; // Argentina es UTC-3 todo el año
 const DAY_MS = 86_400_000;
@@ -203,7 +204,7 @@ function itemOf(c: Conversation, facts: ChatFacts, nowUtc: number, killSwitch: b
   if (draft) {
     need = 'borrador';
     since = unanswered ?? draft.createdUtc;
-  } else if (unanswered !== undefined && stage !== 'otros' && (!botOwns || (!facts.outboxBusy.has(c.chatId) && (facts.discardedDraft.has(c.chatId) || nowUtc - unanswered > STUCK_MS)))) {
+  } else if (unanswered !== undefined && stage !== 'otros' && stage !== 'descartado' && (!botOwns || (!facts.outboxBusy.has(c.chatId) && (facts.discardedDraft.has(c.chatId) || nowUtc - unanswered > STUCK_MS)))) {
     need = 'te_escribio';
     since = unanswered;
   } else if (c.stage === 'a_presupuestar') {

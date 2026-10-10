@@ -239,3 +239,15 @@ test('"Hacer ahora" con chats largos sigue siendo rápido (el último mensaje de
   assert.equal(list.items.length, 200);
   assert.ok(ms < 500, `tardó ${Math.round(ms)} ms`); // con la subconsulta por mensaje eran más de 1 s
 });
+
+test('si vuelve a escribir: Perdido aparece en "Hacer ahora" (es una oportunidad), Descartado no (Lazar, 10-oct)', () => {
+  const db = openDb(':memory:');
+  chat(db, 'perdido@c.us', { mode: 'humano', name: 'Perdido' });
+  setStage(db, 'perdido@c.us', 'perdido', NOW - 5 * H, 'Precio');
+  say(db, 'perdido@c.us', 'customer', 'al final lo quiero', NOW - H);
+  chat(db, 'desc@c.us', { mode: 'humano', name: 'Descartado' });
+  setStage(db, 'desc@c.us', 'descartado', NOW - 5 * H);
+  say(db, 'desc@c.us', 'customer', 'oferta de cemento', NOW - 2 * H);
+  assert.deepEqual(names(db), ['Perdido:te_escribio']);
+  assert.deepEqual(names(db, 'descartado'), ['Descartado:null']); // se sigue viendo en su etapa
+});
