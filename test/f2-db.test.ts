@@ -23,7 +23,7 @@ test('esquema: las 8 tablas del contrato, y migrar de nuevo no rompe ni borra na
   migrate(db);
   migrate(db);
   assert.ok(getConversation(db, 'c1@c.us'));
-  assert.equal((db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version, 5);
+  assert.equal((db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version, MIGRATIONS.length);
 });
 
 test('migración V4 sobre una base V3: agrega las columnas de tokens (NULL en lo viejo), conserva los datos y es idempotente', () => {
@@ -33,7 +33,7 @@ test('migración V4 sobre una base V3: agrega las columnas de tokens (NULL en lo
   db.prepare("INSERT INTO agent_runs (chat_id, ts_utc, model, effort, policy_hash, input_tokens, cached_tokens, output_tokens, cost_usd) VALUES ('c1@c.us', 5, 'gpt-6.1-sol', 'low', 'h', 3000, 2048, 200, 0.004)").run();
   migrate(db);
   migrate(db);
-  assert.equal((db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version, 5);
+  assert.equal((db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version, MIGRATIONS.length);
   const cols = db.prepare('PRAGMA table_info(agent_runs)').all().map((c) => c.name);
   assert.deepEqual(cols.slice(-3), ['cache_write_tokens', 'cache_write_1h_tokens', 'thinking_tokens']);
   assert.deepEqual({ ...db.prepare('SELECT input_tokens, cache_write_tokens, cache_write_1h_tokens, thinking_tokens FROM agent_runs').get() }, { input_tokens: 3000, cache_write_tokens: null, cache_write_1h_tokens: null, thinking_tokens: null });
@@ -50,7 +50,7 @@ test('migración V5 sobre una base V4: agrega typing_until_utc (NULL en lo viejo
   db.prepare("INSERT INTO outbox (logical_key, chat_id, kind, body, expires_utc, context_version, created_utc, next_try_utc) VALUES ('c1@c.us:1:0', 'c1@c.us', 'text', 'Hola', 9, 1, 5, 7)").run();
   migrate(db);
   migrate(db);
-  assert.equal((db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version, 5);
+  assert.equal((db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version, MIGRATIONS.length);
   assert.equal(db.prepare('PRAGMA table_info(outbox)').all().filter((c) => c.name === 'typing_until_utc').length, 1);
   assert.deepEqual(listOutbox(db).map((r) => [r.logicalKey, r.body, r.nextTryUtc, r.typingUntilUtc]), [['c1@c.us:1:0', 'Hola', 7, null]]); // lo viejo sigue igual y todavía no "escribió"
   assert.equal(listOutbox(db)[0].status, 'pendiente');

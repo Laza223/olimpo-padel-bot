@@ -485,3 +485,22 @@ Lazar notó que el bot contestaba al toque aun a mensajes largos: poco natural y
 | 37 | sonnet-adversarial-reviewer, diff del outbox | APROBADO CON RESERVAS. Sin duplicados, desorden ni filas bloqueadas; 11 de 11 mutaciones atrapadas. Arreglado: docs con los defaults viejos, un test que fija los literales, lo que cierra el chat ya no lee (test con mutación verificada) y `sleep` muerto. Queda abierto: que WhatsApp sostenga un "escribiendo" de hasta ~14 s sin refresco se ve en vivo. |
 
 Además: `docs/PROMPT-CRM.md`, el mensaje con todo el contexto para la sesión que arma el CRM.
+
+## CRM (10-oct): corte 1, bandeja con etapas y acciones de Telegram
+
+Pedido de Lazar: un CRM local para no perder clientes entre mensajes de Telegram. Plan aprobado: `~/.claude/plans/pasted-content-id-a2de-quiero-que-elegant-sutherland.md`. Decisión de arquitectura: `docs/decisiones/2026-10-10-crm.md` (mismo proceso y servidor, bajo `/crm`).
+
+Decisiones de Lazar (10-oct):
+- Etapas: A presupuestar → Presupuestados → Seguimiento → Cliente / Perdido, más Descartado. "Seguimiento" = contestó el presupuesto y lo están trabajando (se pasa a mano).
+- Pantalla principal: una sola lista "Hacer ahora", el que más espera arriba.
+- Telegram queda como hoy. Lo único nuevo: apagar/prender el bot o la sombra desde el CRM avisa al grupo. "Cliente ganado" avisa recién con los seguimientos.
+- Día hábil para la promesa del presupuesto: lunes a sábado.
+- Interfaz tipo WhatsApp Web: chats a la izquierda (por defecto "Hacer ahora"), conversación en el medio, ficha y acciones a la derecha. Sin caja para escribir: el bot habla casi todo y Lazar se mete desde WhatsApp.
+- Corte 2: "Revisar presupuesto" (armado desde la ficha, en su formato de siempre) → "Enviar presupuesto" por el mismo chat, o "Editar" en el creador. Después de presupuestado, el cliente queda 100 % en manos de Lazar; los seguimientos inteligentes (un bot que lee la charla y arma el perfil del cliente) son otro esfuerzo.
+
+| # | Delegación | Resultado | Tokens aprox. |
+|---|---|---|---|
+| 38 | Explore, docs de operación, LEDGER y marca | Encontró que la guía pide panel con clave (`guia-waha-local.md:52`), la contradicción de seguimientos (LEDGER 7-oct vs pedido del CRM) y los tokens de marca de la landing | 113k |
+| 39 | Explore, funcionamiento interno del bot | Un cliente del equipo que vuelve a escribir no avisa a nadie (`ingest.ts:97`); la cola solo admite `text`/`image`; las acciones de Telegram son internas de `createTelegram` | 197k |
+| 40 | Explore, generador de presupuestos y precios | El generador ya tiene membrete Olimpo, pero specs y condiciones de Elite (malla 3,2, césped 12 mm, 60/40 llave en mano) y depende de Electron; precios aprobados en la policy | 176k |
+| 41 | Plan, crítica del plan contra el código | 2 rompe (la V6 tumba asserts de esquema; auditar el kill switch en la acción duplica la de Telegram) y 12 riesgos, todos incorporados al plan | 198k |

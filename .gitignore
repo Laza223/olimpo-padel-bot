@@ -12,3 +12,7 @@ whisper-models/
 
 # worktrees de subagentes
 .claude/worktrees/
+
+# impeccable: páginas de decisión y capturas temporales
+.impeccable/questions/
+.impeccable/review/

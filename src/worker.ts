@@ -8,7 +8,7 @@ import { MediaUnreadableError } from './channel/types.ts';
 import type { Channel, UnreadableKind } from './channel/types.ts';
 import type { Clock } from './clock.ts';
 import {
-  addSpend, advanceAnswered, audit, botSaid, chatLabel, countAdmittedSince, createDraft, draftHasVersion, getConversation, getMessage, historyFor, insertAgentRun, listConversations, listPausedForDay, markAdmitted,
+  enterStage, addSpend, advanceAnswered, audit, botSaid, chatLabel, countAdmittedSince, createDraft, draftHasVersion, getConversation, getMessage, historyFor, insertAgentRun, listConversations, listPausedForDay, markAdmitted,
   outboxHasVersion, pauseConversation, saveCard, setMode, setTranscript, spentSince, tx, unansweredMessages,
 } from './db.ts';
 import type { Conversation, Db, MessageRow, PauseReason } from './db.ts';
@@ -525,7 +525,10 @@ export function createWorker(deps: WorkerDeps): Worker {
         else enqueueReply(db, { chatId, version, bubbles: result.bubbles, material: result.material, assets: policy.assets, assetsDir: deps.assetsDir, nowMs: now, answersUpto, notBeforeUtc: result.stopBot ? undefined : readNotBefore(chatId, now) }); // lo que cierra el chat (baja, mensaje seguro, cierre) no "lee": si el cliente escribe en esa espera se cancelaría y nadie lo rearma
       } else advanceAnswered(db, chatId, answersUpto); // no hay nada que mandar (proveedor, baja sin texto): queda atendido igual
       saveCard(db, chatId, result.card);
-      if (result.stopBot) setMode(db, chatId, 'humano');
+      if (result.stopBot) {
+        setMode(db, chatId, 'humano');
+        enterStage(db, chatId, result.card.state === 'baja' || result.card.state === 'no_es_cliente' ? 'descartado' : 'a_presupuestar', now); // etapa del CRM, si no tenía
+      }
       for (const d of result.handoffs) audit(db, now, chatId, 'handoff', `${d.reason} (${d.mode}, prioridad ${d.priority})`);
     });
     if (!shadow) deps.kickOutbox();

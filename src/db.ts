@@ -139,8 +139,25 @@ const SCHEMA_V5 = `
 ALTER TABLE outbox ADD COLUMN typing_until_utc INTEGER;
 `;
 
+// Etapa del cliente en el CRM (no en card_json: el turno la guardaría encima después de esperar al modelo). NULL = sin etapa (con el bot, o con el equipo sin derivar).
+// La escriben: el worker al derivar con stop, [Presupuesto mandado] y el CRM a mano; "Devolver al bot" la borra. Relleno: lo que ya estaba derivado o presupuestado.
+const SCHEMA_V6 = `
+ALTER TABLE conversations ADD COLUMN stage TEXT CHECK (stage IN ('a_presupuestar','presupuestado','seguimiento','cliente','perdido','descartado'));
+ALTER TABLE conversations ADD COLUMN stage_since_utc INTEGER; -- desde cuándo está en esa etapa (mide la espera)
+ALTER TABLE conversations ADD COLUMN lost_reason TEXT;        -- solo perdido / descartado puestos a mano
+ALTER TABLE conversations ADD COLUMN followup_due_utc INTEGER; -- seguimiento futuro: cuándo toca el próximo. Hoy no lo escribe nadie.
+UPDATE conversations SET stage = 'presupuestado', stage_since_utc = (SELECT CAST(value AS INTEGER) FROM settings WHERE key = 'state.quote_sent_utc.' || conversations.chat_id)
+  WHERE EXISTS (SELECT 1 FROM settings WHERE key = 'state.quote_sent_utc.' || conversations.chat_id);
+WITH last_stop AS (SELECT chat_id, MAX(id) AS id FROM audit WHERE kind = 'handoff' AND detail LIKE '% (stop, %' AND chat_id IS NOT NULL GROUP BY chat_id)
+UPDATE conversations SET
+  stage = CASE WHEN a.detail LIKE 'baja (%' OR a.detail LIKE 'no_es_cliente (%' THEN 'descartado' ELSE 'a_presupuestar' END,
+  stage_since_utc = a.ts_utc
+  FROM last_stop l JOIN audit a ON a.id = l.id
+  WHERE conversations.chat_id = l.chat_id AND conversations.stage IS NULL AND conversations.mode IN ('humano','cerrado');
+`;
+
 // Una entrada por versión del esquema: se corren las que faltan (PRAGMA user_version). Idempotente.
-export const MIGRATIONS = [SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5];
+export const MIGRATIONS = [SCHEMA_V1, SCHEMA_V2, SCHEMA_V3, SCHEMA_V4, SCHEMA_V5, SCHEMA_V6];
 
 export function migrate(db: Db): void {
   const current = (db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version;
@@ -193,19 +210,26 @@ export interface Conversation {
   admittedUtc: number | null;
   pauseReason: PauseReason | null; // solo mientras está pausado
   pausedUtc: number | null;
+  stage: Stage | null; // etapa del CRM; null = sin etapa
+  stageSinceUtc: number | null;
+  lostReason: string | null;
+  followupDueUtc: number | null;
 }
 
 export type PauseReason = 'budget' | 'cap' | 'conv';
+export const STAGES = ['a_presupuestar', 'presupuestado', 'seguimiento', 'cliente', 'perdido', 'descartado'] as const;
+export type Stage = (typeof STAGES)[number];
 
 interface ConversationRow {
   rowid: number; chat_id: string; session: string; mode: ConversationMode; context_version: number; card_json: string;
   last_activity_utc: number; first_seen_utc: number; profile_name: string | null; bot_spent_usd: number; answered_upto: number; admitted_utc: number | null;
-  pause_reason: PauseReason | null; paused_utc: number | null;
+  pause_reason: PauseReason | null; paused_utc: number | null; stage: Stage | null; stage_since_utc: number | null; lost_reason: string | null; followup_due_utc: number | null;
 }
 const toConversation = (r: ConversationRow): Conversation => ({
   chatId: r.chat_id, n: r.rowid, session: r.session, mode: r.mode, contextVersion: r.context_version, card: JSON.parse(r.card_json) as LeadCard,
   lastActivityUtc: r.last_activity_utc, firstSeenUtc: r.first_seen_utc, profileName: r.profile_name, botSpentUsd: r.bot_spent_usd,
   answeredUpto: r.answered_upto, admittedUtc: r.admitted_utc, pauseReason: r.pause_reason, pausedUtc: r.paused_utc,
+  stage: r.stage, stageSinceUtc: r.stage_since_utc, lostReason: r.lost_reason, followupDueUtc: r.followup_due_utc,
 });
 
 export function getConversation(db: Db, chatId: string): Conversation | undefined {
@@ -247,6 +271,16 @@ export const setProfileName = (db: Db, chatId: string, name: string): void => vo
 export const markAdmitted = (db: Db, chatId: string, nowMs: number): void => void run(db, 'UPDATE conversations SET admitted_utc = ? WHERE chat_id = ?', nowMs, chatId);
 export const advanceAnswered = (db: Db, chatId: string, upto: number): void => void run(db, 'UPDATE conversations SET answered_upto = MAX(answered_upto, ?) WHERE chat_id = ?', upto, chatId);
 export const countAdmittedSince = (db: Db, sinceMs: number): number => one<{ n: number }>(db, 'SELECT COUNT(*) AS n FROM conversations WHERE admitted_utc >= ?', sinceMs)!.n;
+
+// Etapa del CRM. Pasar a la misma etapa no reinicia la espera; null la borra. El motivo solo queda en perdido / descartado.
+export function setStage(db: Db, chatId: string, stage: Stage | null, nowMs: number, lostReason?: string): void {
+  const reason = stage === 'perdido' || stage === 'descartado' ? (lostReason ?? null) : null;
+  run(db, 'UPDATE conversations SET stage_since_utc = CASE WHEN stage IS ? AND ? IS NOT NULL THEN stage_since_utc ELSE ? END, stage = ?, lost_reason = ? WHERE chat_id = ?',
+    stage, stage, stage === null ? null : nowMs, stage, reason, chatId);
+}
+// Al derivar: entra a la etapa solo si no tenía ninguna (no pisa lo que puso el equipo).
+export const enterStage = (db: Db, chatId: string, stage: Stage, nowMs: number): void =>
+  void run(db, 'UPDATE conversations SET stage = ?, stage_since_utc = ?, lost_reason = NULL WHERE chat_id = ? AND stage IS NULL', stage, nowMs, chatId);
 
 // Sube la versión del contexto (algo cambió que el modelo tiene que ver) y devuelve la nueva.
 export function bumpVersion(db: Db, chatId: string, nowMs: number): number {

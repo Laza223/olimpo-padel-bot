@@ -1,18 +1,18 @@
 // Telegram (Bot API con fetch, sin dependencias): long polling, fichas con botones, borradores del modo sombra, comandos y avisos.
 // Solo se atiende el grupo TELEGRAM_GROUP_ID: lo demás se ignora sin contestar. Todo va en texto plano (sin parse_mode): lo que escribe un cliente no puede inyectar formato.
 // Cada chat se nombra por su número corto de conversación, nunca por el teléfono.
+import { discardDraft, giveBack, quoteSent, sendDraft, setBotSwitch, setShadow, takeOver, takeOverFromDraft } from '../actions.ts';
+import type { ActionContext, Controls } from '../actions.ts';
 import type { Clock } from '../clock.ts';
 import {
-  audit, chatLabel, getConversation, getConversationByNumber, getDraft, historyFor, listConversations, outboxCounts, pendingInboundCount, setDraftStatus,
-  setDraftTelegramMessage, setMode, spentSince, switchToHuman, unansweredMessages,
+  audit, chatLabel, getConversation, getConversationByNumber, getDraft, historyFor, listConversations, outboxCounts, pendingInboundCount,
+  setDraftTelegramMessage, spentSince, unansweredMessages,
 } from '../db.ts';
 import type { Conversation, Db } from '../db.ts';
 import { buildFicha } from '../ficha.ts';
-import { approveDraft } from '../outbox.ts';
 import type { Asset } from '../policy.ts';
 import { SETTING_KEYS, getFlag, getNum, getState, isSettingKey, setSetting, setState } from '../settings.ts';
 import { argentinaClock, argentinaTimeToUtcMs } from '../time.ts';
-import { TERMINAL } from '../turn.ts';
 import type { ChatMessage, HandoffDecision, LeadCard } from '../types.ts';
 import type { AlertOpts, Notifier } from './types.ts';
 
@@ -26,9 +26,9 @@ const MODE: Record<Conversation['mode'], string> = { auto: 'con el bot', humano:
 
 // ---------- texto ----------
 // Caracteres de control y de dirección del texto (un cliente puede mandarlos): se sacan antes de mostrarlo.
-// Los rangos van como números: ni un carácter de control ni uno de dirección escrito en el código.
+// Los rangos van como números: ni un carácter de control ni uno de dirección escrito en el código. Lo usa también el CRM.
 const UNSAFE: [number, number][] = [[0x00, 0x08], [0x0b, 0x0c], [0x0e, 0x1f], [0x7f, 0x7f], [0x202a, 0x202e], [0x2066, 0x2069]];
-const clean = (s: string): string => Array.from(s).filter((ch) => { const c = ch.codePointAt(0)!; return !UNSAFE.some(([from, to]) => c >= from && c <= to); }).join('');
+export const clean = (s: string): string => Array.from(s).filter((ch) => { const c = ch.codePointAt(0)!; return !UNSAFE.some(([from, to]) => c >= from && c <= to); }).join('');
 const flat = (s: string): string => s.replace(/\s*\n\s*/g, ' ').trim();
 
 export function clip(s: string, max = MAX_TEXT): string {
@@ -96,12 +96,8 @@ export function createConsoleNotifier(db: Db, log: (line: string) => void = (s) 
 }
 
 // ---------- Telegram ----------
-// Lo que hace falta del resto de la tubería. Se pasa como función porque Telegram se crea antes que el worker (el worker usa el notificador).
-export interface TelegramControls {
-  worker: { onCustomerMessage(chatId: string): void; rescan(): void };
-  kickOutbox: () => void;
-  session: { current(): string; qr(): Promise<{ data: Uint8Array; mimetype: string }> };
-}
+// Lo que hace falta del resto de la tubería (src/actions.ts): lo mismo que usa el CRM.
+export type TelegramControls = Controls;
 
 export interface TelegramOptions {
   db: Db;
@@ -145,6 +141,7 @@ const HELP = [
 
 export function createTelegram(o: TelegramOptions): Telegram {
   const { db, clock } = o;
+  const ctx: ActionContext = { db, clock, controls: o.controls, assets: o.assets, assetsDir: o.assetsDir };
   const fetchFn = o.fetch ?? fetch;
   const stopper = new AbortController();
   let stopped = false;
@@ -192,27 +189,21 @@ export function createTelegram(o: TelegramOptions): Telegram {
     await send(takeoverText(db, chatId), conv ? { reply_markup: keyboard([[['Devolver al bot', `bot:${conv.n}`]]]) } : {});
   }
 
-  // ---------- acciones sobre una conversación (las usan los botones y los comandos) ----------
-  const takeOver = (conv: Conversation, who: string, via: string): string =>
-    switchToHuman(db, conv.chatId, clock.now(), `${via} (${who})`) ? `#${conv.n}: lo tomó ${who}. El bot no le contesta más.` : `#${conv.n} ya estaba en manos del equipo.`;
+  // ---------- acciones sobre una conversación (las usan los botones y los comandos; la lógica vive en src/actions.ts) ----------
+  const takeOverText = (conv: Conversation, who: string, via: string): string =>
+    takeOver(ctx, conv, who, via) ? `#${conv.n}: lo tomó ${who}. El bot no le contesta más.` : `#${conv.n} ya estaba en manos del equipo.`;
 
-  function giveBack(conv: Conversation, who: string, via: string): string {
-    if (conv.mode === 'auto') return `#${conv.n} ya estaba con el bot.`;
-    setMode(db, conv.chatId, 'auto');
-    audit(db, clock.now(), conv.chatId, 'command', `${via} (${who}): vuelve al bot`);
-    o.controls().worker.onCustomerMessage(conv.chatId); // si el cliente dejó algo sin contestar, el turno se programa ya
-    return TERMINAL.includes(conv.card.state)
+  function giveBackText(conv: Conversation, who: string, via: string): string {
+    const r = giveBack(ctx, conv, who, via);
+    if (r === 'ya_estaba') return `#${conv.n} ya estaba con el bot.`;
+    return r === 'ficha_cerrada'
       ? `#${conv.n} vuelve a auto, pero la ficha está en "${conv.card.state.replaceAll('_', ' ')}": el bot no le escribe.`
       : `#${conv.n}: vuelve con el bot (${who}). Si el cliente dejó algo sin contestar, lo retoma enseguida.`;
   }
 
-  function quoteSent(conv: Conversation, who: string): string {
-    const key = `quote_sent_utc.${conv.chatId}`;
-    const before = getState(db, key);
-    if (before) return `#${conv.n}: el presupuesto ya estaba anotado (${argentinaClock(Number(before))}).`;
-    setState(db, key, String(clock.now())); // F4 arma los recordatorios (días 1, 3, 7, 14 y 21) desde esta hora
-    audit(db, clock.now(), conv.chatId, 'command', `presupuesto_mandado (${who})`);
-    return `#${conv.n}: anotado, presupuesto mandado a las ${argentinaClock(clock.now())}.`;
+  function quoteSentText(conv: Conversation, who: string): string {
+    const r = quoteSent(ctx, conv, who);
+    return r.status === 'ya_estaba' ? `#${conv.n}: el presupuesto ya estaba anotado (${argentinaClock(r.atUtc)}).` : `#${conv.n}: anotado, presupuesto mandado a las ${argentinaClock(r.atUtc)}.`;
   }
 
   // ---------- botones ----------
@@ -232,7 +223,7 @@ export function createTelegram(o: TelegramOptions): Telegram {
     if (verb === 'tomo' || verb === 'bot' || verb === 'presu') {
       const conv = getConversationByNumber(db, id);
       if (!conv) return void (await toast(`No existe la conversación #${id}.`));
-      const reply = verb === 'tomo' ? takeOver(conv, who, 'botón [Lo tomo]') : verb === 'bot' ? giveBack(conv, who, 'botón [Devolver al bot]') : quoteSent(conv, who);
+      const reply = verb === 'tomo' ? takeOverText(conv, who, 'botón [Lo tomo]') : verb === 'bot' ? giveBackText(conv, who, 'botón [Devolver al bot]') : quoteSentText(conv, who);
       await toast('Listo.');
       await send(reply);
       return;
@@ -241,9 +232,8 @@ export function createTelegram(o: TelegramOptions): Telegram {
     const d = getDraft(db, id);
     if (!d) return void (await toast('No existe el borrador.'));
     if (verb === 'mandar') {
-      const r = approveDraft(db, id, o.assets, clock.now(), o.assetsDir);
+      const r = sendDraft(ctx, id);
       if (r === 'enviado') {
-        o.controls().kickOutbox();
         await finish(`Mandado por ${who}`);
         return void (await toast('Mandado: sale en unos segundos.'));
       }
@@ -255,16 +245,13 @@ export function createTelegram(o: TelegramOptions): Telegram {
       return void (await toast(status === 'mandado' ? 'Ya estaba mandado.' : status === 'descartado' ? 'Ya estaba descartado.' : 'Ya no está pendiente.'));
     }
     if (verb === 'desc') {
-      if (d.status !== 'pendiente') return void (await toast(`Ya no está pendiente (${d.status}).`));
-      setDraftStatus(db, id, 'descartado');
-      audit(db, clock.now(), d.chatId, 'command', `borrador ${id} descartado (${who})`);
+      const r = discardDraft(ctx, id, who);
+      if (r.status === 'no_pendiente') return void (await toast(`Ya no está pendiente (${r.was}).`));
       await finish(`Descartado por ${who}`);
       return void (await toast('Descartado.'));
     }
     // dtomo: [Lo tomo] del borrador
-    const conv = getConversation(db, d.chatId);
-    if (!conv) return void (await toast('No existe la conversación.'));
-    takeOver(conv, who, 'botón [Lo tomo] del borrador');
+    if (takeOverFromDraft(ctx, id, who, 'botón [Lo tomo] del borrador') === 'no_existe') return void (await toast('No existe la conversación.'));
     await finish(`Lo tomó ${who}: el borrador queda descartado y el bot no le contesta más.`);
     await toast('Listo: lo tomaste.');
   }
@@ -330,21 +317,20 @@ export function createTelegram(o: TelegramOptions): Telegram {
     switch (cmd) {
       case 'estado': reply = estado(); break;
       case 'chat': reply = chat(num(args[0])); break;
-      case 'bot': reply = withConversation(args[0], 'Uso: /bot n (el número que va en cada ficha).', (c) => giveBack(c, who, '/bot')); break;
-      case 'humano': reply = withConversation(args[0], 'Uso: /humano n (el número que va en cada ficha).', (c) => takeOver(c, who, '/humano')); break;
+      case 'bot': reply = withConversation(args[0], 'Uso: /bot n (el número que va en cada ficha).', (c) => giveBackText(c, who, '/bot')); break;
+      case 'humano': reply = withConversation(args[0], 'Uso: /humano n (el número que va en cada ficha).', (c) => takeOverText(c, who, '/humano')); break;
       case 'apagar':
-        setSetting(db, 'kill_switch', '1');
+        setBotSwitch(ctx, false);
         reply = 'Bot apagado: no contesta ni manda nada hasta que mandes /prender.';
         break;
       case 'prender':
-        setSetting(db, 'kill_switch', '0');
-        o.controls().worker.rescan(); // retoma las consultas que quedaron esperando
+        setBotSwitch(ctx, true);
         reply = 'Bot prendido.';
         break;
       case 'sombra': {
         const v = args[0]?.toLowerCase();
         if (v === 'on' || v === 'off') {
-          setSetting(db, 'shadow_mode', v === 'on' ? '1' : '0');
+          setShadow(ctx, v === 'on');
           reply = v === 'on' ? 'Modo sombra prendido: los borradores te esperan acá con [Mandar] y el bot no le escribe a nadie.' : 'Modo sombra apagado: desde ahora el bot le escribe directo a los clientes.';
         } else reply = `Modo sombra: ${getFlag(db, 'shadow_mode') ? 'prendido' : 'apagado'}. Usá /sombra on o /sombra off.`;
         break;
